@@ -26,7 +26,7 @@ import { registerStore } from './register.service'
  * Cached for 5 minutes.
  */
 export function getAuthConfigController(_req: Request, res: Response) {
-  res.set('Cache-Control', 'no-cache')
+  res.set('Cache-Control', 'public, max-age=300')
   res.json({
     providers: {
       google: isOAuthProviderEnabled('google'),

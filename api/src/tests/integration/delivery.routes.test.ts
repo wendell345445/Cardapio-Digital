@@ -247,7 +247,8 @@ describe('DELETE /api/v1/admin/delivery/neighborhoods/:id', () => {
       .delete(`/api/v1/admin/delivery/neighborhoods/${NB_ID}`)
       .set('Authorization', `Bearer ${adminToken()}`)
 
-    expect(res.status).toBe(204)
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
   })
 
   it('retorna 404 para bairro inexistente', async () => {
@@ -347,6 +348,7 @@ describe('DELETE /api/v1/admin/delivery/distances/:id', () => {
       .delete(`/api/v1/admin/delivery/distances/${DIST_ID}`)
       .set('Authorization', `Bearer ${adminToken()}`)
 
-    expect(res.status).toBe(204)
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
   })
 })

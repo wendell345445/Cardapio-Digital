@@ -34,7 +34,20 @@ jest.mock('../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../modules/auth/passport.config', () => ({ configurePassport: jest.fn() }))
+jest.mock('../../modules/auth/passport.config', () => ({
+  configurePassport: jest.fn(),
+  isOAuthProviderEnabled: jest.fn().mockReturnValue(false),
+}))
+
+// Mock passport's `authenticate` so OAuth endpoints don't need real strategies.
+// Use `requireActual` and monkey-patch to preserve `initialize`, `use`, etc.
+jest.mock('passport', () => {
+  const actual = jest.requireActual('passport')
+  actual.authenticate = jest.fn(() => (_req: unknown, res: { redirect: (url: string) => void }) => {
+    res.redirect('https://oauth-provider.example/redirect')
+  })
+  return actual
+})
 
 import { app } from '../../app'
 import { prisma } from '../../shared/prisma/prisma'

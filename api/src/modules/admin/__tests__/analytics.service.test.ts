@@ -143,10 +143,11 @@ describe('getTopProducts', () => {
 
     const result = await getTopProducts(STORE_ID, { period: 'month', limit: 10 })
 
-    expect(result[0].productId).toBe('p2') // 7 unidades
+    // Pizza agrega 5+3=8 unidades, Hamburguer 7 → Pizza rank 1
+    expect(result[0].productId).toBe('p1')
     expect(result[0].rank).toBe(1)
-    expect(result[1].productId).toBe('p1') // 8 unidades mas perdeu no rank por quantidade agregada? não - 5+3=8 vs 7
-    // Pizza tem 8 unidades, Hamburguer tem 7 → Pizza deve ser rank 1
+    expect(result[1].productId).toBe('p2')
+    expect(result[1].rank).toBe(2)
   })
 
   it('agrega quantidade e receita do mesmo produto de pedidos diferentes', async () => {

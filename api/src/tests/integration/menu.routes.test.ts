@@ -64,8 +64,13 @@ process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
 const SLUG = 'pizzaria-do-ze'
 const STORE_ID = 'store-1'
 const CLIENT_ID = 'client-1'
-const PRODUCT_ID = 'product-1'
+// Schema Zod exige productId em UUID — usar UUID válido
+const PRODUCT_ID = '11111111-1111-4111-8111-111111111111'
 const ORDER_ID = 'order-1'
+
+// TASK-122: slug vem do hostname (subdomain routing), não mais da URL.
+// Helper encapsula `.set('Host', '<slug>.cardapio.test')` em cada request.
+const menuHost = (slug = SLUG) => `${slug}.cardapio.test`
 
 const openAllWeek = Array.from({ length: 7 }, (_, i) => ({
   dayOfWeek: i,
@@ -147,7 +152,15 @@ function setupOrderMocks() {
   ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder)
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.resetAllMocks()
+  // publicTenantMiddleware faz prisma.store.findUnique({where:{slug}}) → precisa resolver loja por default
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+  // Cache miss por default — tests que precisam de cache hit sobrescrevem
+  ;(mockCache.get as jest.Mock).mockResolvedValue(null)
+  // resetAllMocks limpa mockReturnValue do jsonwebtoken mock — re-configura
+  ;(require('jsonwebtoken').sign as jest.Mock).mockReturnValue('mock-jwt-token')
+})
 
 // ─── GET /menu/:slug ──────────────────────────────────────────────────────────
 
@@ -158,7 +171,7 @@ describe('GET /api/v1/menu/:slug', () => {
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockCache.setMenu as jest.Mock).mockResolvedValue(undefined)
 
-    const res = await request(app).get(`/api/v1/menu/${SLUG}`)
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost())
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
@@ -171,17 +184,19 @@ describe('GET /api/v1/menu/:slug', () => {
     const cached = { store: { id: STORE_ID, storeStatus: 'open' }, categories: [] }
     ;(mockCache.get as jest.Mock).mockResolvedValue(cached)
 
-    const res = await request(app).get(`/api/v1/menu/${SLUG}`)
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost())
 
     expect(res.status).toBe(200)
-    expect(mockPrisma.store.findUnique).not.toHaveBeenCalled()
+    // O middleware público ainda chama store.findUnique pra resolver o subdomain,
+    // mas o serviço menu.getMenu NÃO chama category.findMany quando acha no cache.
+    expect(mockPrisma.category.findMany).not.toHaveBeenCalled()
   })
 
   it('retorna 404 quando slug não existe', async () => {
     ;(mockCache.get as jest.Mock).mockResolvedValue(null)
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
-    const res = await request(app).get('/api/v1/menu/nao-existe')
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost('nao-existe'))
 
     expect(res.status).toBe(404)
   })
@@ -195,7 +210,7 @@ describe('GET /api/v1/menu/:slug', () => {
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockCache.setMenu as jest.Mock).mockResolvedValue(undefined)
 
-    const res = await request(app).get(`/api/v1/menu/${SLUG}`)
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost())
 
     expect(res.status).toBe(200)
     expect(res.body.data.store.storeStatus).toBe('suspended')
@@ -210,15 +225,15 @@ describe('GET /api/v1/menu/:slug', () => {
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockCache.setMenu as jest.Mock).mockResolvedValue(undefined)
 
-    const res = await request(app).get(`/api/v1/menu/${SLUG}`)
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost())
 
     expect(res.status).toBe(200)
     expect(res.body.data.store.storeStatus).toBe('closed')
   })
 
-  it('retorna 400 quando slug está em branco', async () => {
-    // slug vazio não faz match na rota → 404 do express
-    const res = await request(app).get('/api/v1/menu/')
+  it('retorna 404 quando acessado sem subdomain (domínio raiz)', async () => {
+    // TASK-122: domínio raiz (cardapio.test) não representa loja → 404
+    const res = await request(app).get('/api/v1/menu').set('Host', 'cardapio.test')
 
     expect(res.status).toBe(404)
   })
@@ -229,7 +244,7 @@ describe('GET /api/v1/menu/:slug', () => {
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockCache.setMenu as jest.Mock).mockResolvedValue(undefined)
 
-    const res = await request(app).get(`/api/v1/menu/${SLUG}`)
+    const res = await request(app).get('/api/v1/menu').set('Host', menuHost())
     // Sem header Authorization → deve funcionar normalmente
     expect(res.status).toBe(200)
   })
@@ -242,7 +257,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     setupOrderMocks()
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(validOrderBody)
 
     expect(res.status).toBe(201)
@@ -263,7 +279,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     })
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send({ ...validOrderBody, paymentMethod: 'CASH_ON_DELIVERY' })
 
     expect(res.status).toBe(201)
@@ -274,7 +291,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/menu/loja-inexistente/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost('loja-inexistente'))
       .send(validOrderBody)
 
     expect(res.status).toBe(404)
@@ -287,7 +305,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     })
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(validOrderBody)
 
     expect(res.status).toBe(422)
@@ -300,7 +319,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     })
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(validOrderBody)
 
     expect(res.status).toBe(422)
@@ -308,7 +328,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
   it('retorna 400 quando items está vazio', async () => {
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send({ ...validOrderBody, items: [] })
 
     expect(res.status).toBe(400)
@@ -318,7 +339,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     const { clientWhatsapp: _, ...body } = validOrderBody as any
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(body)
 
     expect(res.status).toBe(400)
@@ -326,7 +348,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
   it('retorna 400 quando type é inválido', async () => {
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send({ ...validOrderBody, type: 'INVALIDO' })
 
     expect(res.status).toBe(400)
@@ -334,7 +357,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
   it('retorna 400 quando paymentMethod é inválido', async () => {
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send({ ...validOrderBody, paymentMethod: 'CARTAO' })
 
     expect(res.status).toBe(400)
@@ -344,7 +368,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send({ ...validOrderBody, address: undefined })
 
     expect(res.status).toBe(422)
@@ -355,7 +380,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     ;(mockPrisma.product.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(validOrderBody)
 
     expect(res.status).toBe(404)
@@ -366,7 +392,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
     // Sem header Authorization
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/orders`)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
       .send(validOrderBody)
 
     expect(res.status).toBe(201)
@@ -390,7 +417,8 @@ describe('GET /api/v1/menu/:slug/pedido/:token', () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
 
     const res = await request(app)
-      .get(`/api/v1/menu/${SLUG}/pedido/valid-token`)
+      .get('/api/v1/menu/pedido/valid-token')
+      .set('Host', menuHost())
 
     expect(res.status).toBe(200)
     expect(res.body.data.id).toBe(ORDER_ID)
@@ -400,7 +428,8 @@ describe('GET /api/v1/menu/:slug/pedido/:token', () => {
     mockVerify.mockImplementation(() => { throw new Error('invalid token') })
 
     const res = await request(app)
-      .get(`/api/v1/menu/${SLUG}/pedido/invalid-token`)
+      .get('/api/v1/menu/pedido/invalid-token')
+      .set('Host', menuHost())
 
     expect(res.status).toBe(401)
   })
@@ -410,7 +439,8 @@ describe('GET /api/v1/menu/:slug/pedido/:token', () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .get(`/api/v1/menu/${SLUG}/pedido/valid-token`)
+      .get('/api/v1/menu/pedido/valid-token')
+      .set('Host', menuHost())
 
     expect(res.status).toBe(404)
   })
@@ -420,7 +450,8 @@ describe('GET /api/v1/menu/:slug/pedido/:token', () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
 
     const res = await request(app)
-      .get(`/api/v1/menu/${SLUG}/pedido/any-token`)
+      .get('/api/v1/menu/pedido/any-token')
+      .set('Host', menuHost())
 
     expect(res.status).toBe(200)
   })
@@ -447,7 +478,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
     ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue(mockCoupon)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ code: 'PROMO10', subtotal: 100 })
 
     expect(res.status).toBe(200)
@@ -460,7 +492,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
     ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ code: 'INVALIDO' })
 
     expect(res.status).toBe(422)
@@ -474,7 +507,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
     })
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ code: 'PROMO10' })
 
     expect(res.status).toBe(422)
@@ -482,7 +516,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
 
   it('retorna 400 quando code não informado', async () => {
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ subtotal: 100 })
 
     expect(res.status).toBe(400)
@@ -492,7 +527,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ code: 'PROMO10' })
 
     expect(res.status).toBe(404)
@@ -500,7 +536,8 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
 
   it('aceita subtotal negativo como inválido (Zod: nonneg)', async () => {
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/coupon/validate`)
+      .post('/api/v1/menu/coupon/validate')
+      .set('Host', menuHost())
       .send({ code: 'PROMO10', subtotal: -10 })
 
     expect(res.status).toBe(400)
@@ -529,7 +566,8 @@ describe('POST /api/v1/menu/:slug/delivery/calculate', () => {
     })
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/delivery/calculate`)
+      .post('/api/v1/menu/delivery/calculate')
+      .set('Host', menuHost())
       .send({ neighborhood: 'Centro' })
 
     // 200 or error depending on delivery service internals
@@ -540,7 +578,8 @@ describe('POST /api/v1/menu/:slug/delivery/calculate', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/menu/${SLUG}/delivery/calculate`)
+      .post('/api/v1/menu/delivery/calculate')
+      .set('Host', menuHost())
       .send({ neighborhood: 'Centro' })
 
     expect(res.status).toBe(404)

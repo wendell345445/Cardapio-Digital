@@ -244,7 +244,8 @@ describe('DELETE /api/v1/admin/coupons/:id', () => {
       .delete(`/api/v1/admin/coupons/${COUPON_ID}`)
       .set('Authorization', `Bearer ${adminToken()}`)
 
-    expect(res.status).toBe(204)
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
   })
 
   it('retorna 404 ao tentar deletar cupom inexistente', async () => {

@@ -43,7 +43,7 @@ const mockCategory = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => jest.resetAllMocks())
 
 // ─── listCategories ───────────────────────────────────────────────────────────
 

@@ -44,8 +44,7 @@ const mockWorkbook = {
 }
 
 jest.mock('exceljs', () => ({
-  __esModule: true,
-  default: jest.fn().mockImplementation(() => mockWorkbook),
+  Workbook: jest.fn().mockImplementation(() => mockWorkbook),
 }))
 
 jest.mock('../../../shared/prisma/prisma', () => ({

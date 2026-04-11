@@ -10,6 +10,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    store: { findUnique: jest.fn() },
     auditLog: { create: jest.fn() },
   },
 }))
@@ -50,7 +51,11 @@ const mockCategory = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.resetAllMocks()
+  // requireActiveStore faz prisma.store.findUnique → precisa retornar loja ACTIVE por default
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' })
+})
 
 // ─── GET /admin/categories ────────────────────────────────────────────────────
 

@@ -117,6 +117,8 @@ describe('getMenu — banco', () => {
   })
 
   it('filtra apenas categorias ativas com produtos ativos', async () => {
+    await getMenu(SLUG)
+
     expect(mockPrisma.category.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { storeId: STORE_ID, isActive: true },

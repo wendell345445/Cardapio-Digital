@@ -97,10 +97,38 @@ const mockOrder = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
+  // requireActiveStore faz prisma.store.findUnique → precisa retornar loja ACTIVE + slug por default
+  // (o service também lê slug pra montar a URL do QR Code)
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE', slug: 'minha-loja' })
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation((input) => {
     if (typeof input === 'function') return input(mockPrisma)
     return Promise.all(input)
+  })
+  // resetAllMocks limpa os mockResolvedValue dos mocks top-level de qrcode/pdfkit — re-configura
+  const QRCode = require('qrcode')
+  ;(QRCode.toDataURL as jest.Mock).mockResolvedValue('data:image/png;base64,MOCK')
+  ;(QRCode.toBuffer as jest.Mock).mockResolvedValue(Buffer.from('qr-mock'))
+
+  const PDFDocument = require('pdfkit')
+  const EventEmitter = require('events')
+  ;(PDFDocument as jest.Mock).mockImplementation(() => {
+    const emitter = new EventEmitter()
+    const doc = Object.assign(emitter, {
+      page: { width: 595 },
+      y: 100,
+      fontSize: jest.fn().mockReturnThis(),
+      font: jest.fn().mockReturnThis(),
+      text: jest.fn().mockReturnThis(),
+      image: jest.fn().mockReturnThis(),
+      moveDown: jest.fn().mockReturnThis(),
+      fillColor: jest.fn().mockReturnThis(),
+      end: jest.fn().mockImplementation(function (this: typeof emitter) {
+        emitter.emit('data', Buffer.from('pdf-content'))
+        emitter.emit('end')
+      }),
+    })
+    return doc
   })
 })
 
@@ -249,7 +277,7 @@ describe('POST /api/v1/admin/tables/:id/close', () => {
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
 
     const res = await request(app)
-      .post(`/api/v1/admin/tables/${TABLE_ID}/close`)
+      .patch(`/api/v1/admin/tables/${TABLE_ID}/close`)
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ applyServiceCharge: true, serviceChargePercent: 10 })
 
@@ -265,7 +293,7 @@ describe('POST /api/v1/admin/tables/:id/close', () => {
     ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
-      .post(`/api/v1/admin/tables/${TABLE_ID}/close`)
+      .patch(`/api/v1/admin/tables/${TABLE_ID}/close`)
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ applyServiceCharge: false })
 

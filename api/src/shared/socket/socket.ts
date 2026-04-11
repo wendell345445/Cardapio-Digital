@@ -36,8 +36,6 @@ export function initSocket(httpServer: HttpServer): Server {
     if (storeId) {
       socket.join(`store:${storeId}`)
       console.log(`Socket ${socket.id} joined store:${storeId}`)
-      // Teste: enviar evento direto ao socket na conexão
-      socket.emit('conversation:updated', { conversationId: 'ping-test', test: true })
     }
 
     // Join table room for real-time comanda updates
@@ -93,11 +91,7 @@ export const emit = {
 
   // ─── TASK-107: Eventos de conversa WhatsApp ──────────────────────────────
   conversationUpdated(storeId: string, data: unknown): void {
-    const room = `store:${storeId}`
-    const socketsInRoom = io?.sockets.adapter.rooms.get(room)
-    console.log(`[Socket] emit conversation:updated → ${room} (${socketsInRoom?.size ?? 0} na room, ${io?.sockets.sockets.size ?? 0} total)`)
-    // Temporário: emit para TODOS os sockets (bypass room que está quebrado)
-    io?.emit('conversation:updated', data)
+    io?.to(`store:${storeId}`).emit('conversation:updated', data)
   },
 
   conversationTakeover(storeId: string, data: unknown): void {

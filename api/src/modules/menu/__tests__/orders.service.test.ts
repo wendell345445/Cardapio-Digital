@@ -5,7 +5,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     store: { findUnique: jest.fn() },
     product: { findUnique: jest.fn() },
-    coupon: { findUnique: jest.fn() },
+    coupon: { findUnique: jest.fn(), update: jest.fn() },
     deliveryNeighborhood: {
       findFirst: jest.fn(),
       count: jest.fn(),

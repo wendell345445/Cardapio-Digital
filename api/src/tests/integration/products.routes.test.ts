@@ -13,6 +13,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     },
     productVariation: { deleteMany: jest.fn() },
     productAdditional: { deleteMany: jest.fn() },
+    store: { findUnique: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -42,8 +43,9 @@ process.env.JWT_SECRET = 'test-secret'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
 
 const STORE_ID = 'store-1'
-const CATEGORY_ID = 'cat-1'
-const PRODUCT_ID = 'prod-1'
+// Schemas Zod exigem UUID válido
+const CATEGORY_ID = '22222222-2222-4222-8222-222222222222'
+const PRODUCT_ID = '33333333-3333-4333-8333-333333333333'
 
 function adminToken(storeId = STORE_ID) {
   return sign({ userId: 'user-1', role: 'ADMIN', storeId }, 'test-secret')
@@ -76,7 +78,9 @@ const mockProduct = {
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
+  // requireActiveStore faz prisma.store.findUnique → precisa retornar loja ACTIVE por default
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' })
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation((input) => {
     if (typeof input === 'function') return input(mockPrisma)
     return Promise.all(input)
@@ -204,7 +208,7 @@ describe('POST /api/v1/admin/products', () => {
       .post('/api/v1/admin/products')
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({
-        categoryId: 'unknown-cat',
+        categoryId: '99999999-9999-4999-8999-999999999999',
         name: 'Pizza Nova',
         imageUrl: 'https://res.cloudinary.com/test/image.jpg',
       })

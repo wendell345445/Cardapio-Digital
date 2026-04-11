@@ -47,7 +47,7 @@ process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
 
 const STORE_ID = 'store-1'
 const MOTOBOY_ID = 'motoboy-1'
-const CLIENT_ID = 'client-1'
+const CLIENT_ID = '11111111-1111-4111-8111-111111111111'
 
 function adminToken(storeId = STORE_ID) {
   return sign({ userId: 'admin-1', role: 'ADMIN', storeId }, 'test-secret')
@@ -79,7 +79,11 @@ const mockClient = {
   storeId: null,
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.resetAllMocks()
+  // requireActiveStore faz prisma.store.findUnique → precisa retornar loja ACTIVE por default
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' })
+})
 
 // ─── GET /admin/store/motoboys ────────────────────────────────────────────────
 

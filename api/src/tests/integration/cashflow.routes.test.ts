@@ -83,7 +83,7 @@ const mockOpenCashFlow = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => jest.resetAllMocks())
 
 // ─── GET /admin/cashflows ─────────────────────────────────────────────────────
 
@@ -166,13 +166,13 @@ describe('POST /api/v1/admin/cashflows', () => {
     expect(res.status).toBe(422)
   })
 
-  it('retorna 400 para payload inválido (initialAmount ausente)', async () => {
+  it('retorna 400 para payload inválido (initialAmount negativo)', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
 
     const res = await request(app)
       .post('/api/v1/admin/cashflows')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({})
+      .send({ initialAmount: -10 })
 
     expect(res.status).toBe(400)
   })

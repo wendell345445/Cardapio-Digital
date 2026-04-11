@@ -295,7 +295,7 @@ describe('updateOrderStatus', () => {
     for (const { status, timestamp } of statusTimestamps) {
       jest.clearAllMocks()
       const validFrom = status === 'CONFIRMED' ? 'WAITING_CONFIRMATION'
-        : status === 'READY' ? 'CONFIRMED'
+        : status === 'READY' ? 'PREPARING'
         : status === 'DELIVERED' ? 'DISPATCHED'
         : 'DISPATCHED'
 
@@ -351,14 +351,18 @@ describe('updateOrderStatus', () => {
 
     await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CANCELLED', cancelReason: 'Cliente desistiu' }, USER_ID)
 
-    // sendStatusUpdateMessage é chamado com CANCELLED
+    // sendStatusUpdateMessage é chamado com CANCELLED + snapshot do pedido (total+items)
     expect(mockSendStatus).toHaveBeenCalledWith(
       STORE_ID,
       mockOrder.clientWhatsapp,
       mockOrder.number,
       'CANCELLED',
       mockStore.name,
-      mockOrder.type
+      mockOrder.type,
+      expect.objectContaining({
+        total: expect.any(Number),
+        items: expect.any(Array),
+      })
     )
   })
 

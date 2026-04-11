@@ -4,6 +4,7 @@
   "private": true,
   "main": "dist/index.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json && npm run copy:email-templates",
     "copy:email-templates": "node scripts/copy-email-templates.js",
