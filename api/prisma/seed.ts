@@ -18,7 +18,43 @@ const img = {
   agua: '/seeds/agua-500ml.webp',
 }
 
+async function seedProduction() {
+  console.log('🌱 Production seed — owner only')
+
+  const password = process.env.OWNER_INITIAL_PASSWORD
+  if (!password || password.trim() === '') {
+    console.log('⚠️  OWNER_INITIAL_PASSWORD não definida — nada a fazer.')
+    return
+  }
+
+  const ownerEmail = 'wendellalonso2013@gmail.com'
+  const existing = await prisma.user.findFirst({
+    where: { email: ownerEmail, storeId: null },
+  })
+
+  if (existing) {
+    console.log('✅ Owner já existe — nada a fazer:', existing.email)
+    return
+  }
+
+  const owner = await prisma.user.create({
+    data: {
+      email: ownerEmail,
+      name: 'Uendell',
+      passwordHash: await bcrypt.hash(password, 12),
+      role: Role.OWNER,
+      isActive: true,
+    },
+  })
+  console.log('✅ Owner criado:', owner.email)
+}
+
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    await seedProduction()
+    return
+  }
+
   console.log('🌱 Starting seed...')
 
   // ─── Owner (Uendell) ────────────────────────────────────────────
