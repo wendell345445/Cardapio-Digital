@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+*.log
+api/logs/
+.DS_Store
+coverage/
+.prisma/
+.local
+infra/Caddyfile.local
+api/.whatsapp-sessions/
+.specify/
+.claude/

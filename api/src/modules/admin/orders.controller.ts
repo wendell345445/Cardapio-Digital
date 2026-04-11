@@ -1,0 +1,82 @@
+import { NextFunction, Request, Response } from 'express'
+
+import type { JwtPayload } from '../../shared/middleware/auth.middleware'
+
+import { assignMotoboySchema, listOrdersSchema, updateOrderStatusSchema } from './orders.schema'
+import { assignMotoboy, getOrder, listOrders, sendWaitingPaymentNotification, updateOrderStatus } from './orders.service'
+
+// ─── TASK-080: Controllers de Pedidos Admin ──────────────────────────────────
+
+function getUser(req: Request): JwtPayload {
+  return req.user as unknown as JwtPayload
+}
+
+export async function listOrdersController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const filters = listOrdersSchema.parse(req.query)
+    const result = await listOrders(storeId, filters)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getOrderController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { id } = req.params
+    const result = await getOrder(storeId, id)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── TASK-082: Controller de Atualização de Status ───────────────────────────
+
+export async function updateOrderStatusController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const input = updateOrderStatusSchema.parse(req.body)
+    const result = await updateOrderStatus(storeId, id, input, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── TASK-123: Controller — Enviar Aguardando Pix ────────────────────────────
+
+export async function sendWaitingPaymentController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const result = await sendWaitingPaymentNotification(storeId, id, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── TASK-085: Controller de Atribuição de Motoboy ───────────────────────────
+
+export async function assignMotoboyController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const input = assignMotoboySchema.parse(req.body)
+    const result = await assignMotoboy(storeId, id, input, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}

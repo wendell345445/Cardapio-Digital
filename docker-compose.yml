@@ -1,0 +1,65 @@
+services:
+  dnsmasq:
+    build: ./infra/dnsmasq
+    container_name: supercardapio_dns
+    restart: unless-stopped
+    ports:
+      - '10053:53/udp'
+      - '10053:53/tcp'
+    environment:
+      - LAN_IP=${LAN_IP}
+    cap_add:
+      - NET_ADMIN
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: supercardapio_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: supercardapio
+    ports:
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: supercardapio_redis
+    restart: unless-stopped
+    ports:
+      - '6380:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: supercardapio_caddy
+    restart: unless-stopped
+    ports:
+      - '443:443'
+      - '80:80'
+    volumes:
+      - ./infra/Caddyfile.local:/etc/caddy/Caddyfile
+      - ./infra/certs:/certs:ro
+      - caddy_data:/data
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    depends_on:
+      - dnsmasq
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:

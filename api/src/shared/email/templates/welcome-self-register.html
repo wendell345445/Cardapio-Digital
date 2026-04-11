@@ -1,0 +1,70 @@
+<!--
+  Template: welcome-self-register
+  Disparado por: api/src/shared/email/email.service.ts → sendWelcomeSelfRegisterEmail()
+  Quando: cliente faz auto-cadastro em /cadastro (v2.5+)
+
+  Variáveis disponíveis:
+    {{adminName}}     — nome do admin (preenchido pelo lojista no cadastro)
+    {{storeName}}     — nome da loja
+    {{adminEmail}}    — e-mail de acesso
+    {{trialEndsStr}}  — data de fim do trial formatada (ex: "17 de abril de 2026")
+    {{publicUrl}}     — URL pública da loja (ex: https://minhaloja.supercardapio.com.br)
+    {{loginUrl}}      — URL do painel admin
+
+  Edite livremente o HTML abaixo. Use {{variavel}} para interpolar.
+-->
+<h2 style="margin:0 0 16px 0;font-size:22px;color:#18181b;">
+  🎉 Bem-vindo ao Super Cardápio, {{adminName}}!
+</h2>
+
+<p style="margin:0 0 12px 0;">
+  Sua loja <strong>{{storeName}}</strong> foi criada com sucesso.
+</p>
+
+<p style="margin:0 0 12px 0;">
+  Você está no <strong>período de teste gratuito de 7 dias</strong> — sem necessidade de cartão de crédito.
+</p>
+
+<p style="margin:0 0 24px 0;">
+  Seu trial termina em <strong>{{trialEndsStr}}</strong>.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;margin:0 0 24px 0;">
+  <tr>
+    <td style="padding:16px 20px;">
+      <h3 style="margin:0 0 12px 0;font-size:15px;color:#991b1b;">Links importantes</h3>
+      <p style="margin:0 0 8px 0;font-size:14px;">
+        <strong>Cardápio público:</strong><br />
+        <a href="{{publicUrl}}" style="color:#dc2626;text-decoration:none;">{{publicUrl}}</a>
+      </p>
+      <p style="margin:0 0 8px 0;font-size:14px;">
+        <strong>Painel administrativo:</strong><br />
+        <a href="{{loginUrl}}" style="color:#dc2626;text-decoration:none;">{{loginUrl}}</a>
+      </p>
+      <p style="margin:0;font-size:14px;">
+        <strong>E-mail de acesso:</strong> {{adminEmail}}
+      </p>
+    </td>
+  </tr>
+</table>
+
+<h3 style="margin:0 0 12px 0;font-size:16px;color:#18181b;">Próximos passos</h3>
+<ol style="margin:0 0 24px 0;padding-left:20px;">
+  <li style="margin-bottom:6px;">Acesse o painel e cadastre seus produtos</li>
+  <li style="margin-bottom:6px;">Configure sua chave Pix em <em>Configurações → Pagamentos</em></li>
+  <li style="margin-bottom:6px;">Conecte o WhatsApp da loja para receber pedidos</li>
+  <li style="margin-bottom:6px;">Compartilhe o link do cardápio com seus clientes</li>
+</ol>
+
+<div style="text-align:center;margin:32px 0 24px 0;">
+  <a href="{{loginUrl}}" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+    Acessar meu painel
+  </a>
+</div>
+
+<p style="margin:0 0 8px 0;color:#52525b;font-size:14px;">
+  Qualquer dúvida, é só responder este e-mail.
+</p>
+<p style="margin:0;color:#52525b;font-size:14px;">
+  Boas vendas! 🚀
+</p>

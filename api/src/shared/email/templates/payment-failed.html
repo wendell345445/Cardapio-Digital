@@ -1,0 +1,33 @@
+<!--
+  Template: payment-failed
+  Disparado por: api/src/shared/email/email.service.ts → sendPaymentFailedEmail()
+  Quando: webhook Stripe `invoice.payment_failed` é recebido
+
+  Variáveis disponíveis:
+    {{storeName}}        — nome da loja
+    {{graceDays}}        — dias de grace period (configurável via STRIPE_GRACE_PERIOD_DAYS)
+    {{graceDaysPlural}}  — "dia" ou "dias" (conforme o valor)
+
+  Edite livremente o HTML abaixo. Use {{variavel}} para interpolar.
+-->
+<h2 style="margin:0 0 16px 0;font-size:22px;color:#dc2626;">
+  ⚠️ Falha no pagamento
+</h2>
+
+<p style="margin:0 0 12px 0;">
+  Identificamos uma falha no pagamento da loja <strong>{{storeName}}</strong>.
+</p>
+
+<p style="margin:0 0 24px 0;">
+  Regularize o pagamento em até <strong>{{graceDays}} {{graceDaysPlural}}</strong> para evitar a suspensão do serviço.
+</p>
+
+<div style="text-align:center;margin:0 0 24px 0;">
+  <a href="https://app.supercardapio.com.br/admin/configuracoes" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+    Atualizar forma de pagamento
+  </a>
+</div>
+
+<p style="margin:0;color:#52525b;font-size:14px;">
+  Se você já regularizou, ignore esta mensagem.
+</p>

@@ -1,0 +1,36 @@
+import { z } from 'zod'
+
+// ─── TASK-065: Pedidos Públicos ───────────────────────────────────────────────
+
+export const createOrderSchema = z.object({
+  clientWhatsapp: z.string().length(11, 'WhatsApp deve ter 11 dígitos'),
+  clientName: z.string().min(1).optional(),
+  type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
+  paymentMethod: z.enum(['PIX', 'CASH_ON_DELIVERY']),
+  notes: z.string().optional(),
+  couponCode: z.string().optional(),
+  tableId: z.string().uuid().optional(),
+  address: z
+    .object({
+      street: z.string().min(1),
+      number: z.string().min(1),
+      complement: z.string().optional(),
+      neighborhood: z.string().min(1),
+      city: z.string().min(1),
+    })
+    .optional(),
+  scheduledFor: z.coerce.date().optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        variationId: z.string().uuid().optional(),
+        quantity: z.number().int().min(1),
+        notes: z.string().optional(),
+        additionalIds: z.array(z.string().uuid()).default([]),
+      })
+    )
+    .min(1, 'Pedido deve ter pelo menos 1 item'),
+})
+
+export type CreateOrderInput = z.infer<typeof createOrderSchema>

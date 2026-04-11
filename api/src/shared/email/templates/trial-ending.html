@@ -1,0 +1,34 @@
+<!--
+  Template: trial-ending
+  Disparado por: api/src/shared/email/email.service.ts → sendTrialEndingEmail()
+  Quando: webhook Stripe `customer.subscription.trial_will_end` é recebido
+          (~3 dias antes do fim do trial, configurado pelo próprio Stripe)
+
+  Variáveis disponíveis:
+    {{storeName}}     — nome da loja
+    {{trialEndsStr}}  — data formatada do fim do trial (ex: "17 de abril de 2026")
+
+  Edite livremente o HTML abaixo. Use {{variavel}} para interpolar.
+-->
+<h2 style="margin:0 0 16px 0;font-size:22px;color:#0f766e;">
+  ⏰ Seu trial está acabando
+</h2>
+
+<p style="margin:0 0 12px 0;">
+  O período de teste gratuito da loja <strong>{{storeName}}</strong> termina em <strong>{{trialEndsStr}}</strong>.
+</p>
+
+<p style="margin:0 0 24px 0;">
+  Para manter sua loja ativa sem interrupção, cadastre uma forma de pagamento antes do fim do trial.
+  A primeira cobrança só acontece após essa data.
+</p>
+
+<div style="text-align:center;margin:0 0 24px 0;">
+  <a href="https://app.supercardapio.com.br/admin/configuracoes" style="display:inline-block;background-color:#0f766e;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+    Cadastrar forma de pagamento
+  </a>
+</div>
+
+<p style="margin:0;color:#52525b;font-size:14px;">
+  Se você não quiser continuar, basta ignorar esta mensagem — a loja será suspensa automaticamente após o trial.
+</p>

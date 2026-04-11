@@ -1,0 +1,45 @@
+<!--
+  Template: trial-suspended
+  Disparado por: api/src/shared/email/email.service.ts → sendTrialSuspendedEmail()
+  Quando: o cron `trial-suspension.job` muda o status da loja para SUSPENDED
+          (trial natural expirado OU grace period após `invoice.payment_failed`).
+
+  Variáveis disponíveis:
+    {{storeName}}    — nome da loja
+    {{adminName}}    — nome do admin
+    {{billingUrl}}   — link para o painel de configurações (cadastrar cartão)
+    {{supportEmail}} — email de suporte (default: contato@supercardapio.com.br)
+
+  Edite livremente o HTML abaixo. Use {{variavel}} para interpolar.
+-->
+<h2 style="margin:0 0 16px 0;font-size:22px;color:#dc2626;">
+  ⚠️ Sua loja foi suspensa
+</h2>
+
+<p style="margin:0 0 12px 0;">
+  Olá <strong>{{adminName}}</strong>,
+</p>
+
+<p style="margin:0 0 12px 0;">
+  O período de teste da loja <strong>{{storeName}}</strong> chegou ao fim e não identificamos um método de pagamento ativo. Por isso, o acesso da loja foi <strong>suspenso temporariamente</strong>.
+</p>
+
+<p style="margin:0 0 24px 0;color:#52525b;font-size:14px;">
+  Não se preocupe — <strong>nenhum dado foi excluído</strong>. Cardápio, pedidos, clientes e configurações continuam preservados. Basta cadastrar um cartão para reativar imediatamente.
+</p>
+
+<div style="text-align:center;margin:0 0 24px 0;">
+  <a href="{{billingUrl}}" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+    Cadastrar forma de pagamento
+  </a>
+</div>
+
+<p style="margin:0 0 8px 0;font-size:14px;color:#52525b;">
+  Precisa de ajuda? Entre em contato pelo e-mail
+  <a href="mailto:{{supportEmail}}" style="color:#dc2626;text-decoration:none;">{{supportEmail}}</a>
+  — respondemos em até 1 dia útil.
+</p>
+
+<p style="margin:24px 0 0 0;font-size:13px;color:#71717a;">
+  Se preferir não reativar, nenhuma ação é necessária — a loja permanecerá suspensa sem cobrança.
+</p>

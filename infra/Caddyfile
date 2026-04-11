@@ -1,0 +1,39 @@
+# ─── Super Cardápio — Caddyfile de Produção ──────────────────────────────────
+# Requer Caddy com módulo caddy-dns/cloudflare para wildcard SSL via DNS challenge.
+# Instalar: xcaddy build --with github.com/caddy-dns/cloudflare
+#
+# Variáveis de ambiente necessárias:
+#   CF_API_TOKEN       — token Cloudflare com permissão Zone:DNS:Edit
+#   PUBLIC_ROOT_DOMAIN — domínio raiz do produto (ex: supercardapio.com.br)
+#                        Mesmo valor que api/.env e web/.env. Sintaxe `{$VAR}` é
+#                        substituição de env do Caddy (resolvida no startup).
+
+# Wildcard — todas as lojas via subdomínio
+*.{$PUBLIC_ROOT_DOMAIN} {
+  tls {
+    dns cloudflare {env.CF_API_TOKEN}
+  }
+
+  # Proxy para o frontend (React)
+  reverse_proxy web:80
+}
+
+# Domínio raiz — Owner dashboard / Admin global
+{$PUBLIC_ROOT_DOMAIN} {
+  tls {
+    dns cloudflare {env.CF_API_TOKEN}
+  }
+  reverse_proxy web:80
+}
+
+# API — subdomínio dedicado
+api.{$PUBLIC_ROOT_DOMAIN} {
+  reverse_proxy api:3001
+
+  # Headers de segurança
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy strict-origin-when-cross-origin
+  }
+}

@@ -1,0 +1,48 @@
+<!--
+  Template: welcome-owner-created
+  Disparado por: api/src/shared/email/email.service.ts → sendWelcomeEmail()
+  Quando: Owner cria uma loja para um cliente (US-001A) com senha temporária
+
+  Variáveis disponíveis:
+    {{adminName}}     — nome do admin
+    {{storeName}}     — nome da loja
+    {{adminEmail}}    — e-mail de acesso
+    {{tempPassword}}  — senha temporária gerada
+    {{loginUrl}}      — URL do painel admin
+
+  Edite livremente o HTML abaixo. Use {{variavel}} para interpolar.
+-->
+<h2 style="margin:0 0 16px 0;font-size:22px;color:#18181b;">
+  Bem-vindo ao Super Cardápio!
+</h2>
+
+<p style="margin:0 0 12px 0;">
+  Olá <strong>{{adminName}}</strong>,
+</p>
+
+<p style="margin:0 0 12px 0;">
+  Sua loja <strong>{{storeName}}</strong> foi criada com sucesso.
+</p>
+
+<p style="margin:0 0 16px 0;">
+  Acesse o painel com as credenciais abaixo:
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;margin:0 0 24px 0;">
+  <tr>
+    <td style="padding:16px 20px;font-size:14px;">
+      <p style="margin:0 0 8px 0;"><strong>E-mail:</strong> {{adminEmail}}</p>
+      <p style="margin:0;"><strong>Senha temporária:</strong> <code style="background-color:#ffffff;padding:2px 8px;border-radius:4px;font-family:monospace;">{{tempPassword}}</code></p>
+    </td>
+  </tr>
+</table>
+
+<div style="text-align:center;margin:0 0 24px 0;">
+  <a href="{{loginUrl}}" style="display:inline-block;background-color:#dc2626;color:#ffffff;text-decoration:none;padding:12px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+    Acessar painel
+  </a>
+</div>
+
+<p style="margin:0;color:#52525b;font-size:14px;">
+  ⚠️ <strong>Por segurança</strong>, altere sua senha no primeiro acesso.
+</p>

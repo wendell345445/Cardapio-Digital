@@ -1,0 +1,595 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── STORE (TENANT) ───────────────────────────────────────────────
+
+model Store {
+  id                   String        @id @default(uuid())
+  name                 String
+  slug                 String        @unique
+  customDomain         String?       @unique
+  description          String?
+  logo                 String?
+  /// @deprecated v2.5 — substituído por cep/street/number/neighborhood/city/state. Remover em v2.6.
+  address              String?
+  segment              StoreSegment?
+  cep                  String?
+  street               String?
+  number               String?
+  neighborhood         String?
+  city                 String?
+  state                String?
+  phone                String
+  plan                 StorePlan     @default(PROFESSIONAL)
+  status               StoreStatus   @default(TRIAL)
+  features             Json
+  pixKey               String?
+  pixKeyType           PixKeyType?
+  deliveryMode         DeliveryMode?
+  serviceChargePercent Float?
+  allowCashOnDelivery  Boolean       @default(true)
+  allowPickup          Boolean       @default(false)
+  manualOpen           Boolean?
+  whatsappMode         WhatsAppMode  @default(WHATSAPP)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  stripeTrialEndsAt    DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  users                 User[]
+  products              Product[]
+  categories            Category[]
+  orders                Order[]
+  tables                Table[]
+  coupons               Coupon[]
+  cashFlows             CashFlow[]
+  deliveryNeighborhoods DeliveryNeighborhood[]
+  deliveryDistances     DeliveryDistance[]
+  businessHours         BusinessHour[]
+  clientPaymentAccesses ClientPaymentAccess[]
+  auditLogs             AuditLog[]
+  whatsappTemplates     WhatsAppTemplate[]
+  conversations         Conversation[]
+
+  @@index([slug])
+  @@index([customDomain])
+  @@index([status])
+}
+
+// ─── USER ─────────────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(uuid())
+  email        String?
+  whatsapp     String?
+  name         String?
+  passwordHash String?
+  role         Role
+  storeId      String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  googleId     String?
+  facebookId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  store             Store?                @relation(fields: [storeId], references: [id])
+  refreshTokens     RefreshToken[]
+  ordersAsClient    Order[]               @relation("ClientOrders")
+  ordersAsMotoboy   Order[]               @relation("MotoboyOrders")
+  clientAccessLists ClientPaymentAccess[]
+  auditLogs         AuditLog[]
+
+  @@unique([email, storeId])
+  @@unique([whatsapp, storeId])
+  @@index([email])
+  @@index([whatsapp])
+  @@index([storeId])
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+}
+
+// ─── CATALOG ──────────────────────────────────────────────────────
+
+model Category {
+  id        String   @id @default(uuid())
+  storeId   String
+  name      String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store    Store     @relation(fields: [storeId], references: [id])
+  products Product[]
+
+  @@index([storeId])
+  @@index([storeId, isActive])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  storeId     String
+  categoryId  String
+  name        String
+  description String?
+  imageUrl    String?
+  basePrice   Float?
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store       Store               @relation(fields: [storeId], references: [id])
+  category    Category            @relation(fields: [categoryId], references: [id])
+  variations  ProductVariation[]
+  additionals ProductAdditional[]
+  orderItems  OrderItem[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+  @@index([storeId, isActive])
+  @@index([categoryId])
+}
+
+model ProductVariation {
+  id        String  @id @default(uuid())
+  productId String
+  name      String
+  price     Float
+  isActive  Boolean @default(true)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model ProductAdditional {
+  id        String  @id @default(uuid())
+  productId String
+  name      String
+  price     Float
+  isActive  Boolean @default(true)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+// ─── ORDERS ───────────────────────────────────────────────────────
+
+model Order {
+  id             String        @id @default(uuid())
+  storeId        String
+  number         Int
+  clientId       String?
+  clientWhatsapp String
+  clientName     String?
+  type           OrderType
+  status         OrderStatus   @default(PENDING)
+  paymentMethod  PaymentMethod
+  deliveryFee    Float         @default(0)
+  subtotal       Float
+  discount       Float         @default(0)
+  total          Float
+  address        Json?
+  notes          String?
+  tableId        String?
+  motoboyId      String?
+  couponId       String?
+  scheduledFor   DateTime?
+  confirmedAt    DateTime?
+  preparedAt     DateTime?
+  dispatchedAt   DateTime?
+  deliveredAt    DateTime?
+  cancelledAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  store        Store         @relation(fields: [storeId], references: [id])
+  client       User?         @relation("ClientOrders", fields: [clientId], references: [id])
+  motoboy      User?         @relation("MotoboyOrders", fields: [motoboyId], references: [id])
+  table        Table?        @relation(fields: [tableId], references: [id])
+  coupon       Coupon?       @relation(fields: [couponId], references: [id])
+  items        OrderItem[]
+  cashFlowItem CashFlowItem?
+
+  @@unique([storeId, number])
+  @@index([storeId])
+  @@index([storeId, status])
+  @@index([storeId, createdAt])
+  @@index([clientId])
+  @@index([tableId])
+}
+
+model OrderItem {
+  id            String          @id @default(uuid())
+  orderId       String
+  productId     String
+  variationId   String?
+  quantity      Int
+  unitPrice     Float
+  totalPrice    Float
+  notes         String?
+  status        OrderItemStatus @default(PENDING)
+  productName   String
+  variationName String?
+
+  order       Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product               @relation(fields: [productId], references: [id])
+  additionals OrderItemAdditional[]
+
+  @@index([orderId])
+}
+
+model OrderItemAdditional {
+  id          String @id @default(uuid())
+  orderItemId String
+  name        String
+  price       Float
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+}
+
+// ─── TABLE / COMANDA ──────────────────────────────────────────────
+
+model Table {
+  id         String   @id @default(uuid())
+  storeId    String
+  number     Int
+  isOccupied Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  store  Store   @relation(fields: [storeId], references: [id])
+  orders Order[]
+
+  @@unique([storeId, number])
+  @@index([storeId])
+}
+
+// ─── COUPON ───────────────────────────────────────────────────────
+
+model Coupon {
+  id        String     @id @default(uuid())
+  storeId   String
+  code      String
+  type      CouponType
+  value     Float
+  minOrder  Float?
+  maxUses   Int?
+  usedCount Int        @default(0)
+  isActive  Boolean    @default(true)
+  expiresAt DateTime?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [id])
+  orders Order[]
+
+  @@unique([storeId, code])
+  @@index([storeId])
+}
+
+// ─── CASH FLOW ────────────────────────────────────────────────────
+
+model CashFlow {
+  id            String         @id @default(uuid())
+  storeId       String
+  openedAt      DateTime
+  closedAt      DateTime?
+  initialAmount Float          @default(0)
+  status        CashFlowStatus @default(OPEN)
+
+  store       Store                @relation(fields: [storeId], references: [id])
+  items       CashFlowItem[]
+  adjustments CashFlowAdjustment[]
+
+  @@index([storeId])
+  @@index([storeId, status])
+}
+
+model CashFlowItem {
+  id            String        @id @default(uuid())
+  cashFlowId    String
+  orderId       String        @unique
+  amount        Float
+  paymentMethod PaymentMethod
+  createdAt     DateTime      @default(now())
+
+  cashFlow CashFlow @relation(fields: [cashFlowId], references: [id])
+  order    Order    @relation(fields: [orderId], references: [id])
+}
+
+model CashFlowAdjustment {
+  id         String         @id @default(uuid())
+  cashFlowId String
+  type       AdjustmentType
+  amount     Float
+  notes      String?
+  userId     String
+  createdAt  DateTime       @default(now())
+
+  cashFlow CashFlow @relation(fields: [cashFlowId], references: [id])
+}
+
+// ─── STORE CONFIG ─────────────────────────────────────────────────
+
+model BusinessHour {
+  id        String  @id @default(uuid())
+  storeId   String
+  dayOfWeek Int
+  openTime  String?
+  closeTime String?
+  isClosed  Boolean @default(false)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, dayOfWeek])
+  @@index([storeId])
+}
+
+model DeliveryNeighborhood {
+  id      String @id @default(uuid())
+  storeId String
+  name    String
+  fee     Float
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+}
+
+model DeliveryDistance {
+  id      String @id @default(uuid())
+  storeId String
+  minKm   Float
+  maxKm   Float
+  fee     Float
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+}
+
+model ClientPaymentAccess {
+  id       String     @id @default(uuid())
+  storeId  String
+  clientId String
+  type     AccessType
+
+  store  Store @relation(fields: [storeId], references: [id])
+  client User  @relation(fields: [clientId], references: [id])
+
+  @@unique([storeId, clientId, type])
+  @@index([storeId, type])
+  @@index([clientId])
+}
+
+// ─── AUDIT LOG ────────────────────────────────────────────────────
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  storeId   String?
+  // Nullable em v2.5.6+ — ações de sistema (cron jobs, webhooks Stripe) não têm
+  // usuário humano. Antes dessa mudança, o código usava `userId: 'system'` que
+  // violava a FK e quebrava transações silenciosamente — ex: o trial-suspension.job
+  // achava a loja expirada mas a transação rebentava no auditLog.create, fazendo
+  // rollback do status update. Resultado: loja ficava TRIAL pra sempre.
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  data      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  store Store? @relation(fields: [storeId], references: [id])
+  user  User?  @relation(fields: [userId], references: [id])
+
+  @@index([storeId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────
+
+enum Role {
+  OWNER
+  ADMIN
+  MOTOBOY
+  CLIENT
+}
+
+enum StorePlan {
+  PROFESSIONAL
+  PREMIUM
+}
+
+enum StoreStatus {
+  TRIAL
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+enum StoreSegment {
+  RESTAURANT
+  PIZZERIA
+  BURGER
+  BAKERY
+  ACAI
+  JAPANESE
+  MARKET
+  OTHER
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+  TABLE
+}
+
+enum OrderStatus {
+  PENDING
+  WAITING_PAYMENT_PROOF
+  WAITING_CONFIRMATION
+  CONFIRMED
+  PREPARING
+  READY
+  DISPATCHED
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderItemStatus {
+  PENDING
+  PREPARING
+  DELIVERED
+}
+
+enum PaymentMethod {
+  PIX
+  CASH_ON_DELIVERY
+}
+
+enum DeliveryMode {
+  NEIGHBORHOOD
+  DISTANCE
+}
+
+enum CouponType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CashFlowStatus {
+  OPEN
+  CLOSED
+}
+
+enum AdjustmentType {
+  BLEED
+  SUPPLY
+}
+
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  PHONE
+  EVP
+}
+
+enum AccessType {
+  BLACKLIST
+  WHITELIST
+}
+
+enum WhatsAppMode {
+  WHATSAPP
+  WHATSAPP_AI
+}
+
+enum WhatsAppEventType {
+  ORDER_CREATED
+  WAITING_PAYMENT
+  CONFIRMED
+  PREPARING
+  DISPATCHED
+  READY_FOR_PICKUP
+  DELIVERED
+  CANCELLED
+  MOTOBOY_ASSIGNED
+  GREETING
+  ABSENCE
+}
+
+// ─── CONVERSATION (WhatsApp Chat) ─────────────────────────────────
+
+enum ConversationMessageRole {
+  CUSTOMER
+  AI
+  AGENT
+  SYSTEM
+}
+
+model Conversation {
+  id            String               @id @default(uuid())
+  storeId       String
+  customerPhone String
+  customerName  String?
+  isHumanMode   Boolean              @default(false)
+  humanAgentId  String?
+  /// JID real do Baileys (pode ser LID @lid ou PN @s.whatsapp.net)
+  /// Salvo ao receber mensagem — garante envio confiável em sessões LID (Baileys 7.x)
+  waJid         String?
+  store         Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  messages      ConversationMessage[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([storeId, customerPhone])
+  @@index([storeId, updatedAt])
+}
+
+model ConversationMessage {
+  id             String                  @id @default(uuid())
+  conversationId String
+  role           ConversationMessageRole
+  content        String
+  conversation   Conversation            @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+// ─── WHATSAPP TEMPLATES ───────────────────────────────────────────
+
+model WhatsAppTemplate {
+  id        String            @id @default(uuid())
+  storeId   String
+  eventType WhatsAppEventType
+  template  String
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, eventType])
+  @@index([storeId])
+}
+
+// ─── AI INTERACTION LOG ───────────────────────────────────────────
+
+model AIInteractionLog {
+  id           String   @id @default(uuid())
+  storeId      String
+  clientPhone  String
+  question     String
+  sqlGenerated String?
+  response     String
+  success      Boolean
+  latencyMs    Int?
+  createdAt    DateTime @default(now())
+
+  @@index([storeId, createdAt])
+}
