@@ -21,7 +21,7 @@ import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import { useStore } from '../hooks/useStore'
 import { StoreStatusToggle } from './StoreStatusToggle'
 
-const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'supercardapio.com.br'
+const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },

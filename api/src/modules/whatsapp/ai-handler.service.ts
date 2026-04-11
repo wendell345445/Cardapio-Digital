@@ -121,7 +121,7 @@ export async function handleIncomingMessage(
     intent = 'other'
   }
 
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   const menuUrl = `https://${slug}.${rootDomain}`
 
   try {

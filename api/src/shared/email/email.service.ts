@@ -31,7 +31,7 @@ function getTransporter(): Transporter {
 const TEMPLATES_DIR = path.resolve(__dirname, 'templates')
 
 function getRootDomain(): string {
-  return process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  return process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
 }
 
 function getSupportEmail(): string {
@@ -39,7 +39,7 @@ function getSupportEmail(): string {
 }
 
 function getFromDefault(): string {
-  return `Super Cardápio <noreply@${getRootDomain()}>`
+  return `Menu Panda <noreply@${getRootDomain()}>`
 }
 
 const templateCache = new Map<string, string>()
@@ -125,7 +125,7 @@ export async function sendWelcomeEmail(params: {
 }): Promise<void> {
   await sendEmail({
     to: params.adminEmail,
-    subject: `Bem-vindo ao Super Cardápio — ${params.storeName}`,
+    subject: `Bem-vindo ao Menu Panda — ${params.storeName}`,
     template: 'welcome-owner-created',
     variables: {
       adminName: params.adminName,
@@ -159,7 +159,7 @@ export async function sendWelcomeSelfRegisterEmail(params: {
 
   await sendEmail({
     to: params.adminEmail,
-    subject: `🎉 Bem-vindo ao Super Cardápio — ${params.storeName}`,
+    subject: `🎉 Bem-vindo ao Menu Panda — ${params.storeName}`,
     template: 'welcome-self-register',
     variables: {
       adminName: params.adminName,

@@ -80,7 +80,7 @@ Sem o certificado CA, o navegador mostrará avisos de SSL.
 2. O download do certificado inicia automaticamente
 3. Vá em **Configurações** → **Segurança** → **Credenciais confiáveis** → **Instalar do armazenamento**
 4. Selecione o arquivo `rootCA.pem` baixado
-5. Nomeie como `SuperCardapio Dev` → **OK**
+5. Nomeie como `MenuPanda Dev` → **OK**
 
 > Android 7+ pode não confiar em CAs de usuário para apps. Para navegador (Chrome/Firefox) funciona.
 
@@ -107,4 +107,4 @@ Abra no navegador:
 
 ### Android
 1. **Wi-Fi** → Modificar rede → **IP** → **DHCP**
-2. **Segurança** → **Credenciais** → remover `SuperCardapio Dev`
+2. **Segurança** → **Credenciais** → remover `MenuPanda Dev`

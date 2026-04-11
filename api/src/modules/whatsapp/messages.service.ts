@@ -58,7 +58,7 @@ function formatItems(items: OrderData['items']): string {
 
 export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
   const store = order.store
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   const trackingUrl = `https://${store.slug}.${rootDomain}/${store.slug}/pedido/TOKEN`
 
   let paymentInfo = ''

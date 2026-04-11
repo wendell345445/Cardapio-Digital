@@ -17,7 +17,7 @@ export const app = express()
 app.set('trust proxy', 1)
 
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173').split(',')
-const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
 const allowedSuffixes = (
   process.env.ALLOWED_ORIGIN_SUFFIXES || `.cardapio.test,.${rootDomain}`
 ).split(',')

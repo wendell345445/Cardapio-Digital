@@ -1,11 +1,11 @@
 {
-  "name": "@super-cardapio/api",
+  "name": "@menu-panda/api",
   "version": "1.0.0",
   "private": true,
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json && npm run copy:email-templates",
+    "build": "prisma generate && tsc -p tsconfig.json && npm run copy:email-templates",
     "copy:email-templates": "node scripts/copy-email-templates.js",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",

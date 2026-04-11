@@ -1,5 +1,5 @@
 #!/bin/bash
-# ─── Super Cardápio — LAN Machine Setup (macOS) ─────────────────────────────
+# ─── Menu Panda — LAN Machine Setup (macOS) ─────────────────────────────
 # Configura DNS e instala certificado CA em máquinas macOS na mesma rede.
 #
 # Uso: ./setup-lan-macos.sh <ip-da-maquina-dev>
@@ -10,7 +10,7 @@ set -euo pipefail
 DEV_IP="${1:?Uso: $0 <ip-da-maquina-dev>  (ex: $0 192.168.0.9)}"
 
 echo "══════════════════════════════════════════════════════"
-echo "  Super Cardápio — LAN Setup (macOS)"
+echo "  Menu Panda — LAN Setup (macOS)"
 echo "══════════════════════════════════════════════════════"
 echo ""
 echo "  Máquina dev: $DEV_IP"
@@ -27,7 +27,7 @@ echo "       DNS configurado: *.test → $DEV_IP"
 
 # ─── 2. Baixar e instalar certificado CA ────────────────────────────────────
 echo "[2/3] Baixando certificado CA..."
-CA_TMP="/tmp/supercardapio-rootCA.pem"
+CA_TMP="/tmp/menupanda-rootCA.pem"
 
 if curl -fsSL "http://${DEV_IP}/rootCA.pem" -o "$CA_TMP" 2>/dev/null; then
   echo "       Certificado baixado com sucesso"
@@ -62,7 +62,7 @@ if [ -n "$CA_TMP" ] && [ -f "$CA_TMP" ]; then
     echo ""
     echo "       Siga estes passos:"
     echo "       1. No Keychain Access que vai abrir, vá em Arquivo → Importar Itens"
-    echo "       2. Selecione: /tmp/supercardapio-rootCA.pem"
+    echo "       2. Selecione: /tmp/menupanda-rootCA.pem"
     echo "       3. Importe no keychain 'Sistema'"
     echo "       4. Dê duplo clique no certificado importado (mkcert)"
     echo "       5. Expanda 'Confiança' → mude para 'Sempre Confiar'"

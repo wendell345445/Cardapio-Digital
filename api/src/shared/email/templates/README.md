@@ -1,4 +1,4 @@
-# Templates de E-mail — Super Cardápio
+# Templates de E-mail — Menu Panda
 
 Esta pasta contém os templates HTML usados pelo backend para enviar e-mails transacionais.
 
@@ -9,7 +9,7 @@ Esta pasta contém os templates HTML usados pelo backend para enviar e-mails tra
 ## Como funciona
 
 1. Cada arquivo `.html` (exceto `_layout.html`) é um **template de corpo** — só o conteúdo do e-mail.
-2. O `_layout.html` é o **layout base** — header (logo Super Cardápio em vermelho), footer e estrutura HTML válida para clientes de e-mail (Gmail, Outlook, Apple Mail). Todo template é renderizado dentro do `{{content}}` do layout.
+2. O `_layout.html` é o **layout base** — header (logo Menu Panda em vermelho), footer e estrutura HTML válida para clientes de e-mail (Gmail, Outlook, Apple Mail). Todo template é renderizado dentro do `{{content}}` do layout.
 3. Variáveis são interpoladas com sintaxe `{{nomeDaVariavel}}`. As variáveis disponíveis para cada template estão documentadas no comentário no topo de cada arquivo.
 
 ---
@@ -65,7 +65,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=seu-email@gmail.com
 SMTP_PASS=app-password-do-gmail
-SMTP_FROM="Super Cardápio <seu-email@gmail.com>"
+SMTP_FROM="Menu Panda <seu-email@gmail.com>"
 ```
 
 > ⚠️ Para Gmail use **App Password** (não a senha da conta). Habilite 2FA em myaccount.google.com → Security → 2-Step Verification → App passwords.

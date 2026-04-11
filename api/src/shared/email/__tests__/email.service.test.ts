@@ -6,7 +6,7 @@ jest.mock('nodemailer', () => ({
 }))
 
 // Fixa o domínio raiz pra os testes serem determinísticos independente do shell.
-process.env.PUBLIC_ROOT_DOMAIN = 'supercardapio.com.br'
+process.env.PUBLIC_ROOT_DOMAIN = 'menupanda.com.br'
 delete process.env.SUPPORT_EMAIL
 
 import {
@@ -62,20 +62,20 @@ describe('renderEmailHtml (layout + template)', () => {
       adminEmail: 'maria@example.com',
       storeName: 'Pizzaria',
       trialEndsStr: '17 de abril de 2026',
-      publicUrl: 'https://pizzaria.supercardapio.com.br',
-      loginUrl: 'https://app.supercardapio.com.br/login',
+      publicUrl: 'https://pizzaria.menupanda.com.br',
+      loginUrl: 'https://app.menupanda.com.br/login',
     })
 
     // Layout is present
     expect(html).toContain('<!DOCTYPE html>')
-    expect(html).toContain('Super Cardápio')
+    expect(html).toContain('Menu Panda')
     // Subject injected
     expect(html).toContain('<title>Test Subject</title>')
     // Body content rendered with variables
     expect(html).toContain('Dona Maria')
     expect(html).toContain('Pizzaria')
     expect(html).toContain('17 de abril de 2026')
-    expect(html).toContain('https://pizzaria.supercardapio.com.br')
+    expect(html).toContain('https://pizzaria.menupanda.com.br')
     // Footer with current year
     expect(html).toContain(String(new Date().getFullYear()))
   })
@@ -88,7 +88,7 @@ describe('sendWelcomeSelfRegisterEmail', () => {
     storeName: 'Pizzaria Dona Maria',
     storeSlug: 'pizzaria-dona-maria',
     trialEndsAt: new Date('2026-04-17T12:00:00Z'),
-    loginUrl: 'https://app.supercardapio.com.br/login',
+    loginUrl: 'https://app.menupanda.com.br/login',
   }
 
   it('sends email containing trial end date, public URL and login URL', async () => {
@@ -100,8 +100,8 @@ describe('sendWelcomeSelfRegisterEmail', () => {
     expect(callArgs.subject).toContain('Pizzaria Dona Maria')
 
     const html: string = callArgs.html
-    expect(html).toContain('https://pizzaria-dona-maria.supercardapio.com.br')
-    expect(html).toContain('https://app.supercardapio.com.br/login')
+    expect(html).toContain('https://pizzaria-dona-maria.menupanda.com.br')
+    expect(html).toContain('https://app.menupanda.com.br/login')
     expect(html).toContain('dona.maria@example.com')
     expect(html).toContain('Dona Maria')
   })
@@ -116,7 +116,7 @@ describe('sendWelcomeSelfRegisterEmail', () => {
     await sendWelcomeSelfRegisterEmail(baseParams)
     const html: string = sendMail.mock.calls[0][0].html
     // The template body has this specific heading
-    expect(html).toContain('Bem-vindo ao Super Cardápio')
+    expect(html).toContain('Bem-vindo ao Menu Panda')
   })
 })
 
@@ -127,7 +127,7 @@ describe('sendWelcomeEmail (Owner-created)', () => {
       adminName: 'Admin',
       storeName: 'Loja X',
       tempPassword: 'temp1234',
-      loginUrl: 'https://app.supercardapio.com.br/login',
+      loginUrl: 'https://app.menupanda.com.br/login',
     })
 
     const html: string = sendMail.mock.calls[0][0].html
@@ -159,7 +159,7 @@ describe('sendTrialSuspendedEmail', () => {
     adminEmail: 'admin@example.com',
     adminName: 'Dona Maria',
     storeName: 'Pizzaria Dona Maria',
-    billingUrl: 'https://app.supercardapio.com.br/admin/configuracoes',
+    billingUrl: 'https://app.menupanda.com.br/admin/configuracoes',
   }
 
   it('envia email com nome do admin, loja e link de billing', async () => {
@@ -173,21 +173,21 @@ describe('sendTrialSuspendedEmail', () => {
     const html: string = callArgs.html
     expect(html).toContain('Dona Maria')
     expect(html).toContain('Pizzaria Dona Maria')
-    expect(html).toContain('https://app.supercardapio.com.br/admin/configuracoes')
+    expect(html).toContain('https://app.menupanda.com.br/admin/configuracoes')
     expect(html).toContain('suspensa')
   })
 
   it('usa email de suporte default quando não fornecido', async () => {
     await sendTrialSuspendedEmail(baseParams)
     const html: string = sendMail.mock.calls[0][0].html
-    expect(html).toContain('contato@supercardapio.com.br')
+    expect(html).toContain('contato@menupanda.com.br')
   })
 
   it('aceita email de suporte custom', async () => {
     await sendTrialSuspendedEmail({ ...baseParams, supportEmail: 'help@x.com' })
     const html: string = sendMail.mock.calls[0][0].html
     expect(html).toContain('help@x.com')
-    expect(html).not.toContain('contato@supercardapio.com.br')
+    expect(html).not.toContain('contato@menupanda.com.br')
   })
 
   it('renderiza dentro do _layout', async () => {

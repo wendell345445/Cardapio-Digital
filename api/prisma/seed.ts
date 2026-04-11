@@ -23,10 +23,10 @@ async function main() {
 
   // ─── Owner (Uendell) ────────────────────────────────────────────
   const owner =
-    (await prisma.user.findFirst({ where: { email: 'uendell@supercardapio.com', storeId: null } })) ??
+    (await prisma.user.findFirst({ where: { email: 'uendell@menupanda.com', storeId: null } })) ??
     (await prisma.user.create({
       data: {
-        email: 'uendell@supercardapio.com',
+        email: 'uendell@menupanda.com',
         name: 'Uendell',
         passwordHash: await bcrypt.hash('owner123', 12),
         role: Role.OWNER,
@@ -659,7 +659,7 @@ async function main() {
 
   console.log('\n🎉 Seed concluído!')
   console.log('\n📋 Credenciais de acesso:')
-  console.log('  Owner:           uendell@supercardapio.com / owner123')
+  console.log('  Owner:           uendell@menupanda.com / owner123')
   console.log('  Admin Loja A:    admin@pizzariadonamaria.com / admin123')
   console.log('  Admin Loja B:    admin@burguertop.com / admin123')
   console.log('  Admin Loja C:    admin@sushiexpress.com / admin123')

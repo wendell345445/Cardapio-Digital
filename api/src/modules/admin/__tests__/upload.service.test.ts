@@ -62,7 +62,7 @@ describe('uploadImage — type validation', () => {
 
     ;(cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
       (_opts: unknown, cb: Function) => {
-        cb(null, { secure_url: 'https://res.cloudinary.com/img.jpg', public_id: 'supercardapio/store-1/products/img' })
+        cb(null, { secure_url: 'https://res.cloudinary.com/img.jpg', public_id: 'menupanda/store-1/products/img' })
         return mockStream
       }
     )
@@ -71,7 +71,7 @@ describe('uploadImage — type validation', () => {
     const result = await uploadImage(file, 'store-1')
 
     expect(result.url).toBe('https://res.cloudinary.com/img.jpg')
-    expect(result.publicId).toContain('supercardapio')
+    expect(result.publicId).toContain('menupanda')
   })
 
   it('accepts image/png', async () => {
@@ -80,7 +80,7 @@ describe('uploadImage — type validation', () => {
 
     ;(cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
       (_opts: unknown, cb: Function) => {
-        cb(null, { secure_url: 'https://res.cloudinary.com/img.png', public_id: 'supercardapio/store-1/products/img' })
+        cb(null, { secure_url: 'https://res.cloudinary.com/img.png', public_id: 'menupanda/store-1/products/img' })
         return mockStream
       }
     )
@@ -97,7 +97,7 @@ describe('uploadImage — type validation', () => {
 
     ;(cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
       (_opts: unknown, cb: Function) => {
-        cb(null, { secure_url: 'https://res.cloudinary.com/img.webp', public_id: 'supercardapio/store-1/products/img' })
+        cb(null, { secure_url: 'https://res.cloudinary.com/img.webp', public_id: 'menupanda/store-1/products/img' })
         return mockStream
       }
     )
@@ -116,7 +116,7 @@ describe('uploadImage — type validation', () => {
     ;(cloudinary.uploader.upload_stream as jest.Mock).mockImplementation(
       (opts: unknown, cb: Function) => {
         capturedOptions = opts
-        cb(null, { secure_url: 'https://res.cloudinary.com/img.jpg', public_id: 'supercardapio/my-store/products/img' })
+        cb(null, { secure_url: 'https://res.cloudinary.com/img.jpg', public_id: 'menupanda/my-store/products/img' })
         return mockStream
       }
     )
@@ -124,7 +124,7 @@ describe('uploadImage — type validation', () => {
     const file = makeFile('image/jpeg')
     await uploadImage(file, 'my-store')
 
-    expect(capturedOptions.folder).toBe('supercardapio/my-store/products')
+    expect(capturedOptions.folder).toBe('menupanda/my-store/products')
   })
 
   it('throws 500 when Cloudinary upload fails', async () => {

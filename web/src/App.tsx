@@ -315,7 +315,7 @@ export function App() {
             path="*"
             element={
               <div className="p-8 text-center">
-                <h1 className="text-2xl font-bold">Super Cardápio</h1>
+                <h1 className="text-2xl font-bold">Menu Panda</h1>
                 <p className="text-gray-500 mt-2">Página não encontrada.</p>
                 <a href="/login" className="text-blue-600 hover:underline text-sm mt-4 inline-block">
                   Ir para login

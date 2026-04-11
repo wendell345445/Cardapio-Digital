@@ -18,7 +18,7 @@ export async function uploadImage(
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: `supercardapio/${storeId}/products`,
+        folder: `menupanda/${storeId}/products`,
         format: 'auto',
         transformation: [{ quality: 'auto', fetch_format: 'auto' }],
       },

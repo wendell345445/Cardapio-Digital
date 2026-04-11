@@ -1,7 +1,7 @@
 services:
   dnsmasq:
     build: ./infra/dnsmasq
-    container_name: supercardapio_dns
+    container_name: menupanda_dns
     restart: unless-stopped
     ports:
       - '10053:53/udp'
@@ -13,12 +13,12 @@ services:
 
   postgres:
     image: postgres:15-alpine
-    container_name: supercardapio_postgres
+    container_name: menupanda_postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: supercardapio
+      POSTGRES_DB: menupanda
     ports:
       - '5433:5432'
     volumes:
@@ -31,7 +31,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: supercardapio_redis
+    container_name: menupanda_redis
     restart: unless-stopped
     ports:
       - '6380:6379'
@@ -45,7 +45,7 @@ services:
 
   caddy:
     image: caddy:2-alpine
-    container_name: supercardapio_caddy
+    container_name: menupanda_caddy
     restart: unless-stopped
     ports:
       - '443:443'

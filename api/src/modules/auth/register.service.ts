@@ -180,7 +180,7 @@ export async function registerStore(
   //    loginUrl é derivada do PUBLIC_ROOT_DOMAIN (mesma fonte-de-verdade do publicUrl no email)
   //    pra que dev mostre `http://cardapio.test/login` em vez de `http://localhost:5173/login`.
   //    NÃO usar WEB_URL aqui — esse env é pra URLs realmente alcançáveis por browser (Stripe returnUrl etc).
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   const protocol = rootDomain.endsWith('.test') || rootDomain === 'localhost' ? 'http' : 'https'
   const loginUrl = `${protocol}://${rootDomain}/login`
   void sendWelcomeSelfRegisterEmail({

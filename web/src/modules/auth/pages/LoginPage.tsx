@@ -20,7 +20,7 @@ export function LoginPage() {
             <span className="text-2xl font-bold text-white">SC</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-            Entrar no Super Cardapio
+            Entrar no Menu Panda
           </h1>
           <p className="mt-2 text-sm text-gray-600">
             Acesse sua conta para gerenciar seu cardapio

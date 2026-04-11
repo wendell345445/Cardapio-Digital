@@ -68,7 +68,7 @@ export function buildReceiptText(order: PrintOrder): string {
   }
 
   const lines: string[] = [
-    center('SUPER CARDAPIO'),
+    center('MENU PANDA'),
     separator('='),
     center(`PEDIDO #${order.number}`),
     center(`${dateStr} ${timeStr}`),

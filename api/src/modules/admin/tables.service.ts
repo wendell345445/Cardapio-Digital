@@ -75,7 +75,7 @@ async function getTableAndSlug(storeId: string, tableId: string) {
 }
 
 function buildMenuUrl(slug: string, tableNumber: number): string {
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   return `https://${slug}.${rootDomain}?mesa=${tableNumber}`
 }
 

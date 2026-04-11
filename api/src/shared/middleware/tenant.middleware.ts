@@ -5,11 +5,11 @@ import { prisma } from '../prisma/prisma'
 
 // Lista de domínios raiz reconhecidos como "sem tenant" (owner/admin global) e cujos
 // subdomínios identificam lojas via slug. `PUBLIC_ROOT_DOMAIN` é o domínio principal
-// do produto (ex: `supercardapio.com.br` em prod, `cardapio.test` em dev). `cardapio.test`
+// do produto (ex: `menupanda.com.br` em prod, `cardapio.test` em dev). `cardapio.test`
 // e `localhost` são mantidos sempre como aliases pra dev local não quebrar quando a env
 // aponta pra outro domínio.
 function getRootDomains(): string[] {
-  const primary = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const primary = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   return Array.from(new Set([primary, 'cardapio.test', 'localhost']))
 }
 

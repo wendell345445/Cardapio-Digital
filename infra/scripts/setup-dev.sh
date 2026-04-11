@@ -1,5 +1,5 @@
 #!/bin/bash
-# ─── Super Cardápio — Dev Environment Setup ──────────────────────────────────
+# ─── Menu Panda — Dev Environment Setup ──────────────────────────────────
 # Configura DNS local (dnsmasq), certificados TLS (mkcert) e rede LAN.
 # Executar UMA VEZ na máquina de desenvolvimento.
 #
@@ -12,7 +12,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CERT_DIR="$PROJECT_ROOT/infra/certs"
 
 echo "══════════════════════════════════════════════════════"
-echo "  Super Cardápio — Dev Environment Setup"
+echo "  Menu Panda — Dev Environment Setup"
 echo "══════════════════════════════════════════════════════"
 echo ""
 

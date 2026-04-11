@@ -2,10 +2,10 @@
 // Lê o slug da loja a partir do hostname atual.
 // Usado em todas as páginas públicas (menu, checkout, rastreamento, motoboy).
 
-// `VITE_PUBLIC_ROOT_DOMAIN` é o domínio principal do produto (ex: `supercardapio.com.br`
+// `VITE_PUBLIC_ROOT_DOMAIN` é o domínio principal do produto (ex: `menupanda.com.br`
 // em prod, `cardapio.test` em dev). `cardapio.test` e `localhost` são mantidos sempre
 // como aliases pra dev local não quebrar quando a env aponta pra outro domínio.
-const PRIMARY_ROOT = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'supercardapio.com.br'
+const PRIMARY_ROOT = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
 const ROOT_HOSTNAMES = Array.from(new Set([PRIMARY_ROOT, 'cardapio.test', 'localhost']))
 const SUBDOMAIN_SUFFIXES = ROOT_HOSTNAMES
   .filter((d) => d !== 'localhost')

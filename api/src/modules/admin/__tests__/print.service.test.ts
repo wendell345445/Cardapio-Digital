@@ -171,9 +171,9 @@ describe('buildReceiptText', () => {
     expect(text).not.toContain('(Grande)')
   })
 
-  it('retorna string com separadores e cabeçalho SUPER CARDAPIO', () => {
+  it('retorna string com separadores e cabeçalho MENU PANDA', () => {
     const text = buildReceiptText(baseOrder)
-    expect(text).toContain('SUPER CARDAPIO')
+    expect(text).toContain('MENU PANDA')
     expect(text).toContain('===')
     expect(text).toContain('---')
   })

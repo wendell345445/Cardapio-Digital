@@ -60,8 +60,8 @@ export function getTrialSuspensionQueue(): Bull.Queue {
     stripeLogger.info({ count: expired.length }, 'trial-suspension: found expired stores')
 
     // Email de suspensão — billingUrl deriva do PUBLIC_ROOT_DOMAIN pra mostrar a URL "presentável"
-    // (ex: `https://supercardapio.com.br/admin/configuracoes`) em vez do localhost de dev.
-    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+    // (ex: `https://menupanda.com.br/admin/configuracoes`) em vez do localhost de dev.
+    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
     const protocol = rootDomain.endsWith('.test') || rootDomain === 'localhost' ? 'http' : 'https'
     const billingBaseUrl = `${protocol}://${rootDomain}`
 

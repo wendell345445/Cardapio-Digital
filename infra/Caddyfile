@@ -1,10 +1,10 @@
-# ─── Super Cardápio — Caddyfile de Produção ──────────────────────────────────
+# ─── Menu Panda — Caddyfile de Produção ──────────────────────────────────
 # Requer Caddy com módulo caddy-dns/cloudflare para wildcard SSL via DNS challenge.
 # Instalar: xcaddy build --with github.com/caddy-dns/cloudflare
 #
 # Variáveis de ambiente necessárias:
 #   CF_API_TOKEN       — token Cloudflare com permissão Zone:DNS:Edit
-#   PUBLIC_ROOT_DOMAIN — domínio raiz do produto (ex: supercardapio.com.br)
+#   PUBLIC_ROOT_DOMAIN — domínio raiz do produto (ex: menupanda.com.br)
 #                        Mesmo valor que api/.env e web/.env. Sintaxe `{$VAR}` é
 #                        substituição de env do Caddy (resolvida no startup).
 

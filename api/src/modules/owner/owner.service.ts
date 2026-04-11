@@ -157,7 +157,7 @@ export async function createStore(data: CreateStoreInput, ownerId: string, ip?: 
 
   // Enviar email de boas-vindas — loginUrl derivada do PUBLIC_ROOT_DOMAIN (mesma lógica do auto-cadastro).
   // FRONTEND_URL era um env legado duplicado do WEB_URL — removido em favor de derivar do PUBLIC_ROOT_DOMAIN.
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'supercardapio.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   const protocol = rootDomain.endsWith('.test') || rootDomain === 'localhost' ? 'http' : 'https'
   const loginUrl = `${protocol}://${rootDomain}/login`
   await sendWelcomeEmail({

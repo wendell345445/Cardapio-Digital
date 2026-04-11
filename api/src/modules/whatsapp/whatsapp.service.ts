@@ -79,7 +79,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
       version,
       printQRInTerminal: false,
       logger,
-      browser: ['Super Cardápio', 'Chrome', '131.0.0'],
+      browser: ['Menu Panda', 'Chrome', '131.0.0'],
       connectTimeoutMs: 30_000,
     })
     console.log('[WhatsApp] makeWASocket ok')

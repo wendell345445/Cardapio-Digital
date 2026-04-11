@@ -1,4 +1,4 @@
-# Super Cardápio
+# Menu Panda
 
 Plataforma SaaS white-label de cardápio digital e gestão de pedidos.
 
@@ -23,7 +23,7 @@ Plataforma SaaS white-label de cardápio digital e gestão de pedidos.
 
 ```bash
 git clone <repo-url>
-cd super-cardapio
+cd menu-panda
 npm install
 ```
 
@@ -62,7 +62,7 @@ npm run dev
 ## Estrutura
 
 ```
-super-cardapio/
+menu-panda/
 ├── api/                    # Backend Express
 │   ├── prisma/             # Schema, migrations, seed
 │   └── src/
@@ -79,7 +79,7 @@ super-cardapio/
 
 | Role | Email | Senha |
 |---|---|---|
-| Owner | uendell@supercardapio.com | owner123 |
+| Owner | uendell@menupanda.com | owner123 |
 | Admin (Loja A) | admin@pizzariadonamaria.com | admin123 |
 | Admin (Loja B) | admin@burguertop.com | admin123 |
 | Admin (Loja C) | admin@sushiexpress.com | admin123 |

@@ -15,4 +15,4 @@ source = "web"
 
 [services.build]
 buildCommand = "npm ci && npm run build"
-startCommand = "npx serve dist -s -l 8080"
+startCommand = "npx serve dist -s -l $PORT"
