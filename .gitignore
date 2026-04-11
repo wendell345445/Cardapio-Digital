@@ -14,3 +14,5 @@ infra/Caddyfile.local
 api/.whatsapp-sessions/
 .specify/
 .claude/
+*.tsbuildinfo
+web/vite.config.js
