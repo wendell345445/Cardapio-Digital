@@ -1,10 +1,11 @@
 import { AlertTriangle, ExternalLink, LogOut } from 'lucide-react'
 
+import { useOpenBillingPortal } from '../hooks/useBilling'
+import { useStore } from '../hooks/useStore'
+
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 
-import { useOpenBillingPortal } from '../hooks/useBilling'
-import { useStore } from '../hooks/useStore'
 
 // ─── Tela de bloqueio para lojas SUSPENDED (Option B — bloqueio duro) ─────────
 //

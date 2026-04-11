@@ -1,5 +1,6 @@
-import { sendMessage } from './whatsapp.service'
 import { getTemplate } from '../admin/whatsapp-messages.service'
+
+import { sendMessage } from './whatsapp.service'
 
 // ─── TASK-071: WhatsApp Mensagens de Status ──────────────────────────────────
 // ─── TASK-097: Templates customizados por loja ───────────────────────────────

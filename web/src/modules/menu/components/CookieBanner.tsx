@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-
 import { Cookie, X } from 'lucide-react'
 
 // ─── Storage key ──────────────────────────────────────────────────────────────

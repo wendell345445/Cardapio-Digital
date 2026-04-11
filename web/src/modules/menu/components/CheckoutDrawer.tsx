@@ -8,6 +8,7 @@ import { X, ShoppingBag } from 'lucide-react'
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
+
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 function fmt(v: number) {

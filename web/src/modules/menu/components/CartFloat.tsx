@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { ShoppingCart } from 'lucide-react'
+
 import { useCartStore } from '../store/useCartStore'
+
 import { CheckoutDrawer } from './CheckoutDrawer'
 
 export function CartFloat() {

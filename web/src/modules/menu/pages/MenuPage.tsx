@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Phone, MapPin, Clock, ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react'
+
 import { useMenu } from '../hooks/useMenu'
 import { ProductCard } from '../components/ProductCard'
 import { SkeletonCard } from '../components/SkeletonCard'
@@ -9,6 +10,7 @@ import { FacebookPixel } from '../components/FacebookPixel'
 import { CookieBanner, hasCookieConsent } from '../components/CookieBanner'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { useCartStore } from '../store/useCartStore'
+
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export function MenuPage() {

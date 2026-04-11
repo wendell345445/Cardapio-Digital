@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X, Plus, Minus } from 'lucide-react'
+
 import { useCartStore } from '../store/useCartStore'
 import type { Product, ProductVariation, ProductAdditional } from '../services/menu.service'
 

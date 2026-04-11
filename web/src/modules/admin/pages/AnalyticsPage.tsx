@@ -1,5 +1,4 @@
 import { useState } from 'react'
-
 import { BarChart2, ShoppingBag, TrendingUp, Users } from 'lucide-react'
 
 import { usePeakHours, useSales, useTopProducts } from '../hooks/useAnalytics'

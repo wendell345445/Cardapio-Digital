@@ -15,11 +15,13 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
+import { useStore } from '../hooks/useStore'
+
+import { StoreStatusToggle } from './StoreStatusToggle'
+
 import { api } from '@/shared/lib/api'
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
-import { useStore } from '../hooks/useStore'
-import { StoreStatusToggle } from './StoreStatusToggle'
 
 const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
 

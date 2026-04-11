@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 
-import { logout as logoutService } from '@/modules/auth/services/auth.service'
-import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import { useStores } from '../hooks/useOwnerStores'
 import { StoreList } from '../components/StoreList'
 import type { StoreStatus } from '../services/owner.service'
+
+import { useAuthStore } from '@/modules/auth/store/useAuthStore'
+import { logout as logoutService } from '@/modules/auth/services/auth.service'
 
 const STATUS_OPTIONS: { value: StoreStatus | ''; label: string }[] = [
   { value: '', label: 'Todos os status' },

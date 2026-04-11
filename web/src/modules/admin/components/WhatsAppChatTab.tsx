@@ -4,6 +4,7 @@ import { MessageCircle, Bot, User } from 'lucide-react'
 
 import { useConversations } from '../hooks/useConversations'
 import type { Conversation } from '../services/conversations.service'
+
 import { ConversationView } from './ConversationView'
 
 // ─── TASK-112: WhatsApp Chat Tab — Lista de Conversas (Epic 10) ───────────────

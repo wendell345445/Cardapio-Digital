@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import { LoginForm } from '../components/LoginForm'
 import { useAuthStore } from '../store/useAuthStore'
+
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 export function MotoboyLoginPage() {

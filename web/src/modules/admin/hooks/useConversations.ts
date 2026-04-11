@@ -1,8 +1,6 @@
 import { useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { useSocket } from '@/shared/hooks/useSocket'
-import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import {
   fetchConversations,
   fetchConversation,
@@ -10,6 +8,9 @@ import {
   releaseConversation,
   sendAgentMessage,
 } from '../services/conversations.service'
+
+import { useSocket } from '@/shared/hooks/useSocket'
+import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 
 // ─── TASK-108: useConversations Hook (React Query + Socket.io) ───────────────
 

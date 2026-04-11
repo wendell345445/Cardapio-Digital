@@ -1,5 +1,4 @@
 import { useState } from 'react'
-
 import { Download, Search, Users } from 'lucide-react'
 
 import { useClientRanking } from '../hooks/useAnalytics'

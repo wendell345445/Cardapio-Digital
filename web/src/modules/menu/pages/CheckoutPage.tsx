@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { CalendarClock, ChevronLeft, CreditCard, MapPin, ShoppingBag } from 'lucide-react'
+
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
+
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 // Minimum scheduling time: 30 minutes from now
 function minScheduledAt() {

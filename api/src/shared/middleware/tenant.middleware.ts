@@ -1,7 +1,8 @@
 import { NextFunction, Request, Response } from 'express'
 
-import { AppError } from './error.middleware'
 import { prisma } from '../prisma/prisma'
+
+import { AppError } from './error.middleware'
 
 // Lista de domínios raiz reconhecidos como "sem tenant" (owner/admin global) e cujos
 // subdomínios identificam lojas via slug. `PUBLIC_ROOT_DOMAIN` é o domínio principal

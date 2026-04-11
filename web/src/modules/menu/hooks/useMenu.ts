@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
+
 import { fetchMenu } from '../services/menu.service'
 
 // ─── TASK-124: slug removido da assinatura — hostname identifica a loja ──────

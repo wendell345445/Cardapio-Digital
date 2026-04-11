@@ -1,4 +1,5 @@
 import { Plus } from 'lucide-react'
+
 import { type Product } from '../services/menu.service'
 
 interface Props {

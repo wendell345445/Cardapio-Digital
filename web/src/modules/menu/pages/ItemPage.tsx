@@ -6,8 +6,9 @@ import { useMenu } from '../hooks/useMenu'
 import { useCartStore } from '../store/useCartStore'
 import { CheckoutDrawer } from '../components/CheckoutDrawer'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
-import { useStoreSlug } from '@/hooks/useStoreSlug'
 import type { ProductVariation, ProductAdditional } from '../services/menu.service'
+
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

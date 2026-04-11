@@ -1,4 +1,5 @@
 import { Router } from 'express'
+
 import { requireRole } from '../../shared/middleware/auth.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 

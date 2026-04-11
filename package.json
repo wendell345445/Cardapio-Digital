@@ -10,6 +10,7 @@
     "dev": "concurrently \"npm run dev -w api\" \"npm run dev -w web\"",
     "build": "npm run build -w api && npm run build -w web",
     "lint": "npm run lint -w api && npm run lint -w web",
+    "lint:fix": "npm run lint:fix -w api && npm run lint:fix -w web",
     "typecheck": "npm run typecheck -w api && npm run typecheck -w web",
     "test": "npm run test -w api && npm run test -w web",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
