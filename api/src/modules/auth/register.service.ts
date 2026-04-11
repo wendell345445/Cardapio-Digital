@@ -10,6 +10,7 @@ import {
   createCustomer,
   createSubscription,
 } from '../../shared/stripe/stripe.service'
+import { isReservedSlug } from '../../shared/utils/reserved-slugs'
 
 import { generateAuthTokensForNewUser } from './auth.service'
 import type { RegisterStoreInput } from './register.schema'
@@ -39,7 +40,8 @@ const PLAN_FEATURES: Record<'PROFESSIONAL' | 'PREMIUM', Record<string, boolean>>
 
 /**
  * Gera um slug único a partir do nome da loja.
- * Em caso de colisão, sufixa `-2`, `-3`… até encontrar disponível.
+ * Em caso de colisão OU slug reservado (ver `reserved-slugs.ts`),
+ * sufixa `-2`, `-3`… até encontrar disponível.
  */
 export async function generateUniqueSlug(base: string): Promise<string> {
   const baseSlug = slugify(base, { lower: true, strict: true, trim: true })
@@ -48,8 +50,13 @@ export async function generateUniqueSlug(base: string): Promise<string> {
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const existing = await prisma.store.findUnique({ where: { slug: candidate } })
-    if (!existing) return candidate
+    // RN-001C: pula slugs reservados pelo sistema (api, www, admin, …)
+    // antes de ir no banco. Lojas com nomes como "API" teriam slug inicial
+    // "api", que colide com o subdomínio do backend → sufixa `-2`.
+    if (!isReservedSlug(candidate)) {
+      const existing = await prisma.store.findUnique({ where: { slug: candidate } })
+      if (!existing) return candidate
+    }
     candidate = `${baseSlug}-${suffix}`
     suffix += 1
   }

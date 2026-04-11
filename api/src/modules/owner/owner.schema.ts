@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { isReservedSlug } from '../../shared/utils/reserved-slugs'
+
 export const listStoresSchema = z.object({
   status: z.enum(['TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED']).optional(),
 })
@@ -10,7 +12,12 @@ export const createStoreSchema = z.object({
     .string()
     .min(2)
     .max(50)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug deve ser alfanumérico com hífens (ex: minha-loja)'),
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug deve ser alfanumérico com hífens (ex: minha-loja)')
+    // RN-001C: bloqueia slugs reservados pelo sistema (api, www, admin, …)
+    // porque colidiriam com subdomínios de infra — ver shared/utils/reserved-slugs.ts
+    .refine((s) => !isReservedSlug(s), {
+      message: 'Este slug é reservado pelo sistema (ex: api, www, admin). Escolha outro.',
+    }),
   plan: z.enum(['PROFESSIONAL', 'PREMIUM']),
   adminEmail: z.string().email(),
   whatsapp: z

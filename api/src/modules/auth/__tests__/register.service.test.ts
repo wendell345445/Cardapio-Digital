@@ -138,6 +138,38 @@ describe('registerStore — slug collision', () => {
   })
 })
 
+describe('registerStore — reserved slug (RN-001C)', () => {
+  it('appends -2 when the store name normalizes to a reserved slug (ex: "API")', async () => {
+    // Nome "API" → slugify → "api" (reservado). Deve cair no sufixo -2.
+    // findUnique só é chamado pro candidate não-reservado (api-2),
+    // que está livre → retorna null.
+    mockPrisma.store.findUnique.mockResolvedValue(null)
+
+    const txMock = mockPrisma.$transaction as jest.Mock
+    txMock.mockImplementation(async (fn: any) => {
+      const tx = {
+        store: {
+          create: jest.fn().mockResolvedValue({ ...fakeStoreRow, slug: 'api-2' }),
+        },
+        user: { create: jest.fn().mockResolvedValue(fakeUserRow) },
+        businessHour: { createMany: jest.fn().mockResolvedValue({ count: 7 }) },
+        auditLog: { create: jest.fn().mockResolvedValue({}) },
+      }
+      const result = await fn(tx)
+      expect(tx.store.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ slug: 'api-2' }) })
+      )
+      return result
+    })
+
+    const result = await registerStore({ ...validInput, storeName: 'API' }, '127.0.0.1')
+    expect(result.store.slug).toBe('api-2')
+    // findUnique deve ter sido chamado só com o candidate não-reservado
+    expect(mockPrisma.store.findUnique).toHaveBeenCalledWith({ where: { slug: 'api-2' } })
+    expect(mockPrisma.store.findUnique).not.toHaveBeenCalledWith({ where: { slug: 'api' } })
+  })
+})
+
 describe('registerStore — duplicate email', () => {
   it('throws AppError 422 when email already exists', async () => {
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'existing', email: validInput.email })

@@ -64,6 +64,32 @@ describe('createStoreSchema — slug validation (RN-001)', () => {
     expect(createStoreSchema.safeParse({ ...base, slug: '-minha-loja' }).success).toBe(false)
     expect(createStoreSchema.safeParse({ ...base, slug: 'minha-loja-' }).success).toBe(false)
   })
+
+  // RN-001C: slugs reservados pelo sistema (ver shared/utils/reserved-slugs.ts)
+  it.each([
+    'api',
+    'www',
+    'admin',
+    'dashboard',
+    'cdn',
+    'mail',
+    'webhook',
+    'cadastro',
+    'login',
+  ])('rejects reserved slug %s (RN-001C)', (slug) => {
+    const result = createStoreSchema.safeParse({ ...base, slug })
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.some((i) => /reservado/i.test(i.message))).toBe(true)
+    }
+  })
+
+  it('accepts slug that merely starts with a reserved prefix (apiburgers)', () => {
+    // Defesa contra falso-positivo: só o match exato é bloqueado,
+    // "apiburgers" e "admin-central" continuam válidos.
+    expect(createStoreSchema.safeParse({ ...base, slug: 'apiburgers' }).success).toBe(true)
+    expect(createStoreSchema.safeParse({ ...base, slug: 'admin-central' }).success).toBe(true)
+  })
 })
 
 describe('createStoreSchema — whatsapp validation (RN-003)', () => {
