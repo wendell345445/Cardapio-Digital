@@ -23,7 +23,7 @@ Plataforma SaaS white-label de cardápio digital e gestão de pedidos.
 
 ```bash
 git clone <repo-url>
-cd menu-panda
+cd /project-folder
 npm install
 ```
 
@@ -31,7 +31,7 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edite .env com suas credenciais
+# Edite .env com suas credenciais em cada projeto (root, app e api)
 ```
 
 ### 3. Suba o banco e Redis
