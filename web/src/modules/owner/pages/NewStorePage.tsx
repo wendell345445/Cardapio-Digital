@@ -1,4 +1,4 @@
-import { useNavigate, Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { useCreateStore } from '../hooks/useOwnerStores'
 import { StoreForm, type CreateStoreFormData } from '../components/StoreForm'
@@ -14,33 +14,40 @@ export function NewStorePage() {
   }
 
   const errorMessage =
-    error && (error as any)?.response?.data?.message
-      ? (error as any).response.data.message
+    error && (error as unknown as { response?: { data?: { message?: string } } })?.response?.data?.message
+      ? (error as unknown as { response: { data: { message: string } } }).response.data.message
       : error?.message
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
-        <Link to="/owner/dashboard" className="text-gray-500 hover:text-gray-700 text-sm">
-          ← Dashboard
-        </Link>
-        <h1 className="text-xl font-bold text-gray-900">Nova loja</h1>
-      </header>
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white to-primary/5 px-4 py-4">
+      <div className="w-full max-w-xl">
+        <div className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-200">
+          <header className="mb-4">
+            <Link
+              to="/owner/dashboard"
+              className="text-xs font-medium text-gray-500 hover:text-gray-700"
+            >
+              &larr; Dashboard
+            </Link>
+            <h1 className="mt-1 text-lg font-bold tracking-tight text-gray-900">Nova loja</h1>
+            <p className="mt-0.5 text-[11px] text-gray-600">
+              Preencha os dados abaixo para criar uma nova loja. O admin receberá um email com a
+              senha temporária.
+            </p>
+          </header>
 
-      <main className="max-w-2xl mx-auto px-6 py-8">
-        <p className="text-sm text-gray-600 mb-6">
-          Preencha os dados abaixo para criar uma nova loja. O admin receberá um email com a senha
-          temporária.
-        </p>
+          {errorMessage && (
+            <div
+              role="alert"
+              className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"
+            >
+              {errorMessage}
+            </div>
+          )}
 
-        {errorMessage && (
-          <div className="mb-5 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {errorMessage}
-          </div>
-        )}
-
-        <StoreForm onSubmit={handleSubmit} isLoading={isPending} />
-      </main>
-    </div>
+          <StoreForm onSubmit={handleSubmit} isLoading={isPending} />
+        </div>
+      </div>
+    </main>
   )
 }

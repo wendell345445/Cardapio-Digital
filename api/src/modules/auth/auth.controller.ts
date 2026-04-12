@@ -99,7 +99,7 @@ export async function googleCallbackController(req: Request, res: Response) {
     accessToken: string
     refreshToken: string
   }
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
   res.redirect(
     `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`
   )
@@ -110,7 +110,7 @@ export async function facebookCallbackController(req: Request, res: Response) {
     accessToken: string
     refreshToken: string
   }
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
   res.redirect(
     `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`
   )
