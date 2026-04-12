@@ -1,4 +1,4 @@
-# Menu Panda
+# Menu Panda - Com Talita
 
 Plataforma SaaS white-label de cardápio digital e gestão de pedidos.
 
