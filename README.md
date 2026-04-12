@@ -27,7 +27,7 @@ cd menu-panda
 npm install
 ```
 
-### 2. Configure variáveis de ambiente (api, app e root no ambiente local)
+### 2. Configure variáveis de ambiente (api, app e root no ambiente local|prod)
 
 ```bash
 cp .env.example .env
