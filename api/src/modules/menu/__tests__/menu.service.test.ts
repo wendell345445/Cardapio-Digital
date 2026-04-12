@@ -135,10 +135,19 @@ describe('getMenu — banco', () => {
 // ─── calcStoreStatus — via getMenu (status no retorno) ────────────────────────
 
 describe('calcStoreStatus — integrado via getMenu', () => {
+  // Tempo fixo: terça-feira 15:00 BRT (= 18:00 UTC). Longe de meia-noite,
+  // evita flakiness por TZ ou borda de dia. brt.getUTCDay() = 2.
+  const FIXED_DAY_OF_WEEK = 2
+
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-04-14T18:00:00.000Z'))
     ;(mockCache.get as jest.Mock).mockResolvedValue(null)
     ;(mockPrisma.category.findMany as jest.Mock).mockResolvedValue([])
     ;(mockCache.setMenu as jest.Mock).mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    jest.useRealTimers()
   })
 
   it('retorna "suspended" quando store.status=SUSPENDED (ignora manualOpen e horário)', async () => {
@@ -178,10 +187,8 @@ describe('calcStoreStatus — integrado via getMenu', () => {
   })
 
   it('retorna "closed" quando isClosed=true para o dia atual', async () => {
-    const now = new Date()
-    const dayOfWeek = now.getDay()
     const closedHours = openAllWeekHours.map((h) =>
-      h.dayOfWeek === dayOfWeek ? { ...h, isClosed: true } : h
+      h.dayOfWeek === FIXED_DAY_OF_WEEK ? { ...h, isClosed: true } : h
     )
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
@@ -208,10 +215,8 @@ describe('calcStoreStatus — integrado via getMenu', () => {
   })
 
   it('retorna "closed" quando openTime/closeTime são nulos', async () => {
-    const now = new Date()
-    const dayOfWeek = now.getDay()
     const nullTimeHours = openAllWeekHours.map((h) =>
-      h.dayOfWeek === dayOfWeek
+      h.dayOfWeek === FIXED_DAY_OF_WEEK
         ? { ...h, isClosed: false, openTime: null, closeTime: null }
         : h
     )
