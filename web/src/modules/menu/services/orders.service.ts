@@ -2,7 +2,12 @@ import axios from 'axios'
 
 // ─── TASK-122/124: slug vem do hostname (subdomain routing) ──────────────────
 
-const menuApi = axios.create({ baseURL: '/api/v1' })
+// Dev: relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1'
+
+const menuApi = axios.create({ baseURL })
 
 export interface OrderAddress {
   street: string; number: string; complement?: string; neighborhood: string; city: string

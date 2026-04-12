@@ -10,7 +10,8 @@ export function useSocket(storeId: string | null) {
   useEffect(() => {
     if (!storeId || !token) return
 
-    const sock = io('/', {
+    // Dev: '/' relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
+    const sock = io(import.meta.env.VITE_API_URL ?? '/', {
       auth: { storeId, token },
       transports: ['websocket'],
     })

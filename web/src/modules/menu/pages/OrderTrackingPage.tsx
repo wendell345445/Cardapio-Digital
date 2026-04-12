@@ -5,7 +5,12 @@ import { io } from 'socket.io-client'
 import axios from 'axios'
 import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check } from 'lucide-react'
 
-const menuApi = axios.create({ baseURL: '/api/v1' })
+// Dev: relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/v1`
+  : '/api/v1'
+
+const menuApi = axios.create({ baseURL })
 
 async function fetchOrderTracking(token: string) {
   const { data } = await menuApi.get(`/menu/pedido/${token}`)
@@ -61,7 +66,7 @@ export function OrderTrackingPage() {
   // Socket.io: atualiza em tempo real
   useEffect(() => {
     if (!order?.storeId) return
-    const socket = io({ auth: { storeId: order.storeId } })
+    const socket = io(import.meta.env.VITE_API_URL ?? '/', { auth: { storeId: order.storeId } })
     socket.on('order:status', (payload: { orderId: string; status: string }) => {
       if (payload.orderId === order.id) {
         qc.invalidateQueries({ queryKey: ['order-tracking', token] })
