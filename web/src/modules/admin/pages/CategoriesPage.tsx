@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
+
 
 import {
   useCategories,
@@ -9,19 +11,28 @@ import {
 } from '../hooks/useCategories'
 import type { Category } from '../services/categories.service'
 import { useProducts } from '../hooks/useProducts'
+import type { Product } from '../services/products.service'
 
-function useProductCountByCategory() {
+import { ReauthModal } from '@/modules/auth/components/ReauthModal'
+
+function useProductsByCategory() {
   const { data: products } = useProducts({})
-  const countMap: Record<string, number> = {}
+  const byCategory: Record<string, Product[]> = {}
   for (const p of products ?? []) {
-    countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1
+    if (!byCategory[p.categoryId]) byCategory[p.categoryId] = []
+    byCategory[p.categoryId].push(p)
   }
-  return countMap
+  return byCategory
+}
+
+function fmtBRL(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 interface EditState {
   id: string
   name: string
+  description: string
 }
 
 export function CategoriesPage() {
@@ -29,32 +40,74 @@ export function CategoriesPage() {
   const createMutation = useCreateCategory()
   const updateMutation = useUpdateCategory()
   const deleteMutation = useDeleteCategory()
-  const productCounts = useProductCountByCategory()
+  const productsByCategory = useProductsByCategory()
 
   const [newName, setNewName] = useState('')
+  const [newDescription, setNewDescription] = useState('')
   const [editState, setEditState] = useState<EditState | null>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  function showSuccess(msg: string) {
+    setSuccessMessage(msg)
+    setTimeout(() => setSuccessMessage((current) => (current === msg ? null : current)), 3000)
+  }
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newName.trim()) return
+    const name = newName.trim()
+    const description = newDescription.trim() || null
     createMutation.mutate(
-      { name: newName.trim() },
-      { onSuccess: () => setNewName('') }
+      { name, description },
+      {
+        onSuccess: () => {
+          setNewName('')
+          setNewDescription('')
+          showSuccess(`Categoria "${name}" criada com sucesso!`)
+        },
+      }
     )
   }
 
   function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editState) return
+    const name = editState.name
+    const description = editState.description.trim() || null
     updateMutation.mutate(
-      { id: editState.id, dto: { name: editState.name } },
-      { onSuccess: () => setEditState(null) }
+      { id: editState.id, dto: { name, description } },
+      {
+        onSuccess: () => {
+          setEditState(null)
+          showSuccess(`Categoria "${name}" atualizada com sucesso!`)
+        },
+      }
     )
   }
 
   function handleDelete(category: Category) {
-    if (!window.confirm(`Excluir a categoria "${category.name}"?`)) return
-    deleteMutation.mutate(category.id)
+    setDeleteError(null)
+    setCategoryToDelete(category)
+  }
+
+  function confirmDelete() {
+    if (!categoryToDelete) return
+    const name = categoryToDelete.name
+    deleteMutation.mutate(categoryToDelete.id, {
+      onSuccess: () => {
+        setCategoryToDelete(null)
+        showSuccess(`Categoria "${name}" excluída com sucesso!`)
+      },
+      onError: (err: unknown) => {
+        const message =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          'Erro ao excluir categoria. Tente novamente.'
+        setDeleteError(message)
+        setCategoryToDelete(null)
+      },
+    })
   }
 
   return (
@@ -88,9 +141,11 @@ export function CategoriesPage() {
             />
             <input
               type="text"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
               placeholder="Descrição (opcional)"
+              maxLength={500}
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              disabled
             />
           </div>
           <button
@@ -105,6 +160,32 @@ export function CategoriesPage() {
           <p className="mt-2 text-sm text-red-600">Erro ao criar categoria. Tente novamente.</p>
         )}
       </div>
+
+      {/* Success banner */}
+      {successMessage && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-green-700">{successMessage}</p>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-green-600 hover:text-green-800 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Delete error banner */}
+      {deleteError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-red-700">{deleteError}</p>
+          <button
+            onClick={() => setDeleteError(null)}
+            className="text-red-500 hover:text-red-700 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
 
       {/* List */}
       {isLoading && (
@@ -122,53 +203,124 @@ export function CategoriesPage() {
             </div>
           )}
 
-          {(categories ?? []).map((category) => (
+          {(categories ?? []).map((category) => {
+            const isEditing = editState?.id === category.id
+            const categoryProducts = productsByCategory[category.id] ?? []
+            return (
             <div
               key={category.id}
-              className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4"
+              className={`bg-white rounded-xl border border-gray-200 px-5 py-4 ${isEditing ? 'flex flex-col gap-4' : 'flex items-center gap-4'}`}
             >
-              {editState?.id === category.id ? (
-                <form onSubmit={handleSaveEdit} className="flex-1 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={editState.name}
-                    onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
-                    autoFocus
-                    required
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  />
-                  <button
-                    type="submit"
-                    disabled={updateMutation.isPending}
-                    className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-50"
-                  >
-                    Salvar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditState(null)}
-                    className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200"
-                  >
-                    Cancelar
-                  </button>
-                </form>
+              {isEditing ? (
+                <>
+                  <form onSubmit={handleSaveEdit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="text"
+                      value={editState!.name}
+                      onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
+                      autoFocus
+                      required
+                      placeholder="Nome"
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    <input
+                      type="text"
+                      value={editState!.description}
+                      onChange={(e) => setEditState((s) => s && { ...s, description: e.target.value })}
+                      placeholder="Descrição (opcional)"
+                      maxLength={500}
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={updateMutation.isPending}
+                      className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                    >
+                      Salvar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditState(null)}
+                      className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200"
+                    >
+                      Cancelar
+                    </button>
+                  </form>
+
+                  <div className="border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                        Produtos nesta categoria ({categoryProducts.length})
+                      </h3>
+                      <Link
+                        to={`/admin/produtos/new?categoryId=${category.id}`}
+                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Novo produto
+                      </Link>
+                    </div>
+                    {categoryProducts.length === 0 ? (
+                      <p className="text-sm text-gray-400 py-2">Nenhum produto nesta categoria.</p>
+                    ) : (
+                      <ul className="divide-y divide-gray-100">
+                        {categoryProducts.map((p) => (
+                          <li key={p.id} className="flex items-center gap-3 py-2">
+                            {p.imageUrl ? (
+                              <img
+                                src={p.imageUrl}
+                                alt={p.name}
+                                className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs flex-shrink-0">
+                                📷
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
+                              <p className="text-xs text-gray-500">
+                                {p.basePrice != null ? fmtBRL(p.basePrice) : '—'}
+                                {!p.isActive && <span className="ml-2 text-orange-500">(inativo)</span>}
+                              </p>
+                            </div>
+                            <Link
+                              to={`/admin/produtos/${p.id}/edit`}
+                              className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                            >
+                              Editar
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{category.name}</p>
-                    <p className="text-xs text-gray-400">Sem descrição</p>
+                    <p className="text-xs text-gray-400">
+                      {category.description?.trim() ? category.description : 'Sem descrição'}
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs bg-green-50 text-green-600 border border-green-100 px-2 py-0.5 rounded-full">
                         Nova
                       </span>
                       <span className="text-xs text-gray-500">
-                        {productCounts[category.id] ?? 0} produto(s)
+                        {categoryProducts.length} produto(s)
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setEditState({ id: category.id, name: category.name })}
+                      onClick={() =>
+                        setEditState({
+                          id: category.id,
+                          name: category.name,
+                          description: category.description ?? '',
+                        })
+                      }
                       className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-700 font-medium"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -186,9 +338,19 @@ export function CategoriesPage() {
                 </>
               )}
             </div>
-          ))}
+          )
+          })}
         </div>
       )}
+
+      <ReauthModal
+        open={!!categoryToDelete}
+        title="Excluir categoria"
+        description={`Para excluir a categoria "${categoryToDelete?.name ?? ''}", confirme sua senha.`}
+        confirmLabel="Excluir"
+        onCancel={() => setCategoryToDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

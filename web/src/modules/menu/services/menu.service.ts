@@ -18,6 +18,9 @@ export interface Product {
   basePrice?: number; isActive: boolean; order: number
   variations: ProductVariation[]; additionals: ProductAdditional[]
   tags?: string[]
+  promoPrice?: number | null
+  promoStartsAt?: string | null
+  promoExpiresAt?: string | null
 }
 export interface Category { id: string; name: string; order: number; isActive: boolean; products: Product[] }
 export interface StoreInfo {

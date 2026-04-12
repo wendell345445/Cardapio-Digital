@@ -51,7 +51,16 @@ export function ItemPage() {
   const isOpen = store?.storeStatus === 'open'
 
   const effectiveVariation = selectedVariation ?? (activeVariations.length > 0 ? activeVariations[0] : null)
-  const basePrice = effectiveVariation?.price ?? product.basePrice ?? 0
+
+  const hasActivePromo =
+    !effectiveVariation &&
+    product.promoPrice != null &&
+    product.basePrice != null &&
+    product.promoPrice < product.basePrice
+  const basePrice = hasActivePromo
+    ? product.promoPrice!
+    : (effectiveVariation?.price ?? product.basePrice ?? 0)
+  const originalPrice = effectiveVariation?.price ?? product.basePrice ?? 0
   const addTotal = selectedAdditionals.reduce((s, a) => s + a.price, 0)
   const total = (basePrice + addTotal) * quantity
 
@@ -73,7 +82,7 @@ export function ItemPage() {
       variationPrice: effectiveVariation?.price,
       additionals: selectedAdditionals.map(a => ({ id: a.id, name: a.name, price: a.price })),
       quantity,
-      unitPrice: product!.basePrice ?? 0,
+      unitPrice: hasActivePromo ? product!.promoPrice! : product!.basePrice ?? 0,
       notes: notes || undefined,
     })
     navigate('/')
@@ -151,7 +160,14 @@ export function ItemPage() {
             <div>
               <div className="flex items-center justify-between">
                 <p className="font-semibold text-gray-900">{product.name}</p>
-                <p className="font-bold text-red-500 text-lg">{fmt(basePrice)}</p>
+                {hasActivePromo ? (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm text-gray-400 line-through">{fmt(originalPrice)}</span>
+                    <span className="font-bold text-red-600 text-lg">{fmt(basePrice)}</span>
+                  </div>
+                ) : (
+                  <p className="font-bold text-red-500 text-lg">{fmt(basePrice)}</p>
+                )}
               </div>
               {product.description && (
                 <p className="text-sm text-gray-500 mt-1">{product.description}</p>

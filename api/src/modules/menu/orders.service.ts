@@ -119,6 +119,26 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       }
       unitPrice = variation.price
       variationName = variation.name
+    } else {
+      // Aplica promo ativa do produto quando não há variação (variation já tem
+      // preço próprio). Valida janela startsAt/expiresAt no próprio banco.
+      const now = new Date()
+      const promo = await prisma.coupon.findFirst({
+        where: {
+          storeId: store.id,
+          productId: product.id,
+          isActive: true,
+          promoPrice: { not: null },
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          ],
+        },
+        select: { promoPrice: true },
+      })
+      if (promo?.promoPrice != null && promo.promoPrice < unitPrice) {
+        unitPrice = promo.promoPrice
+      }
     }
 
     const additionals: Array<{ name: string; price: number }> = []

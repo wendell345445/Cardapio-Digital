@@ -31,9 +31,18 @@ export function ProductModal({ product, onClose }: Props) {
     )
   }
 
-  const basePrice = selectedVariation?.price ?? product.basePrice ?? 0
+  // Promo só se aplica quando não há variações selecionadas (variation tem preço próprio).
+  const hasActivePromo =
+    !selectedVariation &&
+    product.promoPrice != null &&
+    product.basePrice != null &&
+    product.promoPrice < product.basePrice
+
+  const effectiveUnit = hasActivePromo
+    ? product.promoPrice!
+    : (selectedVariation?.price ?? product.basePrice ?? 0)
   const addTotal = selectedAdditionals.reduce((s, a) => s + a.price, 0)
-  const total = (basePrice + addTotal) * quantity
+  const total = (effectiveUnit + addTotal) * quantity
 
   const handleAdd = () => {
     addItem({
@@ -45,7 +54,7 @@ export function ProductModal({ product, onClose }: Props) {
       variationPrice: selectedVariation?.price,
       additionals: selectedAdditionals.map(a => ({ id: a.id, name: a.name, price: a.price })),
       quantity,
-      unitPrice: product.basePrice ?? 0,
+      unitPrice: hasActivePromo ? product.promoPrice! : product.basePrice ?? 0,
       notes: notes || undefined,
     })
     onClose()

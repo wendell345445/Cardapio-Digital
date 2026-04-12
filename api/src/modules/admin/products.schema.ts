@@ -16,11 +16,20 @@ export const additionalSchema = z.object({
   isActive: z.boolean().optional().default(true),
 })
 
+// Aceita URL absoluta (Cloudinary/prod) OU caminho local `/uploads/...` (dev fallback).
+const imageUrlSchema = z
+  .string()
+  .min(1, 'imageUrl obrigatório')
+  .refine(
+    (v) => /^https?:\/\//.test(v) || v.startsWith('/uploads/'),
+    { message: 'imageUrl deve ser uma URL absoluta ou caminho /uploads/...' }
+  )
+
 export const createProductSchema = z.object({
   categoryId: z.string().uuid(),
   name: z.string().min(2).max(200),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().url(), // RN-006: foto obrigatória
+  imageUrl: imageUrlSchema, // RN-006: foto obrigatória
   basePrice: z.number().positive().optional(),
   isActive: z.boolean().optional().default(true),
   order: z.number().int().min(0).optional().default(0),
@@ -29,7 +38,7 @@ export const createProductSchema = z.object({
 })
 
 export const updateProductSchema = createProductSchema.partial().extend({
-  imageUrl: z.string().url().optional(), // não obrigatório em update
+  imageUrl: imageUrlSchema.optional(), // não obrigatório em update
 })
 
 export const listProductsSchema = z.object({

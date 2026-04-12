@@ -23,11 +23,19 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Rotas onde 401 NÃO significa "sessão inválida" — são falhas de validação
+// específicas da requisição (ex: senha incorreta no reauth). Não derrubar sessão.
+const SKIP_AUTO_LOGOUT_ON_401 = ['/auth/reauth', '/auth/login']
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
-      useAuthStore.getState().logout()
+      const url: string = error.config?.url ?? ''
+      const shouldSkip = SKIP_AUTO_LOGOUT_ON_401.some((path) => url.includes(path))
+      if (!shouldSkip) {
+        useAuthStore.getState().logout()
+      }
     }
     return Promise.reject(error)
   }

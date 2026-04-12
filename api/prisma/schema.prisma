@@ -111,13 +111,14 @@ model RefreshToken {
 // ─── CATALOG ──────────────────────────────────────────────────────
 
 model Category {
-  id        String   @id @default(uuid())
-  storeId   String
-  name      String
-  order     Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  description String?
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   store    Store     @relation(fields: [storeId], references: [id])
   products Product[]
@@ -144,6 +145,7 @@ model Product {
   variations  ProductVariation[]
   additionals ProductAdditional[]
   orderItems  OrderItem[]
+  promotions  Coupon[]
 
   @@unique([storeId, name])
   @@index([storeId])
@@ -269,24 +271,31 @@ model Table {
 // ─── COUPON ───────────────────────────────────────────────────────
 
 model Coupon {
-  id        String     @id @default(uuid())
-  storeId   String
-  code      String
-  type      CouponType
-  value     Float
-  minOrder  Float?
-  maxUses   Int?
-  usedCount Int        @default(0)
-  isActive  Boolean    @default(true)
-  expiresAt DateTime?
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String     @id @default(uuid())
+  storeId    String
+  code       String
+  type       CouponType
+  value      Float
+  minOrder   Float?
+  maxUses    Int?
+  usedCount  Int        @default(0)
+  isActive   Boolean    @default(true)
+  startsAt   DateTime?
+  expiresAt  DateTime?
+  // Se productId setado → "promoção por produto": auto-aplicada no menu público,
+  // sem uso de código. promoPrice obrigatório nesse caso; value/type ignorados.
+  productId  String?
+  promoPrice Float?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 
-  store  Store   @relation(fields: [storeId], references: [id])
-  orders Order[]
+  store   Store    @relation(fields: [storeId], references: [id])
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orders  Order[]
 
   @@unique([storeId, code])
   @@index([storeId])
+  @@index([productId])
 }
 
 // ─── CASH FLOW ────────────────────────────────────────────────────

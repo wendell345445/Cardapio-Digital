@@ -2,10 +2,20 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Search, ArrowUpDown, Plus, Copy, Tag } from 'lucide-react'
 
+
 import { useCategories, useUpdateCategory } from '../hooks/useCategories'
-import { useDeleteProduct, useProducts, useUpdateProduct } from '../hooks/useProducts'
+import {
+  useDeleteProduct,
+  useDuplicateProduct,
+  useProducts,
+  useUpdateProduct,
+} from '../hooks/useProducts'
 import type { Category } from '../services/categories.service'
 import type { Product } from '../services/products.service'
+import { useCoupons } from '../hooks/useCoupons'
+import { ProductPromoModal } from '../components/ProductPromoModal'
+
+import { ReauthModal } from '@/modules/auth/components/ReauthModal'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -36,15 +46,23 @@ function ProductToggle({
 function CategorySection({
   category,
   products,
+  activePromoProductIds,
   onToggleProduct,
   onDeleteProduct,
+  onDuplicateProduct,
+  onAddPromo,
   isUpdating,
+  isDuplicating,
 }: {
   category: Category
   products: Product[]
+  activePromoProductIds: Set<string>
   onToggleProduct: (p: Product) => void
   onDeleteProduct: (p: Product) => void
+  onDuplicateProduct: (p: Product) => void
+  onAddPromo: (p: Product) => void
   isUpdating: boolean
+  isDuplicating: boolean
 }) {
   const navigate = useNavigate()
   const updateCategory = useUpdateCategory()
@@ -110,9 +128,13 @@ function CategorySection({
                 <span className="text-sm text-gray-600">
                   {product.basePrice != null ? fmt(product.basePrice) : '—'}
                 </span>
-                <button className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700">
+                <button
+                  type="button"
+                  onClick={() => onAddPromo(product)}
+                  className={`flex items-center gap-1 text-xs font-medium ${activePromoProductIds.has(product.id) ? 'text-green-600 hover:text-green-700' : 'text-blue-500 hover:text-blue-700'}`}
+                >
                   <Tag className="w-3 h-3" />
-                  Adicionar desconto
+                  {activePromoProductIds.has(product.id) ? 'Editar desconto' : 'Adicionar desconto'}
                 </button>
               </div>
             </div>
@@ -135,10 +157,17 @@ function CategorySection({
                   Editar
                 </button>
                 <button
-                  onClick={() => onDeleteProduct(product)}
-                  className="text-xs text-gray-400 hover:text-gray-600"
+                  onClick={() => onDuplicateProduct(product)}
+                  disabled={isDuplicating}
+                  className="text-xs text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
                 >
                   Duplicar
+                </button>
+                <button
+                  onClick={() => onDeleteProduct(product)}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Excluir
                 </button>
                 <Link
                   to={`/admin/adicionais?productId=${product.id}`}
@@ -161,19 +190,45 @@ export function ProductsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [activeCategoryPill, setActiveCategoryPill] = useState<string>('todos')
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const [productForPromo, setProductForPromo] = useState<Product | null>(null)
 
   const { data: categories } = useCategories()
   const { data: allProducts, isLoading, isError } = useProducts({})
+  const { data: allCoupons } = useCoupons()
   const updateMutation = useUpdateProduct()
   const deleteMutation = useDeleteProduct()
+  const duplicateMutation = useDuplicateProduct()
+
+  // IDs de produtos com promoção ATIVA (productId setado, isActive, dentro da janela)
+  const activePromoProductIds = new Set(
+    (allCoupons ?? [])
+      .filter((c) => {
+        if (!c.productId || !c.isActive) return false
+        const now = new Date()
+        if (c.startsAt && new Date(c.startsAt) > now) return false
+        if (c.expiresAt && new Date(c.expiresAt) <= now) return false
+        return true
+      })
+      .map((c) => c.productId!)
+  )
 
   function handleToggleActive(product: Product) {
     updateMutation.mutate({ id: product.id, dto: { isActive: !product.isActive } })
   }
 
   function handleDelete(product: Product) {
-    if (!window.confirm(`Excluir o produto "${product.name}"?`)) return
-    deleteMutation.mutate(product.id)
+    setProductToDelete(product)
+  }
+
+  function handleDuplicate(product: Product) {
+    duplicateMutation.mutate(product.id)
+  }
+
+  function confirmDelete() {
+    if (!productToDelete) return
+    deleteMutation.mutate(productToDelete.id)
+    setProductToDelete(null)
   }
 
   // Filter by search
@@ -283,9 +338,13 @@ export function ProductsPage() {
               key={cat.id}
               category={cat}
               products={getProductsByCategory(cat.id)}
+              activePromoProductIds={activePromoProductIds}
               onToggleProduct={handleToggleActive}
               onDeleteProduct={handleDelete}
+              onDuplicateProduct={handleDuplicate}
+              onAddPromo={(p) => setProductForPromo(p)}
               isUpdating={updateMutation.isPending}
+              isDuplicating={duplicateMutation.isPending}
             />
           ))}
           {categoriesToShow.length === 0 && (
@@ -295,6 +354,20 @@ export function ProductsPage() {
           )}
         </div>
       )}
+
+      <ReauthModal
+        open={!!productToDelete}
+        title="Excluir produto"
+        description={`Para excluir o produto "${productToDelete?.name ?? ''}", confirme sua senha.`}
+        confirmLabel="Excluir"
+        onCancel={() => setProductToDelete(null)}
+        onConfirm={confirmDelete}
+      />
+
+      <ProductPromoModal
+        product={productForPromo}
+        onClose={() => setProductForPromo(null)}
+      />
     </div>
   )
 }

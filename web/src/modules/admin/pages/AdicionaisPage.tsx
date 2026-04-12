@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Search, Plus, Copy, ArrowUpDown, Pencil, X } from 'lucide-react'
 
+
 import {
   useAdditionals,
   useCreateAdditionalItem,
@@ -8,6 +9,8 @@ import {
   useUpdateAdditionalItem,
 } from '../hooks/useAdditionals'
 import type { AdditionalItem } from '../services/additionals.service'
+
+import { ReauthModal } from '@/modules/auth/components/ReauthModal'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -46,6 +49,7 @@ function GroupContent({
   const [newItemName, setNewItemName] = useState('')
   const [newItemPrice, setNewItemPrice] = useState('')
   const [showAdd, setShowAdd] = useState(false)
+  const [itemToDelete, setItemToDelete] = useState<AdditionalItem | null>(null)
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -126,11 +130,7 @@ function GroupContent({
                     Editar
                   </button>
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Excluir "${item.name}"?`)) {
-                        deleteItem.mutate(item.id)
-                      }
-                    }}
+                    onClick={() => setItemToDelete(item)}
                     className="text-xs text-gray-400 hover:text-red-500"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -191,6 +191,19 @@ function GroupContent({
           Ordenar
         </button>
       </div>
+
+      <ReauthModal
+        open={!!itemToDelete}
+        title="Excluir adicional"
+        description={`Para excluir "${itemToDelete?.name ?? ''}", confirme sua senha.`}
+        confirmLabel="Excluir"
+        onCancel={() => setItemToDelete(null)}
+        onConfirm={() => {
+          if (!itemToDelete) return
+          deleteItem.mutate(itemToDelete.id)
+          setItemToDelete(null)
+        }}
+      />
     </div>
   )
 }

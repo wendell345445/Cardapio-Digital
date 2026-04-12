@@ -10,6 +10,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    product: {
+      count: jest.fn(),
+    },
     auditLog: { create: jest.fn() },
   },
 }))
@@ -171,6 +174,7 @@ describe('updateCategory', () => {
 describe('deleteCategory', () => {
   it('deletes category and invalidates cache', async () => {
     ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.count as jest.Mock).mockResolvedValue(0)
     ;(mockPrisma.category.delete as jest.Mock).mockResolvedValue(mockCategory)
     ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
@@ -194,5 +198,13 @@ describe('deleteCategory', () => {
     })
 
     await expect(deleteCategory(STORE_ID, 'cat-1', USER_ID)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('throws 422 when category still has products (FK guard)', async () => {
+    ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.count as jest.Mock).mockResolvedValue(3)
+
+    await expect(deleteCategory(STORE_ID, 'cat-1', USER_ID)).rejects.toMatchObject({ status: 422 })
+    expect(mockPrisma.category.delete).not.toHaveBeenCalled()
   })
 })

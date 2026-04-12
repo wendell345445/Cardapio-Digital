@@ -1,12 +1,15 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router-dom'
 import { z } from 'zod'
 
+
 import { ImageUpload } from '../components/ImageUpload'
 import { useCategories } from '../hooks/useCategories'
 import { useCreateProduct, useProduct, useUpdateProduct } from '../hooks/useProducts'
+
+import { ReauthModal } from '@/modules/auth/components/ReauthModal'
 
 // ─── TASK-041: Produtos CRUD Individual ──────────────────────────────────────
 
@@ -47,6 +50,8 @@ export function ProductFormPage() {
   const { data: existingProduct, isLoading: isLoadingProduct } = useProduct(isEdit ? id! : '')
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProduct()
+
+  const [pendingValues, setPendingValues] = useState<ProductFormValues | null>(null)
 
   const {
     register,
@@ -107,10 +112,16 @@ export function ProductFormPage() {
     }
   }, [isEdit, existingProduct, reset])
 
-  async function onSubmit(values: ProductFormValues) {
+  function onSubmit(values: ProductFormValues) {
+    setPendingValues(values)
+  }
+
+  async function persistPendingValues() {
+    if (!pendingValues) return
     const payload = {
-      ...values,
-      basePrice: values.basePrice === '' ? undefined : (values.basePrice as number),
+      ...pendingValues,
+      basePrice:
+        pendingValues.basePrice === '' ? undefined : (pendingValues.basePrice as number),
     }
 
     if (isEdit) {
@@ -119,6 +130,7 @@ export function ProductFormPage() {
       await createMutation.mutateAsync(payload as Parameters<typeof createMutation.mutateAsync>[0])
     }
 
+    setPendingValues(null)
     navigate('/admin/products')
   }
 
@@ -403,6 +415,15 @@ export function ProductFormPage() {
           </div>
         </form>
       </main>
+
+      <ReauthModal
+        open={!!pendingValues}
+        title={isEdit ? 'Salvar alterações' : 'Criar produto'}
+        description="Por segurança, confirme sua senha para salvar este produto."
+        confirmLabel={isEdit ? 'Salvar' : 'Criar'}
+        onCancel={() => setPendingValues(null)}
+        onConfirm={persistPendingValues}
+      />
     </div>
   )
 }

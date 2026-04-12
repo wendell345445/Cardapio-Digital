@@ -13,11 +13,23 @@ function getCloudinaryUrl(url: string): string {
   return url.replace('/upload/', '/upload/f_auto,w_auto/')
 }
 
+function fmtBRL(v: number) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
 export function ProductCard({ product, onNavigate }: Props) {
   const hasVariations = product.variations.filter(v => v.isActive).length > 0
   const displayPrice = hasVariations
     ? Math.min(...product.variations.filter(v => v.isActive).map(v => v.price))
     : product.basePrice
+
+  // Promo por produto só se aplica quando não há variations (não tem como
+  // um preço promocional único substituir múltiplas variações de preço).
+  const hasActivePromo =
+    !hasVariations &&
+    product.promoPrice != null &&
+    displayPrice != null &&
+    product.promoPrice < displayPrice
 
   return (
     <div
@@ -49,10 +61,19 @@ export function ProductCard({ product, onNavigate }: Props) {
           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{product.description}</p>
         )}
         {displayPrice !== undefined && displayPrice !== null && (
-          <p className="mt-2 font-bold text-gray-800 text-sm">
-            {hasVariations ? 'A partir de ' : ''}
-            {displayPrice.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-          </p>
+          hasActivePromo ? (
+            <div className="mt-2 flex items-baseline gap-2">
+              <span className="text-xs text-gray-400 line-through">{fmtBRL(displayPrice)}</span>
+              <span className="font-bold text-red-600 text-sm">
+                {fmtBRL(product.promoPrice!)}
+              </span>
+            </div>
+          ) : (
+            <p className="mt-2 font-bold text-gray-800 text-sm">
+              {hasVariations ? 'A partir de ' : ''}
+              {fmtBRL(displayPrice)}
+            </p>
+          )
         )}
       </div>
 

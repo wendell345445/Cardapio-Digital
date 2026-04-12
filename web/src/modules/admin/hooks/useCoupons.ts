@@ -11,10 +11,20 @@ import {
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export function useCoupons(isActive?: boolean) {
+export function useCoupons(filters?: { isActive?: boolean; productId?: string }) {
   return useQuery({
-    queryKey: ['coupons', { isActive }],
-    queryFn: () => listCoupons(isActive),
+    queryKey: ['coupons', filters ?? {}],
+    queryFn: () => listCoupons(filters),
+  })
+}
+
+export function useProductPromo(productId: string | undefined) {
+  return useQuery({
+    queryKey: ['coupons', { productId }],
+    queryFn: () => listCoupons({ productId }),
+    enabled: !!productId,
+    select: (coupons) =>
+      coupons.find((c) => c.productId === productId && c.isActive) ?? null,
   })
 }
 

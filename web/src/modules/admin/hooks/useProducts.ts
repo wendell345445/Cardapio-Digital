@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createProduct,
   deleteProduct,
+  duplicateProduct,
   fetchProduct,
   fetchProducts,
   updateProduct,
@@ -48,6 +49,14 @@ export function useDeleteProduct() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteProduct(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+  })
+}
+
+export function useDuplicateProduct() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => duplicateProduct(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   })
 }
