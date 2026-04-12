@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { z } from 'zod'
 
 
@@ -44,7 +44,9 @@ type ProductFormValues = z.infer<typeof productFormSchema>
 export function ProductFormPage() {
   const navigate = useNavigate()
   const { id } = useParams<{ id?: string }>()
+  const [searchParams] = useSearchParams()
   const isEdit = !!id && id !== 'new'
+  const initialCategoryId = searchParams.get('categoryId') ?? ''
 
   const { data: categories } = useCategories()
   const { data: existingProduct, isLoading: isLoadingProduct } = useProduct(isEdit ? id! : '')
@@ -64,6 +66,7 @@ export function ProductFormPage() {
   } = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
     defaultValues: {
+      categoryId: initialCategoryId,
       isActive: true,
       order: 0,
       variations: [],
