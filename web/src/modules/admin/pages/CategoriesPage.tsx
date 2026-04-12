@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 
 
 import {
@@ -23,10 +22,6 @@ function useProductsByCategory() {
     byCategory[p.categoryId].push(p)
   }
   return byCategory
-}
-
-function fmtBRL(v: number) {
-  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 interface EditState {
@@ -209,93 +204,42 @@ export function CategoriesPage() {
             return (
             <div
               key={category.id}
-              className={`bg-white rounded-xl border border-gray-200 px-5 py-4 ${isEditing ? 'flex flex-col gap-4' : 'flex items-center gap-4'}`}
+              className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4"
             >
               {isEditing ? (
-                <>
-                  <form onSubmit={handleSaveEdit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      type="text"
-                      value={editState!.name}
-                      onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
-                      autoFocus
-                      required
-                      placeholder="Nome"
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
-                    <input
-                      type="text"
-                      value={editState!.description}
-                      onChange={(e) => setEditState((s) => s && { ...s, description: e.target.value })}
-                      placeholder="Descrição (opcional)"
-                      maxLength={500}
-                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    />
-                    <button
-                      type="submit"
-                      disabled={updateMutation.isPending}
-                      className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-50"
-                    >
-                      Salvar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditState(null)}
-                      className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200"
-                    >
-                      Cancelar
-                    </button>
-                  </form>
-
-                  <div className="border-t border-gray-100 pt-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                        Produtos nesta categoria ({categoryProducts.length})
-                      </h3>
-                      <Link
-                        to={`/admin/produtos/new?categoryId=${category.id}`}
-                        className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 font-medium"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Novo produto
-                      </Link>
-                    </div>
-                    {categoryProducts.length === 0 ? (
-                      <p className="text-sm text-gray-400 py-2">Nenhum produto nesta categoria.</p>
-                    ) : (
-                      <ul className="divide-y divide-gray-100">
-                        {categoryProducts.map((p) => (
-                          <li key={p.id} className="flex items-center gap-3 py-2">
-                            {p.imageUrl ? (
-                              <img
-                                src={p.imageUrl}
-                                alt={p.name}
-                                className="w-10 h-10 rounded-lg object-cover border border-gray-100 flex-shrink-0"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs flex-shrink-0">
-                                📷
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-gray-900 truncate">{p.name}</p>
-                              <p className="text-xs text-gray-500">
-                                {p.basePrice != null ? fmtBRL(p.basePrice) : '—'}
-                                {!p.isActive && <span className="ml-2 text-orange-500">(inativo)</span>}
-                              </p>
-                            </div>
-                            <Link
-                              to={`/admin/produtos/${p.id}/edit`}
-                              className="text-xs text-blue-500 hover:text-blue-700 font-medium"
-                            >
-                              Editar
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </>
+                <form onSubmit={handleSaveEdit} className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                  <input
+                    type="text"
+                    value={editState!.name}
+                    onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
+                    autoFocus
+                    required
+                    placeholder="Nome"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <input
+                    type="text"
+                    value={editState!.description}
+                    onChange={(e) => setEditState((s) => s && { ...s, description: e.target.value })}
+                    placeholder="Descrição (opcional)"
+                    maxLength={500}
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={updateMutation.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                  >
+                    Salvar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditState(null)}
+                    className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200"
+                  >
+                    Cancelar
+                  </button>
+                </form>
               ) : (
                 <>
                   <div className="flex-1 min-w-0">
