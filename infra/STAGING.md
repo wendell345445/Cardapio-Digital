@@ -14,7 +14,7 @@ O staging é configurado no Railway como um **ambiente separado** da mesma branc
    - `NODE_ENV=production` (manter)
    - `DATABASE_URL` → banco separado de staging
    - `PUBLIC_ROOT_DOMAIN=staging.menupanda.com.br` (ou o domínio que for usado em staging)
-   - `API_URL=https://staging-api.menupanda.com.br`
+   - `API_URL=https://api.menupanda.com.br`
    - `ALLOWED_ORIGINS=https://staging.menupanda.com.br`
 
 ### Deploy manual para staging
@@ -34,9 +34,9 @@ railway up --environment staging
 
 | Serviço | URL |
 |---------|-----|
-| API | `https://staging-api.menupanda.com.br` |
+| API | `https://api.menupanda.com.br` |
 | Web | `https://staging.menupanda.com.br` |
-| Health | `https://staging-api.menupanda.com.br/health` |
+| Health | `https://api.menupanda.com.br/health` |
 
 ### Banco de dados separado
 
