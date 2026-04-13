@@ -130,6 +130,14 @@ function dayRangeISO(dateStr?: string): { from: string; to: string } {
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+function todayInputValue(): string {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // ─── OrderCard ────────────────────────────────────────────────────────────────
 
 function OrderCard({
@@ -356,7 +364,7 @@ export function OrdersPage() {
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('todos')
   const [search, setSearch] = useState('')
-  const [filterDate, setFilterDate] = useState('')
+  const [filterDate, setFilterDate] = useState(todayInputValue)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const [printSales, setPrintSales] = useState(false)
