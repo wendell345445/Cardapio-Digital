@@ -8,6 +8,7 @@ export interface SalesSummary {
   totalRevenue: number
   totalOrders: number
   averageTicket: number
+  cancelledCount: number
   series: Array<{ label: string; revenue: number; orders: number }>
 }
 

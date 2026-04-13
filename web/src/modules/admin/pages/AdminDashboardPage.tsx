@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   BarChart,
@@ -19,10 +20,24 @@ import {
   XCircle,
   Package,
   Bike,
+  Ban,
 } from 'lucide-react'
 
 import { useAdminDashboard } from '../hooks/useAdminDashboard'
 import { useStore } from '../hooks/useStore'
+import type { Period } from '../services/analytics.service'
+
+const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
+  { value: 'day', label: 'Hoje' },
+  { value: 'week', label: '7 dias' },
+  { value: 'month', label: '30 dias' },
+]
+
+const PERIOD_HINT: Record<Period, string> = {
+  day: 'Hoje',
+  week: 'Últimos 7 dias',
+  month: 'Últimos 30 dias',
+}
 
 const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
 
@@ -35,7 +50,8 @@ function countByStatus(orders: Array<{ status: string }>, ...statuses: string[])
 }
 
 export function AdminDashboardPage() {
-  const { sales, topProducts, recentOrders, liveOrders } = useAdminDashboard()
+  const [period, setPeriod] = useState<Period>('day')
+  const { sales, topProducts, salesWeekly, recentOrders, liveOrders } = useAdminDashboard(period)
   const { data: store } = useStore()
 
   const allLive = liveOrders.data?.orders ?? []
@@ -46,7 +62,7 @@ export function AdminDashboardPage() {
   const preparing = countByStatus(allLive, 'PREPARING')
   const ready = countByStatus(allLive, 'READY', 'DISPATCHED')
 
-  const chartData = sales.data?.series?.map((s) => ({
+  const chartData = salesWeekly.data?.series?.map((s) => ({
     name: s.label,
     Pedidos: s.orders,
     'Receita (R$)': s.revenue,
@@ -97,6 +113,29 @@ export function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Seletor de período */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          Período
+        </span>
+        <div className="inline-flex bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setPeriod(opt.value)}
+              className={`text-sm px-3 py-1.5 rounded-md transition-colors ${
+                period === opt.value
+                  ? 'bg-red-500 text-white font-semibold'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -109,7 +148,7 @@ export function AdminDashboardPage() {
           <p className="text-2xl font-bold text-gray-900">
             {sales.data?.totalOrders ?? 0}
           </p>
-          <p className="text-xs text-gray-400 mt-1">Últimos 7 dias carregados</p>
+          <p className="text-xs text-gray-400 mt-1">{PERIOD_HINT[period]}</p>
         </div>
 
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
@@ -141,14 +180,23 @@ export function AdminDashboardPage() {
         <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
           <div className="flex items-center justify-between mb-3">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-              Produtos em destaque
+              Cancelados
             </p>
-            <Star className="w-4 h-4 text-yellow-400" />
+            <Ban className="w-4 h-4 text-gray-400" />
           </div>
           <p className="text-2xl font-bold text-gray-900">
-            {topProducts.data?.length ?? 0}
+            {sales.data?.cancelledCount ?? 0}
           </p>
-          <p className="text-xs text-gray-400 mt-1">Mais vendidos no cardápio</p>
+          <p className="text-xs text-gray-400 mt-1">
+            {(() => {
+              const cancelled = sales.data?.cancelledCount ?? 0
+              const valid = sales.data?.totalOrders ?? 0
+              const totalAttempts = cancelled + valid
+              if (totalAttempts === 0) return 'Sem pedidos no período'
+              const pct = (cancelled / totalAttempts) * 100
+              return `${pct.toFixed(1)}% do total no período`
+            })()}
+          </p>
         </div>
       </div>
 
@@ -174,14 +222,15 @@ export function AdminDashboardPage() {
               <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
               <Tooltip
+                cursor={false}
                 formatter={(value, name) => {
                   const v = Number(value)
                   return name === 'Receita (R$)' ? [fmt(v), name] : [v, name]
                 }}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar yAxisId="left" dataKey="Pedidos" fill="#EF4444" radius={[4, 4, 0, 0]} />
-              <Bar yAxisId="right" dataKey="Receita (R$)" fill="#93C5FD" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="left" dataKey="Pedidos" fill="#EF4444" radius={[4, 4, 0, 0]} activeBar={false} />
+              <Bar yAxisId="right" dataKey="Receita (R$)" fill="#93C5FD" radius={[4, 4, 0, 0]} activeBar={false} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

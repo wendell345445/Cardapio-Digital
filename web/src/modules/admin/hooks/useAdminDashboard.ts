@@ -1,18 +1,24 @@
 import { useQuery } from '@tanstack/react-query'
 
-import { getSales, getTopProducts } from '../services/analytics.service'
+import { getSales, getTopProducts, type Period } from '../services/analytics.service'
 import { fetchOrders } from '../services/orders.service'
 
-export function useAdminDashboard() {
+export function useAdminDashboard(period: Period = 'day') {
   const sales = useQuery({
-    queryKey: ['analytics', 'sales', 'week'],
-    queryFn: () => getSales('week'),
+    queryKey: ['analytics', 'sales', period],
+    queryFn: () => getSales(period),
     staleTime: 60_000,
   })
 
   const topProducts = useQuery({
-    queryKey: ['analytics', 'top-products', 'week', 4],
-    queryFn: () => getTopProducts('week', 4),
+    queryKey: ['analytics', 'top-products', period, 4],
+    queryFn: () => getTopProducts(period, 4),
+    staleTime: 60_000,
+  })
+
+  const salesWeekly = useQuery({
+    queryKey: ['analytics', 'sales', 'week'],
+    queryFn: () => getSales('week'),
     staleTime: 60_000,
   })
 
@@ -30,5 +36,5 @@ export function useAdminDashboard() {
     refetchInterval: 30_000,
   })
 
-  return { sales, topProducts, recentOrders, liveOrders }
+  return { sales, topProducts, salesWeekly, recentOrders, liveOrders }
 }

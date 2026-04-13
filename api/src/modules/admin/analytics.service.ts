@@ -11,6 +11,7 @@ type SalesSummaryResult = {
   totalRevenue: number
   totalOrders: number
   averageTicket: number
+  cancelledCount: number
   timeline: { date: string; revenue: number; orders: number }[]
 }
 
@@ -72,14 +73,19 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
 
   const since = getPeriodStart(query.period)
 
-  const orders = await prisma.order.findMany({
-    where: {
-      storeId,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-      createdAt: { gte: since },
-    },
-    select: { total: true, createdAt: true },
-  })
+  const [orders, cancelledCount] = await Promise.all([
+    prisma.order.findMany({
+      where: {
+        storeId,
+        status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+        createdAt: { gte: since },
+      },
+      select: { total: true, createdAt: true },
+    }),
+    prisma.order.count({
+      where: { storeId, status: 'CANCELLED', createdAt: { gte: since } },
+    }),
+  ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
   const totalOrders = orders.length
@@ -98,7 +104,7 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({ date, ...data }))
 
-  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, timeline }
+  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, cancelledCount, timeline }
   await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }
