@@ -121,10 +121,13 @@ function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function todayISO() {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+function dayRangeISO(dateStr?: string): { from: string; to: string } {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date()
+  const from = new Date(base)
+  from.setHours(0, 0, 0, 0)
+  const to = new Date(base)
+  to.setHours(23, 59, 59, 999)
+  return { from: from.toISOString(), to: to.toISOString() }
 }
 
 // ─── OrderCard ────────────────────────────────────────────────────────────────
@@ -360,9 +363,10 @@ export function OrdersPage() {
   // TASK-126: Tab ativos / cancelados
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
 
-  const today = todayISO()
+  const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
-    dateFrom: filterDate || today,
+    dateFrom,
+    dateTo,
     limit: 200,
   }
 

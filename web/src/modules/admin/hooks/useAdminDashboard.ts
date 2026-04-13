@@ -7,19 +7,22 @@ export function useAdminDashboard(period: Period = 'day') {
   const sales = useQuery({
     queryKey: ['analytics', 'sales', period],
     queryFn: () => getSales(period),
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   })
 
   const topProducts = useQuery({
     queryKey: ['analytics', 'top-products', period, 4],
     queryFn: () => getTopProducts(period, 4),
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   })
 
   const salesWeekly = useQuery({
     queryKey: ['analytics', 'sales', 'week'],
     queryFn: () => getSales('week'),
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   })
 
   const recentOrders = useQuery({

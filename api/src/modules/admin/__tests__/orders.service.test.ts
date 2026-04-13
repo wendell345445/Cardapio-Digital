@@ -31,6 +31,10 @@ jest.mock('../cashflow.service', () => ({
   linkOrderToCashFlow: jest.fn().mockResolvedValue(undefined),
 }))
 
+jest.mock('../analytics.service', () => ({
+  invalidateAnalyticsCache: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { prisma } from '../../../shared/prisma/prisma'
 import { emit } from '../../../shared/socket/socket'
 import { listOrders, getOrder, updateOrderStatus, assignMotoboy, sendWaitingPaymentNotification } from '../orders.service'

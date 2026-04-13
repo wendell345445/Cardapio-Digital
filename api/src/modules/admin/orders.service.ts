@@ -8,6 +8,7 @@ import {
   sendStatusUpdateMessage,
 } from '../whatsapp/messages.service'
 
+import { invalidateAnalyticsCache } from './analytics.service'
 import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
@@ -146,6 +147,9 @@ export async function updateOrderStatus(
       coupon: { select: { id: true, code: true } },
     },
   })
+
+  // Invalida cache de analytics (status afeta agregações de vendas/cancelados)
+  await invalidateAnalyticsCache(storeId)
 
   // Emit socket event
   emit.orderStatus(storeId, { orderId, status: newStatus })

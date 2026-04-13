@@ -5,6 +5,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     order: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     orderItem: {
       findMany: jest.fn(),
@@ -16,12 +17,19 @@ jest.mock('../../../shared/redis/redis', () => ({
   cache: {
     get: jest.fn(),
     set: jest.fn(),
+    del: jest.fn(),
   },
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
-import { getSalesSummary, getTopProducts, getPeakHours, getClientRanking } from '../analytics.service'
+import {
+  getClientRanking,
+  getPeakHours,
+  getSalesSummary,
+  getTopProducts,
+  invalidateAnalyticsCache,
+} from '../analytics.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockCache = cache as jest.Mocked<typeof cache>
@@ -49,6 +57,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(mockCache.get as jest.Mock).mockResolvedValue(null) // sem cache por padrão
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
+  ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
+  ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
 })
 
 // ─── getSalesSummary ──────────────────────────────────────────────────────────
@@ -93,6 +103,22 @@ describe('getSalesSummary', () => {
     expect(day1?.orders).toBe(2)
   })
 
+  it('agrupa por data BRT (pedido às 23h BRT = 02h UTC do dia seguinte cai no mesmo dia BRT)', async () => {
+    // 2026-04-13T23:00:00 BRT = 2026-04-14T02:00:00 UTC
+    // Antes do fix: agrupava em "2026-04-14" (UTC). Agora: "2026-04-13" (BRT) ✅
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 100, createdAt: new Date('2026-04-13T14:00:00Z') }), // 11h BRT 13/04
+      makeOrder({ total: 80, createdAt: new Date('2026-04-14T02:00:00Z') }), // 23h BRT 13/04
+    ])
+
+    const result = await getSalesSummary(STORE_ID, { period: 'week' })
+
+    expect(result.timeline).toHaveLength(1)
+    expect(result.timeline[0].date).toBe('2026-04-13')
+    expect(result.timeline[0].orders).toBe(2)
+    expect(result.timeline[0].revenue).toBe(180)
+  })
+
   it('retorna dados do cache quando disponível', async () => {
     const cachedData = { totalRevenue: 999, totalOrders: 1, averageTicket: 999, timeline: [] }
     ;(mockCache.get as jest.Mock).mockResolvedValue(cachedData)
@@ -128,6 +154,22 @@ describe('getSalesSummary', () => {
         }),
       })
     )
+  })
+})
+
+// ─── invalidateAnalyticsCache ─────────────────────────────────────────────────
+
+describe('invalidateAnalyticsCache', () => {
+  it('apaga todas as chaves de analytics da store', async () => {
+    await invalidateAnalyticsCache(STORE_ID)
+
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:day`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:week`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:month`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:day:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:week:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:month:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}`)
   })
 })
 

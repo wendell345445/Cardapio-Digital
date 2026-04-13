@@ -7,6 +7,25 @@ import type { RankingQuery, SalesQuery, TopProductsQuery } from './analytics.sch
 
 const CACHE_TTL = 10 * 60 // 10 min
 
+const BRT_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export async function invalidateAnalyticsCache(storeId: string): Promise<void> {
+  await Promise.all([
+    cache.del(`analytics:sales:${storeId}:day`),
+    cache.del(`analytics:sales:${storeId}:week`),
+    cache.del(`analytics:sales:${storeId}:month`),
+    cache.del(`analytics:top-products:${storeId}:day:4`),
+    cache.del(`analytics:top-products:${storeId}:week:4`),
+    cache.del(`analytics:top-products:${storeId}:month:4`),
+    cache.del(`analytics:peak-hours:${storeId}`),
+  ])
+}
+
 type SalesSummaryResult = {
   totalRevenue: number
   totalOrders: number
@@ -91,10 +110,10 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
   const totalOrders = orders.length
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
-  // Group by date for line chart
+  // Group by date for line chart (BRT timezone — evita split de pedidos feitos após 21h BRT)
   const byDate: Record<string, { revenue: number; orders: number }> = {}
   for (const order of orders) {
-    const date = order.createdAt.toISOString().slice(0, 10)
+    const date = BRT_DATE_FORMAT.format(order.createdAt)
     if (!byDate[date]) byDate[date] = { revenue: 0, orders: 0 }
     byDate[date].revenue += order.total
     byDate[date].orders += 1

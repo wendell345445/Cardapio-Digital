@@ -5,6 +5,7 @@ import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
+import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { sendOrderCreatedMessage } from '../whatsapp/messages.service'
 
 import { generatePix } from './pix.service'
@@ -290,8 +291,9 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     return created
   })
 
-  // 11. Invalida cache do menu
+  // 11. Invalida cache do menu e analytics
   await cache.del(`menu:${store.id}`)
+  await invalidateAnalyticsCache(store.id)
 
   // 12. Emite evento Socket.io para admin
   emit.orderNew(store.id, order)

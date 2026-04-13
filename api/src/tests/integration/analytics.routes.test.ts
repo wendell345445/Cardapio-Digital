@@ -6,6 +6,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
   prisma: {
     order: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     orderItem: {
       findMany: jest.fn(),
@@ -76,6 +77,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(mockCache.get as jest.Mock).mockResolvedValue(null)
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
+  ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
+  ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
 })
 
 // ─── GET /admin/analytics/sales ───────────────────────────────────────────────
@@ -93,7 +96,7 @@ describe('GET /api/v1/admin/analytics/sales', () => {
     expect(res.body.data).toHaveProperty('totalRevenue')
     expect(res.body.data).toHaveProperty('totalOrders')
     expect(res.body.data).toHaveProperty('averageTicket')
-    expect(res.body.data).toHaveProperty('timeline')
+    expect(res.body.data).toHaveProperty('series')
     expect(res.body.data.totalRevenue).toBe(160)
     expect(res.body.data.totalOrders).toBe(2)
   })
@@ -181,8 +184,8 @@ describe('GET /api/v1/admin/analytics/top-products', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data).toHaveLength(2)
-    expect(res.body.data[0]).toHaveProperty('rank', 1)
-    expect(res.body.data[0].productId).toBe('p1') // mais vendido
+    expect(res.body.data[0].productId).toBe('p1') // mais vendido (primeiro)
+    expect(res.body.data[0].quantity).toBe(5)
   })
 
   it('respeita o parâmetro limit', async () => {
