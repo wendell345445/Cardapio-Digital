@@ -40,6 +40,7 @@ export async function getStore(storeId: string) {
       pixKeyType: true,
       allowCashOnDelivery: true,
       allowPickup: true,
+      allowCreditCard: true,
       serviceChargePercent: true,
       plan: true,
       status: true,
@@ -326,6 +327,7 @@ export async function updatePaymentSettings(
     data: {
       ...(data.allowCashOnDelivery !== undefined && { allowCashOnDelivery: data.allowCashOnDelivery }),
       ...(data.allowPickup !== undefined && { allowPickup: data.allowPickup }),
+      ...(data.allowCreditCard !== undefined && { allowCreditCard: data.allowCreditCard }),
       ...(data.serviceChargePercent !== undefined && { serviceChargePercent: data.serviceChargePercent }),
       ...(data.allowPix !== undefined && { features: newFeatures as Record<string, boolean> }),
     },
@@ -333,6 +335,7 @@ export async function updatePaymentSettings(
       id: true,
       allowCashOnDelivery: true,
       allowPickup: true,
+      allowCreditCard: true,
       serviceChargePercent: true,
       features: true,
     },

@@ -97,7 +97,13 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════
   const lojaA = await prisma.store.upsert({
     where: { slug: 'pizzariadonamaria' },
-    update: {},
+    update: {
+      allowPickup: true,
+      allowCashOnDelivery: true,
+      allowCreditCard: true,
+      pixKey: 'maria@pizzariadonamaria.com',
+      pixKeyType: 'EMAIL',
+    },
     create: {
       name: 'Pizzaria Dona Maria',
       slug: 'pizzariadonamaria',
@@ -105,6 +111,11 @@ async function main() {
       phone: '5511999990001',
       plan: StorePlan.PROFESSIONAL,
       status: StoreStatus.ACTIVE,
+      allowPickup: true,
+      allowCashOnDelivery: true,
+      allowCreditCard: true,
+      pixKey: 'maria@pizzariadonamaria.com',
+      pixKeyType: 'EMAIL',
       features: {
         whatsapp_notifications: true,
         ai_assistant: false,

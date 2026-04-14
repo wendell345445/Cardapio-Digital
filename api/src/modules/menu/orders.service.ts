@@ -73,12 +73,16 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.type === 'DELIVERY' && !data.address) {
     throw new AppError('Endereço é obrigatório para entrega', 422)
   }
-  if (
-    data.type === 'DELIVERY' &&
-    !store.allowCashOnDelivery &&
-    data.paymentMethod === 'CASH_ON_DELIVERY'
-  ) {
+  const isOnDeliveryPayment =
+    data.paymentMethod === 'CASH_ON_DELIVERY' ||
+    data.paymentMethod === 'CREDIT_ON_DELIVERY' ||
+    data.paymentMethod === 'DEBIT_ON_DELIVERY' ||
+    data.paymentMethod === 'PIX_ON_DELIVERY'
+  if (data.type === 'DELIVERY' && !store.allowCashOnDelivery && isOnDeliveryPayment) {
     throw new AppError('Pagamento na entrega não permitido nesta loja', 422)
+  }
+  if (data.paymentMethod === 'CREDIT_CARD' && !store.allowCreditCard) {
+    throw new AppError('Pagamento em cartão de crédito não permitido nesta loja', 422)
   }
 
   // 4. Valida e calcula itens
