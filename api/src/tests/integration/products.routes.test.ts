@@ -175,6 +175,24 @@ describe('POST /api/v1/admin/products', () => {
     expect(res.status).toBe(422)
   })
 
+  it('accepts imageUrl as /uploads/... path (fallback local quando Cloudinary não configurado)', async () => {
+    ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.product.create as jest.Mock).mockResolvedValue(mockProduct)
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const res = await request(app)
+      .post('/api/v1/admin/products')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({
+        categoryId: CATEGORY_ID,
+        name: 'Pizza Upload Local',
+        imageUrl: '/uploads/store-1/products/abc-123.jpg',
+      })
+
+    expect(res.status).toBe(201)
+  })
+
   it('returns 400 when imageUrl is missing (RN-006: foto obrigatória)', async () => {
     const res = await request(app)
       .post('/api/v1/admin/products')
