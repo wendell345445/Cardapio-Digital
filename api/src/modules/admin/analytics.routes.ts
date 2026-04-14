@@ -9,6 +9,7 @@ import {
 } from '../../shared/middleware/auth.middleware'
 
 import {
+  getClientDetailController,
   getClientRankingController,
   getPeakHoursController,
   getSalesController,
@@ -28,5 +29,8 @@ router.get('/peak-hours', getPeakHoursController)
 
 // Ranking de Clientes (TASK-094)
 router.get('/clients/ranking', getClientRankingController)
+
+// Detalhe do Cliente (A-008) — deve vir DEPOIS de /clients/ranking (mais específica primeiro)
+router.get('/clients/:whatsapp', getClientDetailController)
 
 export default router

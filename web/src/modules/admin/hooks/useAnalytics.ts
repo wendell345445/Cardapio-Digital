@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import {
+  getClientDetail,
   getClientRanking,
   getPeakHours,
   getSales,
@@ -40,5 +41,14 @@ export function useClientRanking(params: ClientRankingParams) {
     queryKey: ['analytics', 'clients-ranking', params],
     queryFn: () => getClientRanking(params),
     staleTime: 1 * 60 * 1000,
+  })
+}
+
+export function useClientDetail(whatsapp: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'client-detail', whatsapp],
+    queryFn: () => getClientDetail(whatsapp!),
+    enabled: !!whatsapp,
+    staleTime: 30 * 1000,
   })
 }

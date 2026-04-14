@@ -24,6 +24,7 @@ jest.mock('../../../shared/redis/redis', () => ({
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
 import {
+  getClientDetail,
   getClientRanking,
   getPeakHours,
   getSalesSummary,
@@ -294,10 +295,10 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110002') // Bruno: R$ 500
-    expect(result.clients[0].rank).toBe(1)
-    expect(result.clients[1].clientWhatsapp).toBe('5511111110001') // Ana: R$ 250
-    expect(result.clients[1].rank).toBe(2)
+    expect(result.clients[0].whatsapp).toBe('5511111110002') // Bruno: R$ 500
+    expect(result.clients[0].position).toBe(1)
+    expect(result.clients[1].whatsapp).toBe('5511111110001') // Ana: R$ 250
+    expect(result.clients[1].position).toBe(2)
   })
 
   it('agrega pedidos do mesmo cliente corretamente', async () => {
@@ -305,10 +306,8 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
-    const ana = result.clients.find(
-      (c: { clientWhatsapp: string }) => c.clientWhatsapp === '5511111110001'
-    )
-    expect(ana?.orderCount).toBe(2)
+    const ana = result.clients.find((c) => c.whatsapp === '5511111110001')
+    expect(ana?.totalOrders).toBe(2)
     expect(ana?.totalSpent).toBe(250)
   })
 
@@ -337,7 +336,7 @@ describe('getClientRanking', () => {
     const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: '0001' })
 
     expect(result.clients).toHaveLength(1)
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110001')
+    expect(result.clients[0].whatsapp).toBe('5511111110001')
   })
 
   it('não aplica filtro de data quando period=all', async () => {
@@ -367,7 +366,7 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, { period: 'all' as const, page: 2, limit: 10 })
 
-    expect(result.clients[0].rank).toBe(11)
+    expect(result.clients[0].position).toBe(11)
     expect(result.clients).toHaveLength(10)
   })
 
@@ -389,6 +388,71 @@ describe('getClientRanking', () => {
     expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ storeId: STORE_ID }),
+      })
+    )
+  })
+})
+
+// ─── getClientDetail ──────────────────────────────────────────────────────────
+
+describe('getClientDetail', () => {
+  const WHATSAPP = '5511999990001'
+
+  it('agrega corretamente pedidos do cliente com múltiplos pedidos', async () => {
+    // Mais recente primeiro (orderBy desc)
+    const latest = {
+      total: 100,
+      createdAt: new Date('2026-04-10T12:00:00Z'),
+      clientName: 'Ana Silva',
+      address: { street: 'Rua A', number: '100' },
+    }
+    const middle = {
+      total: 50,
+      createdAt: new Date('2026-04-05T12:00:00Z'),
+      clientName: 'Ana',
+      address: { street: 'Rua B' },
+    }
+    const earliest = {
+      total: 150,
+      createdAt: new Date('2026-04-01T12:00:00Z'),
+      clientName: 'Ana',
+      address: null,
+    }
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([latest, middle, earliest])
+
+    const result = await getClientDetail(STORE_ID, WHATSAPP)
+
+    expect(result.whatsapp).toBe(WHATSAPP)
+    expect(result.name).toBe('Ana Silva') // nome do mais recente
+    expect(result.lastAddress).toEqual({ street: 'Rua A', number: '100' })
+    expect(result.totalOrders).toBe(3)
+    expect(result.totalSpent).toBe(300)
+    expect(result.averageTicket).toBe(100)
+    expect(result.firstOrderAt).toBe('2026-04-01T12:00:00.000Z')
+    expect(result.lastOrderAt).toBe('2026-04-10T12:00:00.000Z')
+  })
+
+  it('lança AppError 404 quando cliente não tem pedidos', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await expect(getClientDetail(STORE_ID, WHATSAPP)).rejects.toMatchObject({
+      status: 404,
+      message: 'Cliente não encontrado',
+    })
+  })
+
+  it('isola busca por storeId (multi-tenant — whatsapp igual em outra loja não vaza)', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await expect(getClientDetail(STORE_ID, WHATSAPP)).rejects.toMatchObject({ status: 404 })
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeId: STORE_ID,
+          clientWhatsapp: WHATSAPP,
+          status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+        }),
       })
     )
   })

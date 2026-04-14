@@ -42,11 +42,24 @@ export interface ClientRankingResponse {
   totalPages: number
 }
 
+export type RankingPeriod = '7d' | '30d' | '90d' | 'all'
+
 export interface ClientRankingParams {
-  period?: Period | 'all'
+  period?: RankingPeriod
   page?: number
   limit?: number
   search?: string
+}
+
+export interface ClientDetail {
+  whatsapp: string
+  name: string | null
+  lastAddress: Record<string, unknown> | null
+  totalOrders: number
+  totalSpent: number
+  averageTicket: number
+  firstOrderAt?: string | null
+  lastOrderAt?: string | null
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -72,5 +85,10 @@ export async function getClientRanking(
   params: ClientRankingParams
 ): Promise<ClientRankingResponse> {
   const { data } = await api.get('/admin/analytics/clients/ranking', { params })
+  return data.data
+}
+
+export async function getClientDetail(whatsapp: string): Promise<ClientDetail> {
+  const { data } = await api.get('/admin/analytics/clients/' + encodeURIComponent(whatsapp))
   return data.data
 }

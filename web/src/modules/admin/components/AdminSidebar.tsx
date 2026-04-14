@@ -13,6 +13,7 @@ import {
   Clock,
   Settings,
   ExternalLink,
+  Users,
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Bairros', to: '/admin/bairros', icon: MapPin },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
+  { label: 'Clientes', to: '/admin/clientes', icon: Users },
   { label: 'Produtos', to: '/admin/produtos', icon: Package },
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },

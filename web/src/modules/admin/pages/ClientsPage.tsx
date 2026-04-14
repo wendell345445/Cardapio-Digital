@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Download, Search, Users } from 'lucide-react'
 
+import { ClientDetailModal } from '../components/ClientDetailModal'
 import { useClientRanking } from '../hooks/useAnalytics'
 import type { ClientRankingItem } from '../services/analytics.service'
 
@@ -95,32 +96,25 @@ const PERIOD_OPTIONS = [
 
 type PeriodOption = (typeof PERIOD_OPTIONS)[number]['value']
 
-// Map period option to API period
-function toPeriodParam(opt: PeriodOption): 'day' | 'week' | 'month' | 'all' {
-  if (opt === '7d') return 'week'
-  if (opt === '30d') return 'month'
-  if (opt === '90d') return 'month'
-  return 'all'
-}
-
 // ─── ClientsPage ──────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 10
 
 export function ClientsPage() {
   const [periodOpt, setPeriodOpt] = useState<PeriodOption>('30d')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+  const [selectedWhatsapp, setSelectedWhatsapp] = useState<string | null>(null)
 
-  const period = toPeriodParam(periodOpt)
-
-  const { data, isLoading, isError } = useClientRanking({
-    period,
+  const { data, isLoading, isFetching, isError } = useClientRanking({
+    period: periodOpt,
     page,
     limit: PAGE_SIZE,
     search: search || undefined,
   })
+
+  const showSkeleton = isLoading || isFetching
 
   const clients = data?.clients ?? []
   const totalPages = data?.totalPages ?? 1
@@ -245,8 +239,8 @@ export function ClientsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {isLoading &&
-                  Array.from({ length: 10 }).map((_, i) => (
+                {showSkeleton &&
+                  Array.from({ length: PAGE_SIZE }).map((_, i) => (
                     <tr key={i}>
                       <td className="px-4 py-3">
                         <Skeleton className="h-7 w-7 rounded-full" />
@@ -267,7 +261,7 @@ export function ClientsPage() {
                     </tr>
                   ))}
 
-                {!isLoading && clients.length === 0 && (
+                {!showSkeleton && clients.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-12 text-center text-gray-400 text-sm">
                       Nenhum cliente encontrado
@@ -275,11 +269,12 @@ export function ClientsPage() {
                   </tr>
                 )}
 
-                {!isLoading &&
+                {!showSkeleton &&
                   clients.map((client) => (
                     <tr
                       key={client.clientId}
-                      className={`hover:bg-gray-50 transition-colors ${rowBg(client.position)}`}
+                      onClick={() => setSelectedWhatsapp(client.whatsapp)}
+                      className={`hover:bg-blue-50 cursor-pointer transition-colors ${rowBg(client.position)}`}
                     >
                       <td className="px-4 py-3">
                         <MedalBadge position={client.position} />
@@ -306,7 +301,7 @@ export function ClientsPage() {
           </div>
 
           {/* Pagination */}
-          {!isLoading && totalPages > 1 && (
+          {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-gray-50">
               <p className="text-xs text-gray-500">
                 Página {page} de {totalPages}
@@ -314,14 +309,14 @@ export function ClientsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
+                  disabled={page <= 1 || isFetching}
                   className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Anterior
                 </button>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
+                  disabled={page >= totalPages || isFetching}
                   className="px-3 py-1.5 rounded-md border border-gray-300 text-sm text-gray-700 hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Próxima
@@ -331,6 +326,11 @@ export function ClientsPage() {
           )}
         </div>
       </main>
+
+      <ClientDetailModal
+        whatsapp={selectedWhatsapp}
+        onClose={() => setSelectedWhatsapp(null)}
+      />
     </div>
   )
 }
