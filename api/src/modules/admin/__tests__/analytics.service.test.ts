@@ -289,6 +289,31 @@ describe('getClientRanking', () => {
     expect(result.clients[0].name).toBe('Bruno')
   })
 
+  it('filtra por nome ignorando acentua\u00e7\u00e3o (busca "Katia" encontra "K\u00e1tia")', async () => {
+    const ordersAcento = [
+      makeOrder({ clientWhatsapp: '5511111110010', clientName: 'K\u00e1tia Almeida', total: 200 }),
+      makeOrder({ clientWhatsapp: '5511111110011', clientName: 'Jo\u00e3o Silva', total: 100 }),
+    ]
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(ordersAcento)
+
+    const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: 'Katia' })
+
+    expect(result.clients).toHaveLength(1)
+    expect(result.clients[0].name).toBe('K\u00e1tia Almeida')
+  })
+
+  it('filtra por nome com acento quando usu\u00e1rio tamb\u00e9m digita com acento', async () => {
+    const ordersAcento = [
+      makeOrder({ clientWhatsapp: '5511111110010', clientName: 'K\u00e1tia Almeida', total: 200 }),
+    ]
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(ordersAcento)
+
+    const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: 'K\u00e1tia' })
+
+    expect(result.clients).toHaveLength(1)
+    expect(result.clients[0].name).toBe('K\u00e1tia Almeida')
+  })
+
   it('filtra por whatsapp parcial (case-insensitive)', async () => {
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(orders)
 

@@ -95,28 +95,18 @@ const PERIOD_OPTIONS = [
 
 type PeriodOption = (typeof PERIOD_OPTIONS)[number]['value']
 
-// Map period option to API period
-function toPeriodParam(opt: PeriodOption): 'day' | 'week' | 'month' | 'all' {
-  if (opt === '7d') return 'week'
-  if (opt === '30d') return 'month'
-  if (opt === '90d') return 'month'
-  return 'all'
-}
-
 // ─── ClientsPage ──────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 20
 
 export function ClientsPage() {
-  const [periodOpt, setPeriodOpt] = useState<PeriodOption>('30d')
+  const [periodOpt, setPeriodOpt] = useState<PeriodOption>('7d')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
 
-  const period = toPeriodParam(periodOpt)
-
   const { data, isLoading, isError } = useClientRanking({
-    period,
+    period: periodOpt,
     page,
     limit: PAGE_SIZE,
     search: search || undefined,

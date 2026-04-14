@@ -3,6 +3,7 @@ import { api } from '@/shared/lib/api'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type Period = 'day' | 'week' | 'month'
+export type RankingPeriod = '7d' | '30d' | '90d' | 'all'
 
 export interface SalesSummary {
   totalRevenue: number
@@ -42,7 +43,7 @@ export interface ClientRankingResponse {
 }
 
 export interface ClientRankingParams {
-  period?: Period | 'all'
+  period?: RankingPeriod
   page?: number
   limit?: number
   search?: string

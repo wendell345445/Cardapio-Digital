@@ -7,6 +7,13 @@ import type { RankingQuery, SalesQuery, TopProductsQuery } from './analytics.sch
 
 const CACHE_TTL = 10 * 60 // 10 min
 
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 type SalesSummaryResult = {
   totalRevenue: number
   totalOrders: number
@@ -228,11 +235,11 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   let ranked = Object.values(clientMap).sort((a, b) => b.totalSpent - a.totalSpent)
 
   if (query.search) {
-    const q = query.search.toLowerCase()
+    const q = normalizeSearch(query.search)
     ranked = ranked.filter(
       (c) =>
         c.clientWhatsapp.includes(q) ||
-        (c.name && c.name.toLowerCase().includes(q))
+        (c.name && normalizeSearch(c.name).includes(q))
     )
   }
 
