@@ -96,9 +96,10 @@ export function CategoriesPage() {
         showSuccess(`Categoria "${name}" excluída com sucesso!`)
       },
       onError: (err: unknown) => {
+        const data = (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data
         const message =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-          'Erro ao excluir categoria. Tente novamente.'
+          data?.error ?? data?.message ?? 'Erro ao excluir categoria. Tente novamente.'
         setDeleteError(message)
         setCategoryToDelete(null)
       },
