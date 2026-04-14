@@ -147,7 +147,7 @@ export function ProductFormPage() {
     }
 
     setPendingValues(null)
-    navigate('/admin/products', {
+    navigate('/admin/produtos', {
       state: {
         toast: isEdit
           ? `Produto "${payload.name}" atualizado com sucesso`
@@ -191,7 +191,7 @@ export function ProductFormPage() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center gap-4">
         <button
-          onClick={() => navigate('/admin/products')}
+          onClick={() => navigate('/admin/produtos')}
           className="text-sm text-gray-500 hover:text-gray-700"
         >
           ← Voltar
@@ -458,7 +458,7 @@ export function ProductFormPage() {
           <div className="flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={() => navigate('/admin/products')}
+              onClick={() => navigate('/admin/produtos')}
               className="px-4 py-2 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
             >
               Cancelar
