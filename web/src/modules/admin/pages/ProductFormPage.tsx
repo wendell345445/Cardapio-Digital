@@ -147,7 +147,13 @@ export function ProductFormPage() {
     }
 
     setPendingValues(null)
-    navigate('/admin/products')
+    navigate('/admin/products', {
+      state: {
+        toast: isEdit
+          ? `Produto "${payload.name}" atualizado com sucesso`
+          : `Produto "${payload.name}" criado com sucesso`,
+      },
+    })
   }
 
   async function handleCreateCategory() {
