@@ -10,6 +10,7 @@ const baseURL = import.meta.env.VITE_API_URL
 const menuApi = axios.create({ baseURL })
 
 export interface OrderAddress {
+  zipCode?: string
   street: string; number: string; complement?: string; neighborhood: string; city: string
 }
 
@@ -17,10 +18,18 @@ export interface OrderItem {
   productId: string; variationId?: string; quantity: number; notes?: string; additionalIds: string[]
 }
 
+export type PaymentMethod =
+  | 'PIX'
+  | 'CREDIT_CARD'
+  | 'CASH_ON_DELIVERY'
+  | 'CREDIT_ON_DELIVERY'
+  | 'DEBIT_ON_DELIVERY'
+  | 'PIX_ON_DELIVERY'
+
 export interface CreateOrderDto {
   clientWhatsapp: string; clientName?: string
   type: 'DELIVERY' | 'PICKUP' | 'TABLE'
-  paymentMethod: 'PIX' | 'CASH_ON_DELIVERY'
+  paymentMethod: PaymentMethod
   notes?: string; couponCode?: string
   address?: OrderAddress
   items: OrderItem[]

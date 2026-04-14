@@ -6,12 +6,20 @@ export const createOrderSchema = z.object({
   clientWhatsapp: z.string().length(11, 'WhatsApp deve ter 11 dígitos'),
   clientName: z.string().min(1).optional(),
   type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
-  paymentMethod: z.enum(['PIX', 'CASH_ON_DELIVERY']),
+  paymentMethod: z.enum([
+    'PIX',
+    'CREDIT_CARD',
+    'CASH_ON_DELIVERY',
+    'CREDIT_ON_DELIVERY',
+    'DEBIT_ON_DELIVERY',
+    'PIX_ON_DELIVERY',
+  ]),
   notes: z.string().optional(),
   couponCode: z.string().optional(),
   tableId: z.string().uuid().optional(),
   address: z
     .object({
+      zipCode: z.string().optional(),
       street: z.string().min(1),
       number: z.string().min(1),
       complement: z.string().optional(),

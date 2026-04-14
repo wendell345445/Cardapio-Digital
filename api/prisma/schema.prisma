@@ -35,6 +35,7 @@ model Store {
   serviceChargePercent Float?
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)
+  allowCreditCard      Boolean       @default(false)
   manualOpen           Boolean?
   whatsappMode         WhatsAppMode  @default(WHATSAPP)
   stripeCustomerId     String?
@@ -531,7 +532,11 @@ enum OrderItemStatus {
 
 enum PaymentMethod {
   PIX
+  CREDIT_CARD
   CASH_ON_DELIVERY
+  CREDIT_ON_DELIVERY
+  DEBIT_ON_DELIVERY
+  PIX_ON_DELIVERY
 }
 
 enum DeliveryMode {
