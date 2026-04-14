@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { GripVertical, Pencil, Trash2 } from 'lucide-react'
 
 
 import {
@@ -43,6 +43,52 @@ export function CategoriesPage() {
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  // Estado local para suportar reorder otimista durante drag-and-drop.
+  // Sincroniza com o resultado de useCategories quando o query retorna.
+  const [orderedCategories, setOrderedCategories] = useState<Category[]>([])
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [reorderError, setReorderError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (categories) setOrderedCategories(categories)
+  }, [categories])
+
+  async function handleDrop(targetId: string) {
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+    const fromIndex = orderedCategories.findIndex((c) => c.id === draggedId)
+    const toIndex = orderedCategories.findIndex((c) => c.id === targetId)
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+    const next = [...orderedCategories]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setOrderedCategories(next)
+    setDraggedId(null)
+    setDragOverId(null)
+
+    try {
+      await Promise.all(
+        next.map((c, index) =>
+          c.order === index
+            ? Promise.resolve()
+            : updateMutation.mutateAsync({ id: c.id, dto: { order: index } })
+        )
+      )
+      showSuccess('Ordem das categorias atualizada')
+    } catch {
+      setReorderError('Erro ao salvar nova ordem. Tente novamente.')
+      if (categories) setOrderedCategories(categories)
+    }
+  }
 
   function showSuccess(msg: string) {
     setSuccessMessage(msg)
@@ -183,6 +229,26 @@ export function CategoriesPage() {
         </div>
       )}
 
+      {/* Reorder error banner */}
+      {reorderError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-red-700">{reorderError}</p>
+          <button
+            onClick={() => setReorderError(null)}
+            className="text-red-500 hover:text-red-700 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Hint de drag-and-drop */}
+      {!isLoading && !isError && orderedCategories.length > 1 && (
+        <p className="text-xs text-gray-500">
+          Arraste pelo ícone <GripVertical className="inline w-3 h-3 -mt-0.5" /> para reordenar as categorias. A ordem é refletida nas tabs do cardápio público.
+        </p>
+      )}
+
       {/* List */}
       {isLoading && (
         <p className="text-center text-sm text-gray-500 py-8">Carregando categorias...</p>
@@ -199,14 +265,45 @@ export function CategoriesPage() {
             </div>
           )}
 
-          {(categories ?? []).map((category) => {
+          {orderedCategories.map((category) => {
             const isEditing = editState?.id === category.id
             const categoryProducts = productsByCategory[category.id] ?? []
+            const isDragged = draggedId === category.id
+            const isDragOver = dragOverId === category.id && draggedId !== category.id
             return (
             <div
               key={category.id}
-              className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4"
+              onDragOver={(e) => {
+                if (!draggedId || isEditing) return
+                e.preventDefault()
+                if (dragOverId !== category.id) setDragOverId(category.id)
+              }}
+              onDragLeave={() => {
+                if (dragOverId === category.id) setDragOverId(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                handleDrop(category.id)
+              }}
+              className={`bg-white rounded-xl border px-5 py-4 flex items-center gap-4 transition-all ${
+                isDragged ? 'opacity-40' : ''
+              } ${isDragOver ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200'}`}
             >
+              {!isEditing && (
+                <button
+                  type="button"
+                  draggable
+                  onDragStart={() => setDraggedId(category.id)}
+                  onDragEnd={() => {
+                    setDraggedId(null)
+                    setDragOverId(null)
+                  }}
+                  aria-label={`Arrastar ${category.name}`}
+                  className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 -ml-1"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </button>
+              )}
               {isEditing ? (
                 <form onSubmit={handleSaveEdit} className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                   <input
