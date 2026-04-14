@@ -10,6 +10,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     orderItem: {
       findMany: jest.fn(),
     },
+    customer: {
+      findMany: jest.fn(),
+    },
   },
 }))
 
@@ -24,7 +27,6 @@ jest.mock('../../../shared/redis/redis', () => ({
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
 import {
-  getClientDetail,
   getClientRanking,
   getPeakHours,
   getSalesSummary,
@@ -41,14 +43,14 @@ function makeOrder(overrides: {
   total?: number
   createdAt?: Date
   paymentMethod?: string
-  clientWhatsapp?: string
+  whatsapp?: string
   clientName?: string
 }) {
   return {
     total: overrides.total ?? 100,
     createdAt: overrides.createdAt ?? new Date('2026-04-01T12:00:00.000Z'),
     paymentMethod: overrides.paymentMethod ?? 'PIX',
-    clientWhatsapp: overrides.clientWhatsapp ?? '5511999990001',
+    clientWhatsapp: overrides.whatsapp ?? '5511999990001',
     clientName: overrides.clientName ?? 'Cliente A',
     clientId: 'client-1',
   }
@@ -60,6 +62,7 @@ beforeEach(() => {
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
   ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
   ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
+  ;(mockPrisma.customer.findMany as jest.Mock).mockResolvedValue([])
 })
 
 // ─── getSalesSummary ──────────────────────────────────────────────────────────
@@ -285,9 +288,9 @@ describe('getClientRanking', () => {
   const defaultQuery = { period: '30d' as const, page: 1, limit: 10 }
 
   const orders = [
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
-    makeOrder({ clientWhatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
+    makeOrder({ whatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
   ]
 
   it('ordena clientes por total gasto decrescente', async () => {
@@ -360,7 +363,7 @@ describe('getClientRanking', () => {
 
   it('pagina corretamente (página 2 offset correto)', async () => {
     const manyOrders = Array.from({ length: 25 }, (_, i) =>
-      makeOrder({ clientWhatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
+      makeOrder({ whatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
     )
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(manyOrders)
 
@@ -393,67 +396,3 @@ describe('getClientRanking', () => {
   })
 })
 
-// ─── getClientDetail ──────────────────────────────────────────────────────────
-
-describe('getClientDetail', () => {
-  const WHATSAPP = '5511999990001'
-
-  it('agrega corretamente pedidos do cliente com múltiplos pedidos', async () => {
-    // Mais recente primeiro (orderBy desc)
-    const latest = {
-      total: 100,
-      createdAt: new Date('2026-04-10T12:00:00Z'),
-      clientName: 'Ana Silva',
-      address: { street: 'Rua A', number: '100' },
-    }
-    const middle = {
-      total: 50,
-      createdAt: new Date('2026-04-05T12:00:00Z'),
-      clientName: 'Ana',
-      address: { street: 'Rua B' },
-    }
-    const earliest = {
-      total: 150,
-      createdAt: new Date('2026-04-01T12:00:00Z'),
-      clientName: 'Ana',
-      address: null,
-    }
-    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([latest, middle, earliest])
-
-    const result = await getClientDetail(STORE_ID, WHATSAPP)
-
-    expect(result.whatsapp).toBe(WHATSAPP)
-    expect(result.name).toBe('Ana Silva') // nome do mais recente
-    expect(result.lastAddress).toEqual({ street: 'Rua A', number: '100' })
-    expect(result.totalOrders).toBe(3)
-    expect(result.totalSpent).toBe(300)
-    expect(result.averageTicket).toBe(100)
-    expect(result.firstOrderAt).toBe('2026-04-01T12:00:00.000Z')
-    expect(result.lastOrderAt).toBe('2026-04-10T12:00:00.000Z')
-  })
-
-  it('lança AppError 404 quando cliente não tem pedidos', async () => {
-    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
-
-    await expect(getClientDetail(STORE_ID, WHATSAPP)).rejects.toMatchObject({
-      status: 404,
-      message: 'Cliente não encontrado',
-    })
-  })
-
-  it('isola busca por storeId (multi-tenant — whatsapp igual em outra loja não vaza)', async () => {
-    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
-
-    await expect(getClientDetail(STORE_ID, WHATSAPP)).rejects.toMatchObject({ status: 404 })
-
-    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          storeId: STORE_ID,
-          clientWhatsapp: WHATSAPP,
-          status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-        }),
-      })
-    )
-  })
-})

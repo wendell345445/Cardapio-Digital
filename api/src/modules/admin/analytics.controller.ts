@@ -2,7 +2,6 @@ import { NextFunction, Request, Response } from 'express'
 
 import { rankingQuerySchema, salesQuerySchema, topProductsQuerySchema } from './analytics.schema'
 import {
-  getClientDetail,
   getClientRanking,
   getPeakHours,
   getSalesSummary,
@@ -82,15 +81,3 @@ export async function getClientRankingController(req: Request, res: Response, ne
   }
 }
 
-// ─── A-008: Detalhe do cliente ───────────────────────────────────────────────
-
-export async function getClientDetailController(req: Request, res: Response, next: NextFunction) {
-  try {
-    const storeId = req.tenant!.storeId
-    const { whatsapp } = req.params
-    const data = await getClientDetail(storeId, whatsapp)
-    res.json({ success: true, data })
-  } catch (err) {
-    next(err)
-  }
-}

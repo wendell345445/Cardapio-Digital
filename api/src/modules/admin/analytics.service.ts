@@ -1,4 +1,3 @@
-import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 
@@ -232,24 +231,46 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   // Group by clientWhatsapp
   const clientMap: Record<
     string,
-    { clientWhatsapp: string; name: string | null; orderCount: number; totalSpent: number; lastOrderAt: Date }
+    {
+      clientId: string
+      whatsapp: string
+      name: string | null
+      totalOrders: number
+      totalSpent: number
+      lastOrderAt: Date
+    }
   > = {}
 
   for (const order of orders) {
     const key = order.clientWhatsapp
     if (!clientMap[key]) {
       clientMap[key] = {
-        clientWhatsapp: key,
+        clientId: order.clientId ?? key,
+        whatsapp: key,
         name: order.clientName,
-        orderCount: 0,
+        totalOrders: 0,
         totalSpent: 0,
         lastOrderAt: order.createdAt,
       }
     }
-    clientMap[key].orderCount += 1
+    clientMap[key].totalOrders += 1
     clientMap[key].totalSpent += order.total
     if (order.createdAt > clientMap[key].lastOrderAt) {
       clientMap[key].lastOrderAt = order.createdAt
+    }
+  }
+
+  // Override do nome pelo Customer.name quando o perfil existe.
+  const whatsapps = Object.keys(clientMap)
+  if (whatsapps.length > 0) {
+    const customers = await prisma.customer.findMany({
+      where: { storeId, whatsapp: { in: whatsapps } },
+      select: { whatsapp: true, name: true },
+    })
+    for (const c of customers) {
+      if (clientMap[c.whatsapp] && c.name) {
+        clientMap[c.whatsapp].name = c.name
+      }
     }
   }
 
@@ -259,7 +280,7 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
     const q = query.search.toLowerCase()
     ranked = ranked.filter(
       (c) =>
-        c.clientWhatsapp.includes(q) ||
+        c.whatsapp.includes(q) ||
         (c.name && c.name.toLowerCase().includes(q))
     )
   }
@@ -268,15 +289,7 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   const totalPages = Math.max(1, Math.ceil(total / query.limit))
   const paginated = ranked
     .slice((query.page - 1) * query.limit, query.page * query.limit)
-    .map((c, i) => ({
-      position: (query.page - 1) * query.limit + i + 1,
-      clientId: c.clientWhatsapp,
-      whatsapp: c.clientWhatsapp,
-      name: c.name,
-      totalOrders: c.orderCount,
-      totalSpent: c.totalSpent,
-      lastOrderAt: c.lastOrderAt,
-    }))
+    .map((c, i) => ({ position: (query.page - 1) * query.limit + i + 1, ...c }))
 
   const result: ClientRankingResult = {
     clients: paginated,
@@ -287,56 +300,4 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   }
   await cache.set(cacheKey, result, 60) // 1 min cache for ranking
   return result
-}
-
-// ─── A-008: Detalhe do cliente (para modal) ──────────────────────────────────
-
-type ClientDetailResult = {
-  whatsapp: string
-  name: string | null
-  lastAddress: Record<string, unknown> | null
-  totalOrders: number
-  totalSpent: number
-  averageTicket: number
-  firstOrderAt: string | null
-  lastOrderAt: string | null
-}
-
-export async function getClientDetail(storeId: string, whatsapp: string): Promise<ClientDetailResult> {
-  const orders = await prisma.order.findMany({
-    where: {
-      storeId,
-      clientWhatsapp: whatsapp,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-    },
-    select: {
-      total: true,
-      createdAt: true,
-      clientName: true,
-      address: true,
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  if (orders.length === 0) {
-    throw new AppError('Cliente não encontrado', 404)
-  }
-
-  const totalOrders = orders.length
-  const totalSpent = orders.reduce((s, o) => s + o.total, 0)
-  const averageTicket = totalOrders > 0 ? totalSpent / totalOrders : 0
-
-  const latest = orders[0]
-  const earliest = orders[orders.length - 1]
-
-  return {
-    whatsapp,
-    name: latest.clientName ?? null,
-    lastAddress: (latest.address as Record<string, unknown> | null) ?? null,
-    totalOrders,
-    totalSpent,
-    averageTicket,
-    firstOrderAt: earliest.createdAt.toISOString(),
-    lastOrderAt: latest.createdAt.toISOString(),
-  }
 }

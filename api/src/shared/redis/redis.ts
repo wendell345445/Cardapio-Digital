@@ -49,6 +49,16 @@ export const cache = {
     await getRedis().del(key)
   },
 
+  async delPattern(pattern: string): Promise<void> {
+    const redis = getRedis()
+    const stream = redis.scanStream({ match: pattern, count: 100 })
+    const batch: string[] = []
+    for await (const keys of stream) {
+      batch.push(...(keys as string[]))
+    }
+    if (batch.length > 0) await redis.del(...batch)
+  },
+
   async setMenu(storeId: string, value: unknown): Promise<void> {
     await cache.set(`menu:${storeId}`, value, TTL.MENU)
   },

@@ -9,12 +9,15 @@ import {
 } from '../../shared/middleware/auth.middleware'
 
 import {
-  getClientDetailController,
   getClientRankingController,
   getPeakHoursController,
   getSalesController,
   getTopProductsController,
 } from './analytics.controller'
+import {
+  getCustomerDetailController,
+  updateCustomerController,
+} from './customers.controller'
 
 // ─── TASK-093 / TASK-094: Rotas de Analytics e Ranking ───────────────────────
 
@@ -30,7 +33,8 @@ router.get('/peak-hours', getPeakHoursController)
 // Ranking de Clientes (TASK-094)
 router.get('/clients/ranking', getClientRankingController)
 
-// Detalhe do Cliente (A-008) — deve vir DEPOIS de /clients/ranking (mais específica primeiro)
-router.get('/clients/:whatsapp', getClientDetailController)
+// Detalhe + edição do perfil do cliente — deve vir DEPOIS de /clients/ranking
+router.get('/clients/:whatsapp', getCustomerDetailController)
+router.patch('/clients/:whatsapp', updateCustomerController)
 
 export default router
