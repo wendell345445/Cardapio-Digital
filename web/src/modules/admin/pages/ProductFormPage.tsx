@@ -379,8 +379,11 @@ export function ProductFormPage() {
           {/* Erro geral */}
           {mutationError && (
             <p className="text-sm text-red-600">
-              {(mutationError as { response?: { data?: { message?: string } } }).response?.data
-                ?.message ?? 'Erro ao salvar produto. Tente novamente.'}
+              {(mutationError as { response?: { data?: { error?: string; message?: string } } })
+                .response?.data?.error ??
+                (mutationError as { response?: { data?: { message?: string } } }).response?.data
+                  ?.message ??
+                'Erro ao salvar produto. Tente novamente.'}
             </p>
           )}
 

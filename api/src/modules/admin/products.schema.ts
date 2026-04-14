@@ -2,6 +2,14 @@ import { z } from 'zod'
 
 // ─── TASK-041: Produtos CRUD Individual ──────────────────────────────────────
 
+// Aceita URL absoluta (Cloudinary) OU caminho /uploads/... (fallback em disco
+// quando CLOUDINARY_* não está configurado — ver upload.service.ts).
+const imageUrlField = z
+  .string()
+  .refine((v) => /^https?:\/\//i.test(v) || v.startsWith('/uploads/'), {
+    message: 'imageUrl deve ser URL absoluta ou caminho /uploads/...',
+  })
+
 export const variationSchema = z.object({
   id: z.string().uuid().optional(), // opcional para update
   name: z.string().min(1).max(100),
@@ -20,7 +28,7 @@ export const createProductSchema = z.object({
   categoryId: z.string().uuid(),
   name: z.string().min(2).max(200),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().url(), // RN-006: foto obrigatória
+  imageUrl: imageUrlField, // RN-006: foto obrigatória
   basePrice: z.number().positive().optional(),
   isActive: z.boolean().optional().default(true),
   order: z.number().int().min(0).optional().default(0),
@@ -29,7 +37,7 @@ export const createProductSchema = z.object({
 })
 
 export const updateProductSchema = createProductSchema.partial().extend({
-  imageUrl: z.string().url().optional(), // não obrigatório em update
+  imageUrl: imageUrlField.optional(), // não obrigatório em update
 })
 
 export const listProductsSchema = z.object({
