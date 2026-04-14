@@ -273,6 +273,18 @@ export function CategoriesPage() {
             return (
             <div
               key={category.id}
+              draggable={!isEditing}
+              onDragStart={(e) => {
+                if (isEditing) return
+                setDraggedId(category.id)
+                // Alguns browsers exigem dataTransfer setado pra iniciar o drag.
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('text/plain', category.id)
+              }}
+              onDragEnd={() => {
+                setDraggedId(null)
+                setDragOverId(null)
+              }}
               onDragOver={(e) => {
                 if (!draggedId || isEditing) return
                 e.preventDefault()
@@ -286,23 +298,18 @@ export function CategoriesPage() {
                 handleDrop(category.id)
               }}
               className={`bg-white rounded-xl border px-5 py-4 flex items-center gap-4 transition-all ${
-                isDragged ? 'opacity-40' : ''
-              } ${isDragOver ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200'}`}
+                !isEditing ? 'cursor-grab active:cursor-grabbing' : ''
+              } ${isDragged ? 'opacity-40' : ''} ${
+                isDragOver ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200'
+              }`}
             >
               {!isEditing && (
-                <button
-                  type="button"
-                  draggable
-                  onDragStart={() => setDraggedId(category.id)}
-                  onDragEnd={() => {
-                    setDraggedId(null)
-                    setDragOverId(null)
-                  }}
-                  aria-label={`Arrastar ${category.name}`}
-                  className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 -ml-1"
+                <span
+                  aria-hidden="true"
+                  className="text-gray-400 -ml-1 select-none"
                 >
                   <GripVertical className="w-4 h-4" />
-                </button>
+                </span>
               )}
               {isEditing ? (
                 <form onSubmit={handleSaveEdit} className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
