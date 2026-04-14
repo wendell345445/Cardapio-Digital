@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -57,6 +58,13 @@ export function ProductFormPage() {
   const [newCategoryOpen, setNewCategoryOpen] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newCategoryError, setNewCategoryError] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const [pendingValues, setPendingValues] = useState<ProductFormValues | null>(null)
 
@@ -153,6 +161,7 @@ export function ProductFormPage() {
       setValue('categoryId', created.id, { shouldValidate: true })
       setNewCategoryOpen(false)
       setNewCategoryName('')
+      setToast(`Categoria "${created.name}" criada com sucesso`)
     } catch (err) {
       const msg =
         (err as { response?: { data?: { error?: string } } }).response?.data?.error ??
@@ -520,6 +529,20 @@ export function ProductFormPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed top-4 right-4 z-[60] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-1 opacity-80 hover:opacity-100"
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>
