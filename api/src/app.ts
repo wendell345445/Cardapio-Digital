@@ -4,6 +4,7 @@ import helmet from 'helmet'
 import passport from 'passport'
 
 import { configurePassport } from './modules/auth/passport.config'
+import { LOCAL_UPLOAD_DIR } from './modules/admin/upload.service'
 import { errorHandler } from './shared/middleware/error.middleware'
 import { publicRateLimiter } from './shared/middleware/rateLimit.middleware'
 import { router } from './router'
@@ -70,6 +71,16 @@ app.use(publicRateLimiter)
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
+
+// Fallback local de uploads (usado quando Cloudinary não está configurado).
+// helmet bloqueia cross-origin por default — crossOriginResourcePolicy relaxa pra o web dev server conseguir carregar as imagens.
+app.use(
+  '/uploads',
+  express.static(LOCAL_UPLOAD_DIR, {
+    fallthrough: false,
+    setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  })
+)
 
 app.use('/api/v1', router)
 

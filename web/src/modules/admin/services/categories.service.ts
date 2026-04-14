@@ -4,6 +4,7 @@ export interface Category {
   id: string
   storeId: string
   name: string
+  description: string | null
   order: number
   isActive: boolean
   createdAt: string
@@ -12,11 +13,13 @@ export interface Category {
 
 export interface CreateCategoryDto {
   name: string
+  description?: string | null
   order?: number
 }
 
 export interface UpdateCategoryDto {
   name?: string
+  description?: string | null
   order?: number
   isActive?: boolean
 }

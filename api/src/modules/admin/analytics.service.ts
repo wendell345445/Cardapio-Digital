@@ -7,10 +7,37 @@ import type { RankingQuery, SalesQuery, TopProductsQuery } from './analytics.sch
 
 const CACHE_TTL = 10 * 60 // 10 min
 
+const BRT_DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export async function invalidateAnalyticsCache(storeId: string): Promise<void> {
+  await Promise.all([
+    cache.del(`analytics:sales:${storeId}:day`),
+    cache.del(`analytics:sales:${storeId}:week`),
+    cache.del(`analytics:sales:${storeId}:month`),
+    cache.del(`analytics:top-products:${storeId}:day:4`),
+    cache.del(`analytics:top-products:${storeId}:week:4`),
+    cache.del(`analytics:top-products:${storeId}:month:4`),
+    cache.del(`analytics:peak-hours:${storeId}`),
+  ])
+}
+
+function normalizeSearch(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+}
+
 type SalesSummaryResult = {
   totalRevenue: number
   totalOrders: number
   averageTicket: number
+  cancelledCount: number
   timeline: { date: string; revenue: number; orders: number }[]
 }
 
@@ -26,16 +53,18 @@ type PeakHoursResult = { hour: number; count: number }[]
 
 type ClientRankingResult = {
   clients: {
-    rank: number
-    clientWhatsapp: string
+    position: number
+    clientId: string
+    whatsapp: string
     name: string | null
-    orderCount: number
+    totalOrders: number
     totalSpent: number
     lastOrderAt: Date
   }[]
   total: number
   page: number
   limit: number
+  totalPages: number
 }
 
 /** Retorna meia-noite BRT (03:00 UTC) de hoje */
@@ -72,23 +101,28 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
 
   const since = getPeriodStart(query.period)
 
-  const orders = await prisma.order.findMany({
-    where: {
-      storeId,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-      createdAt: { gte: since },
-    },
-    select: { total: true, createdAt: true },
-  })
+  const [orders, cancelledCount] = await Promise.all([
+    prisma.order.findMany({
+      where: {
+        storeId,
+        status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+        createdAt: { gte: since },
+      },
+      select: { total: true, createdAt: true },
+    }),
+    prisma.order.count({
+      where: { storeId, status: 'CANCELLED', createdAt: { gte: since } },
+    }),
+  ])
 
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
   const totalOrders = orders.length
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
-  // Group by date for line chart
+  // Group by date for line chart (BRT timezone — evita split de pedidos feitos após 21h BRT)
   const byDate: Record<string, { revenue: number; orders: number }> = {}
   for (const order of orders) {
-    const date = order.createdAt.toISOString().slice(0, 10)
+    const date = BRT_DATE_FORMAT.format(order.createdAt)
     if (!byDate[date]) byDate[date] = { revenue: 0, orders: 0 }
     byDate[date].revenue += order.total
     byDate[date].orders += 1
@@ -98,7 +132,7 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({ date, ...data }))
 
-  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, timeline }
+  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, cancelledCount, timeline }
   await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }
@@ -204,44 +238,73 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   // Group by clientWhatsapp
   const clientMap: Record<
     string,
-    { clientWhatsapp: string; name: string | null; orderCount: number; totalSpent: number; lastOrderAt: Date }
+    {
+      clientId: string
+      whatsapp: string
+      name: string | null
+      totalOrders: number
+      totalSpent: number
+      lastOrderAt: Date
+    }
   > = {}
 
   for (const order of orders) {
     const key = order.clientWhatsapp
     if (!clientMap[key]) {
       clientMap[key] = {
-        clientWhatsapp: key,
+        clientId: order.clientId ?? key,
+        whatsapp: key,
         name: order.clientName,
-        orderCount: 0,
+        totalOrders: 0,
         totalSpent: 0,
         lastOrderAt: order.createdAt,
       }
     }
-    clientMap[key].orderCount += 1
+    clientMap[key].totalOrders += 1
     clientMap[key].totalSpent += order.total
     if (order.createdAt > clientMap[key].lastOrderAt) {
       clientMap[key].lastOrderAt = order.createdAt
     }
   }
 
+  // Override do nome pelo Customer.name quando o perfil existe.
+  const whatsapps = Object.keys(clientMap)
+  if (whatsapps.length > 0) {
+    const customers = await prisma.customer.findMany({
+      where: { storeId, whatsapp: { in: whatsapps } },
+      select: { whatsapp: true, name: true },
+    })
+    for (const c of customers) {
+      if (clientMap[c.whatsapp] && c.name) {
+        clientMap[c.whatsapp].name = c.name
+      }
+    }
+  }
+
   let ranked = Object.values(clientMap).sort((a, b) => b.totalSpent - a.totalSpent)
 
   if (query.search) {
-    const q = query.search.toLowerCase()
+    const q = normalizeSearch(query.search)
     ranked = ranked.filter(
       (c) =>
-        c.clientWhatsapp.includes(q) ||
-        (c.name && c.name.toLowerCase().includes(q))
+        c.whatsapp.includes(q) ||
+        (c.name && normalizeSearch(c.name).includes(q))
     )
   }
 
   const total = ranked.length
+  const totalPages = Math.max(1, Math.ceil(total / query.limit))
   const paginated = ranked
     .slice((query.page - 1) * query.limit, query.page * query.limit)
-    .map((c, i) => ({ rank: (query.page - 1) * query.limit + i + 1, ...c }))
+    .map((c, i) => ({ position: (query.page - 1) * query.limit + i + 1, ...c }))
 
-  const result: ClientRankingResult = { clients: paginated, total, page: query.page, limit: query.limit }
+  const result: ClientRankingResult = {
+    clients: paginated,
+    total,
+    page: query.page,
+    limit: query.limit,
+    totalPages,
+  }
   await cache.set(cacheKey, result, 60) // 1 min cache for ranking
   return result
 }

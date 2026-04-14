@@ -1,6 +1,12 @@
 import { Router } from 'express'
 
-import { requireRole } from '../../shared/middleware/auth.middleware'
+import {
+  authMiddleware,
+  extractStoreId,
+  requireActiveStore,
+  requireRole,
+  requireStore,
+} from '../../shared/middleware/auth.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 
 // ─── TASK-109: Adicionais centralizados ──────────────────────────────────────
@@ -8,7 +14,13 @@ import { prisma } from '../../shared/prisma/prisma'
 
 const router = Router()
 
-router.use(requireRole('ADMIN'))
+router.use(
+  authMiddleware,
+  requireRole('ADMIN', 'OWNER'),
+  extractStoreId,
+  requireStore,
+  requireActiveStore
+)
 
 /**
  * GET /admin/additionals

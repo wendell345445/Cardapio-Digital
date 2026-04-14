@@ -1,4 +1,4 @@
-# Menu Panda
+# Menu Panda - Com Talita
 
 Plataforma SaaS white-label de cardápio digital e gestão de pedidos.
 
@@ -94,6 +94,24 @@ npm run typecheck    # TypeScript check em ambos
 npm run test         # Testes em ambos
 npm run format       # Prettier em todo o projeto
 ```
+
+## Upload de imagens
+
+- **Produção:** Cloudinary. Preencha `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` e `CLOUDINARY_API_SECRET` (ou `CLOUDINARY_URL`) em `api/.env`.
+- **Dev:** se as variáveis estiverem vazias ou com placeholder (`your-cloud-name`, etc.), o backend cai automaticamente pra armazenamento local em `api/uploads/` (gitignored), servido em `/uploads/...`. Útil pra rodar local sem credenciais externas.
+
+A detecção é lazy (na primeira chamada). Prod com Cloudinary real não depende do fallback.
+
+## Cupom e desconto
+
+- **Cupom clássico** (aplicado no checkout via código): gerenciado em `/admin/cupons`.
+- **Promoção por produto** (preço absoluto com datas de início/fim, auto-aplicado no cardápio): botão **Adicionar desconto** em cada produto na tela `/admin/produtos`. O cardápio público mostra o preço riscado com o novo preço ao lado; o backend recalcula o preço no `createOrder` consultando a promo vigente — cliente nunca dita o preço.
+
+Promoção por produto usa o mesmo model `Coupon` (com `productId + promoPrice`), código auto-gerado (`PROMO_xxx`) e não aceito no checkout manual. Não se aplica a produtos com variations.
+
+## Re-autenticação de ações sensíveis
+
+Criar/editar/duplicar produto e excluir produto/categoria/adicional exigem re-digitar a senha via modal antes de executar. Endpoint: `POST /api/v1/auth/reauth`.
 
 ## Deploy (Railway)
 

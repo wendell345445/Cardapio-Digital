@@ -18,6 +18,10 @@ jest.mock('cloudinary', () => ({
   },
 }))
 
+process.env.CLOUDINARY_CLOUD_NAME = 'test-cloud'
+process.env.CLOUDINARY_API_KEY = 'test-key'
+process.env.CLOUDINARY_API_SECRET = 'test-secret'
+
 import { uploadImage } from '../upload.service'
 
 const makeFile = (mimetype: string, size = 1024): Express.Multer.File => ({

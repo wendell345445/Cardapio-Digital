@@ -10,6 +10,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    product: { count: jest.fn() },
     store: { findUnique: jest.fn() },
     auditLog: { create: jest.fn() },
   },
@@ -188,8 +189,10 @@ describe('PATCH /api/v1/admin/categories/:id', () => {
 describe('DELETE /api/v1/admin/categories/:id', () => {
   it('returns 200 when category is deleted', async () => {
     ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.count as jest.Mock).mockResolvedValue(0)
     ;(mockPrisma.category.delete as jest.Mock).mockResolvedValue(mockCategory)
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' })
 
     const res = await request(app)
       .delete(`/api/v1/admin/categories/${CAT_ID}`)
@@ -207,5 +210,18 @@ describe('DELETE /api/v1/admin/categories/:id', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
 
     expect(res.status).toBe(404)
+  })
+
+  it('returns 422 when category still has products', async () => {
+    ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.count as jest.Mock).mockResolvedValue(2)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ status: 'ACTIVE' })
+
+    const res = await request(app)
+      .delete(`/api/v1/admin/categories/${CAT_ID}`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(422)
+    expect(mockPrisma.category.delete).not.toHaveBeenCalled()
   })
 })

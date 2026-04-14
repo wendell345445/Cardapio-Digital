@@ -7,7 +7,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     category: { findMany: jest.fn() },
     product: { findUnique: jest.fn() },
-    coupon: { findUnique: jest.fn(), update: jest.fn() },
+    coupon: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     deliveryNeighborhood: { findFirst: jest.fn(), count: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     order: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
@@ -158,6 +158,9 @@ beforeEach(() => {
   ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
   // Cache miss por default — tests que precisam de cache hit sobrescrevem
   ;(mockCache.get as jest.Mock).mockResolvedValue(null)
+  // Sem promoções ativas por default (getActiveProductPromos + order price lookup)
+  ;(mockPrisma.coupon.findMany as jest.Mock).mockResolvedValue([])
+  ;(mockPrisma.coupon.findFirst as jest.Mock).mockResolvedValue(null)
   // resetAllMocks limpa mockReturnValue do jsonwebtoken mock — re-configura
   ;(require('jsonwebtoken').sign as jest.Mock).mockReturnValue('mock-jwt-token')
 })

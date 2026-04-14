@@ -5,7 +5,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     store: { findUnique: jest.fn() },
     product: { findUnique: jest.fn() },
-    coupon: { findUnique: jest.fn(), update: jest.fn() },
+    coupon: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     deliveryNeighborhood: {
       findFirst: jest.fn(),
       count: jest.fn(),
@@ -152,6 +152,8 @@ function setupDefaultMocks() {
 beforeEach(() => {
   jest.clearAllMocks()
   jest.useFakeTimers()
+  // Default: sem promo ativa no produto (coupon.findFirst consultado em createOrder)
+  ;(mockPrisma.coupon.findFirst as jest.Mock).mockResolvedValue(null)
 })
 
 afterEach(() => {

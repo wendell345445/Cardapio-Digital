@@ -5,6 +5,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     store: { findUnique: jest.fn() },
     category: { findMany: jest.fn() },
+    coupon: { findMany: jest.fn() },
   },
 }))
 
@@ -64,7 +65,11 @@ const mockCategories = [
   },
 ]
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Default: nenhuma promoção ativa (getActiveProductPromos vai retornar []).
+  ;(mockPrisma.coupon.findMany as jest.Mock).mockResolvedValue([])
+})
 
 // ─── getMenu — cache hit ───────────────────────────────────────────────────────
 

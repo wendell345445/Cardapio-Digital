@@ -103,3 +103,8 @@ export async function updateProduct(id: string, dto: UpdateProductDto): Promise<
 export async function deleteProduct(id: string): Promise<void> {
   await api.delete(`/admin/products/${id}`)
 }
+
+export async function duplicateProduct(id: string): Promise<Product> {
+  const { data } = await api.post(`/admin/products/${id}/duplicate`)
+  return data.data
+}

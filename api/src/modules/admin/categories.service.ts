@@ -30,6 +30,7 @@ export async function createCategory(
     data: {
       storeId,
       name: data.name,
+      description: data.description ?? null,
       order: data.order,
     },
   })
@@ -105,6 +106,14 @@ export async function deleteCategory(
 
   if (!category || category.storeId !== storeId) {
     throw new AppError('Categoria não encontrada', 404)
+  }
+
+  const productCount = await prisma.product.count({ where: { categoryId } })
+  if (productCount > 0) {
+    throw new AppError(
+      `Não é possível excluir: a categoria tem ${productCount} produto(s). Remova ou mova os produtos antes.`,
+      422
+    )
   }
 
   await prisma.category.delete({ where: { id: categoryId } })

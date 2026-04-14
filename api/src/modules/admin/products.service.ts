@@ -201,6 +201,80 @@ export async function updateProduct(
   return updated
 }
 
+export async function duplicateProduct(
+  storeId: string,
+  productId: string,
+  userId: string,
+  ip?: string
+) {
+  const source = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { variations: true, additionals: true },
+  })
+
+  if (!source || source.storeId !== storeId) {
+    throw new AppError('Produto não encontrado', 404)
+  }
+
+  // Gera nome único "X (Cópia)", "X (Cópia 2)", ...
+  const baseName = `${source.name} (Cópia)`
+  let candidate = baseName
+  let suffix = 2
+  while (
+    await prisma.product.findFirst({ where: { storeId, name: candidate }, select: { id: true } })
+  ) {
+    candidate = `${baseName} ${suffix}`
+    suffix++
+  }
+
+  const duplicated = await prisma.$transaction(async (tx) => {
+    return tx.product.create({
+      data: {
+        storeId,
+        categoryId: source.categoryId,
+        name: candidate,
+        description: source.description,
+        imageUrl: source.imageUrl,
+        basePrice: source.basePrice,
+        isActive: source.isActive,
+        order: source.order,
+        variations: {
+          create: source.variations.map((v) => ({
+            name: v.name,
+            price: v.price,
+            isActive: v.isActive,
+          })),
+        },
+        additionals: {
+          create: source.additionals.map((a) => ({
+            name: a.name,
+            price: a.price,
+            isActive: a.isActive,
+          })),
+        },
+      },
+      include: { variations: true, additionals: true },
+    })
+  })
+
+  await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'product.duplicate',
+      entity: 'Product',
+      entityId: duplicated.id,
+      data: { sourceId: productId, name: candidate },
+      ip,
+    },
+  })
+
+  return duplicated
+}
+
 export async function deleteProduct(
   storeId: string,
   productId: string,

@@ -12,6 +12,7 @@ coverage/
 .local
 infra/Caddyfile.local
 api/.whatsapp-sessions/
+api/uploads/
 .specify/
 .claude/
 *.tsbuildinfo

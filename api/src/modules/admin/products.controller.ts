@@ -11,6 +11,7 @@ import {
 import {
   createProduct,
   deleteProduct,
+  duplicateProduct,
   getProduct,
   listProducts,
   updateProduct,
@@ -80,6 +81,22 @@ export async function deleteProductController(req: Request, res: Response, next:
     const { id } = req.params
     await deleteProduct(storeId, id, userId, req.ip)
     res.json({ success: true })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function duplicateProductController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const result = await duplicateProduct(storeId, id, userId, req.ip)
+    res.status(201).json({ success: true, data: result })
   } catch (err) {
     next(err)
   }

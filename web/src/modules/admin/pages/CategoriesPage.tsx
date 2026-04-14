@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Pencil, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { GripVertical, Pencil, Trash2 } from 'lucide-react'
+
 
 import {
   useCategories,
@@ -9,19 +10,24 @@ import {
 } from '../hooks/useCategories'
 import type { Category } from '../services/categories.service'
 import { useProducts } from '../hooks/useProducts'
+import type { Product } from '../services/products.service'
 
-function useProductCountByCategory() {
+import { ReauthModal } from '@/modules/auth/components/ReauthModal'
+
+function useProductsByCategory() {
   const { data: products } = useProducts({})
-  const countMap: Record<string, number> = {}
+  const byCategory: Record<string, Product[]> = {}
   for (const p of products ?? []) {
-    countMap[p.categoryId] = (countMap[p.categoryId] ?? 0) + 1
+    if (!byCategory[p.categoryId]) byCategory[p.categoryId] = []
+    byCategory[p.categoryId].push(p)
   }
-  return countMap
+  return byCategory
 }
 
 interface EditState {
   id: string
   name: string
+  description: string
 }
 
 export function CategoriesPage() {
@@ -29,32 +35,121 @@ export function CategoriesPage() {
   const createMutation = useCreateCategory()
   const updateMutation = useUpdateCategory()
   const deleteMutation = useDeleteCategory()
-  const productCounts = useProductCountByCategory()
+  const productsByCategory = useProductsByCategory()
 
   const [newName, setNewName] = useState('')
+  const [newDescription, setNewDescription] = useState('')
   const [editState, setEditState] = useState<EditState | null>(null)
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+
+  // Estado local para suportar reorder otimista durante drag-and-drop.
+  // Sincroniza com o resultado de useCategories quando o query retorna.
+  const [orderedCategories, setOrderedCategories] = useState<Category[]>([])
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [reorderError, setReorderError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (categories) setOrderedCategories(categories)
+  }, [categories])
+
+  async function handleDrop(targetId: string) {
+    if (!draggedId || draggedId === targetId) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+    const fromIndex = orderedCategories.findIndex((c) => c.id === draggedId)
+    const toIndex = orderedCategories.findIndex((c) => c.id === targetId)
+    if (fromIndex === -1 || toIndex === -1) {
+      setDraggedId(null)
+      setDragOverId(null)
+      return
+    }
+    const next = [...orderedCategories]
+    const [moved] = next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, moved)
+    setOrderedCategories(next)
+    setDraggedId(null)
+    setDragOverId(null)
+
+    try {
+      await Promise.all(
+        next.map((c, index) =>
+          c.order === index
+            ? Promise.resolve()
+            : updateMutation.mutateAsync({ id: c.id, dto: { order: index } })
+        )
+      )
+      showSuccess('Ordem das categorias atualizada')
+    } catch {
+      setReorderError('Erro ao salvar nova ordem. Tente novamente.')
+      if (categories) setOrderedCategories(categories)
+    }
+  }
+
+  function showSuccess(msg: string) {
+    setSuccessMessage(msg)
+    setTimeout(() => setSuccessMessage((current) => (current === msg ? null : current)), 3000)
+  }
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!newName.trim()) return
+    const name = newName.trim()
+    const description = newDescription.trim() || null
     createMutation.mutate(
-      { name: newName.trim() },
-      { onSuccess: () => setNewName('') }
+      { name, description },
+      {
+        onSuccess: () => {
+          setNewName('')
+          setNewDescription('')
+          showSuccess(`Categoria "${name}" criada com sucesso!`)
+        },
+      }
     )
   }
 
   function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editState) return
+    const name = editState.name
+    const description = editState.description.trim() || null
     updateMutation.mutate(
-      { id: editState.id, dto: { name: editState.name } },
-      { onSuccess: () => setEditState(null) }
+      { id: editState.id, dto: { name, description } },
+      {
+        onSuccess: () => {
+          setEditState(null)
+          showSuccess(`Categoria "${name}" atualizada com sucesso!`)
+        },
+      }
     )
   }
 
   function handleDelete(category: Category) {
-    if (!window.confirm(`Excluir a categoria "${category.name}"?`)) return
-    deleteMutation.mutate(category.id)
+    setDeleteError(null)
+    setCategoryToDelete(category)
+  }
+
+  function confirmDelete() {
+    if (!categoryToDelete) return
+    const name = categoryToDelete.name
+    deleteMutation.mutate(categoryToDelete.id, {
+      onSuccess: () => {
+        setCategoryToDelete(null)
+        showSuccess(`Categoria "${name}" excluída com sucesso!`)
+      },
+      onError: (err: unknown) => {
+        const data = (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data
+        const message =
+          data?.error ?? data?.message ?? 'Erro ao excluir categoria. Tente novamente.'
+        setDeleteError(message)
+        setCategoryToDelete(null)
+      },
+    })
   }
 
   return (
@@ -88,9 +183,11 @@ export function CategoriesPage() {
             />
             <input
               type="text"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
               placeholder="Descrição (opcional)"
+              maxLength={500}
               className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              disabled
             />
           </div>
           <button
@@ -105,6 +202,52 @@ export function CategoriesPage() {
           <p className="mt-2 text-sm text-red-600">Erro ao criar categoria. Tente novamente.</p>
         )}
       </div>
+
+      {/* Success banner */}
+      {successMessage && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-green-700">{successMessage}</p>
+          <button
+            onClick={() => setSuccessMessage(null)}
+            className="text-green-600 hover:text-green-800 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Delete error banner */}
+      {deleteError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-red-700">{deleteError}</p>
+          <button
+            onClick={() => setDeleteError(null)}
+            className="text-red-500 hover:text-red-700 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Reorder error banner */}
+      {reorderError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-sm text-red-700">{reorderError}</p>
+          <button
+            onClick={() => setReorderError(null)}
+            className="text-red-500 hover:text-red-700 text-sm font-medium"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
+      {/* Hint de drag-and-drop */}
+      {!isLoading && !isError && orderedCategories.length > 1 && (
+        <p className="text-xs text-gray-500">
+          Arraste pelo ícone <GripVertical className="inline w-3 h-3 -mt-0.5" /> para reordenar as categorias. A ordem é refletida nas tabs do cardápio público.
+        </p>
+      )}
 
       {/* List */}
       {isLoading && (
@@ -122,19 +265,69 @@ export function CategoriesPage() {
             </div>
           )}
 
-          {(categories ?? []).map((category) => (
+          {orderedCategories.map((category) => {
+            const isEditing = editState?.id === category.id
+            const categoryProducts = productsByCategory[category.id] ?? []
+            const isDragged = draggedId === category.id
+            const isDragOver = dragOverId === category.id && draggedId !== category.id
+            return (
             <div
               key={category.id}
-              className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex items-center gap-4"
+              draggable={!isEditing}
+              onDragStart={(e) => {
+                if (isEditing) return
+                setDraggedId(category.id)
+                // Alguns browsers exigem dataTransfer setado pra iniciar o drag.
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('text/plain', category.id)
+              }}
+              onDragEnd={() => {
+                setDraggedId(null)
+                setDragOverId(null)
+              }}
+              onDragOver={(e) => {
+                if (!draggedId || isEditing) return
+                e.preventDefault()
+                if (dragOverId !== category.id) setDragOverId(category.id)
+              }}
+              onDragLeave={() => {
+                if (dragOverId === category.id) setDragOverId(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                handleDrop(category.id)
+              }}
+              className={`bg-white rounded-xl border px-5 py-4 flex items-center gap-4 transition-all ${
+                !isEditing ? 'cursor-grab active:cursor-grabbing' : ''
+              } ${isDragged ? 'opacity-40' : ''} ${
+                isDragOver ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200'
+              }`}
             >
-              {editState?.id === category.id ? (
-                <form onSubmit={handleSaveEdit} className="flex-1 flex items-center gap-2">
+              {!isEditing && (
+                <span
+                  aria-hidden="true"
+                  className="text-gray-400 -ml-1 select-none"
+                >
+                  <GripVertical className="w-4 h-4" />
+                </span>
+              )}
+              {isEditing ? (
+                <form onSubmit={handleSaveEdit} className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                   <input
                     type="text"
-                    value={editState.name}
+                    value={editState!.name}
                     onChange={(e) => setEditState((s) => s && { ...s, name: e.target.value })}
                     autoFocus
                     required
+                    placeholder="Nome"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  />
+                  <input
+                    type="text"
+                    value={editState!.description}
+                    onChange={(e) => setEditState((s) => s && { ...s, description: e.target.value })}
+                    placeholder="Descrição (opcional)"
+                    maxLength={500}
                     className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                   />
                   <button
@@ -156,19 +349,27 @@ export function CategoriesPage() {
                 <>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-900">{category.name}</p>
-                    <p className="text-xs text-gray-400">Sem descrição</p>
+                    <p className="text-xs text-gray-400">
+                      {category.description?.trim() ? category.description : 'Sem descrição'}
+                    </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className="text-xs bg-green-50 text-green-600 border border-green-100 px-2 py-0.5 rounded-full">
                         Nova
                       </span>
                       <span className="text-xs text-gray-500">
-                        {productCounts[category.id] ?? 0} produto(s)
+                        {categoryProducts.length} produto(s)
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setEditState({ id: category.id, name: category.name })}
+                      onClick={() =>
+                        setEditState({
+                          id: category.id,
+                          name: category.name,
+                          description: category.description ?? '',
+                        })
+                      }
                       className="flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-700 font-medium"
                     >
                       <Pencil className="w-3.5 h-3.5" />
@@ -186,9 +387,19 @@ export function CategoriesPage() {
                 </>
               )}
             </div>
-          ))}
+          )
+          })}
         </div>
       )}
+
+      <ReauthModal
+        open={!!categoryToDelete}
+        title="Excluir categoria"
+        description={`Para excluir a categoria "${categoryToDelete?.name ?? ''}", confirme sua senha.`}
+        confirmLabel="Excluir"
+        onCancel={() => setCategoryToDelete(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   )
 }

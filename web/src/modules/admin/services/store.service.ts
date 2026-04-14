@@ -8,6 +8,7 @@ export interface StoreData {
   id: string
   name: string
   slug: string
+  customDomain?: string | null
   description?: string
   logo?: string
   address?: string
@@ -18,6 +19,7 @@ export interface StoreData {
   allowCashOnDelivery: boolean
   allowPix: boolean
   allowPickup: boolean
+  allowCreditCard: boolean
   serviceChargePercent: number
   features: Record<string, boolean>
   plan?: string
@@ -46,6 +48,7 @@ export interface UpdatePaymentSettingsDto {
   allowCashOnDelivery?: boolean
   allowPix?: boolean
   allowPickup?: boolean
+  allowCreditCard?: boolean
   serviceChargePercent?: number
 }
 

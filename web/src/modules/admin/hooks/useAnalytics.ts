@@ -1,12 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   getClientRanking,
+  getCustomerDetail,
   getPeakHours,
   getSales,
   getTopProducts,
+  updateCustomer,
   type ClientRankingParams,
   type Period,
+  type UpdateCustomerInput,
 } from '../services/analytics.service'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -40,5 +43,25 @@ export function useClientRanking(params: ClientRankingParams) {
     queryKey: ['analytics', 'clients-ranking', params],
     queryFn: () => getClientRanking(params),
     staleTime: 1 * 60 * 1000,
+  })
+}
+
+export function useCustomerDetail(whatsapp: string | null) {
+  return useQuery({
+    queryKey: ['analytics', 'customer-detail', whatsapp],
+    queryFn: () => getCustomerDetail(whatsapp!),
+    enabled: !!whatsapp,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useUpdateCustomer(whatsapp: string) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UpdateCustomerInput) => updateCustomer(whatsapp, input),
+    onSuccess: (data) => {
+      qc.setQueryData(['analytics', 'customer-detail', whatsapp], data)
+      qc.invalidateQueries({ queryKey: ['analytics', 'clients-ranking'] })
+    },
   })
 }

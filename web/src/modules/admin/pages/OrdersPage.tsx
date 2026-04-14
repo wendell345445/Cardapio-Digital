@@ -121,10 +121,21 @@ function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function todayISO() {
+function dayRangeISO(dateStr?: string): { from: string; to: string } {
+  const base = dateStr ? new Date(`${dateStr}T00:00:00`) : new Date()
+  const from = new Date(base)
+  from.setHours(0, 0, 0, 0)
+  const to = new Date(base)
+  to.setHours(23, 59, 59, 999)
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
+function todayInputValue(): string {
   const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.toISOString()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 // ─── OrderCard ────────────────────────────────────────────────────────────────
@@ -353,16 +364,17 @@ export function OrdersPage() {
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('todos')
   const [search, setSearch] = useState('')
-  const [filterDate, setFilterDate] = useState('')
+  const [filterDate, setFilterDate] = useState(todayInputValue)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [advancingId, setAdvancingId] = useState<string | null>(null)
   const [printSales, setPrintSales] = useState(false)
   // TASK-126: Tab ativos / cancelados
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
 
-  const today = todayISO()
+  const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
-    dateFrom: filterDate || today,
+    dateFrom,
+    dateTo,
     limit: 200,
   }
 

@@ -13,6 +13,7 @@ import {
   Clock,
   Settings,
   ExternalLink,
+  Users,
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Bairros', to: '/admin/bairros', icon: MapPin },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
+  { label: 'Clientes', to: '/admin/clientes', icon: Users },
   { label: 'Produtos', to: '/admin/produtos', icon: Package },
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },
@@ -144,9 +146,13 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
             <p className="text-sm font-medium text-gray-900 truncate">{user?.name ?? 'Admin'}</p>
           </div>
         </div>
-        {store?.slug && (
+        {(store?.customDomain || store?.slug) && (
           <a
-            href={`${window.location.protocol}//${store.slug}.${PUBLIC_ROOT_DOMAIN}`}
+            href={
+              store.customDomain
+                ? `${window.location.protocol}//${store.customDomain}`
+                : `${window.location.protocol}//${store.slug}.${PUBLIC_ROOT_DOMAIN}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors mb-2"

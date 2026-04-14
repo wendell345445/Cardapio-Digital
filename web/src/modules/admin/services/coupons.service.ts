@@ -12,28 +12,33 @@ export interface Coupon {
   minOrder?: number | null
   maxUses?: number | null
   usedCount: number
+  startsAt?: string | null
   expiresAt?: string | null
   isActive: boolean
   createdAt: string
+  productId?: string | null
+  promoPrice?: number | null
+  product?: { id: string; name: string; imageUrl: string | null; basePrice: number | null } | null
 }
 
 export interface CreateCouponData {
-  code: string
-  type: CouponType
-  value: number
+  code?: string
+  type?: CouponType
+  value?: number
   minOrder?: number
   maxUses?: number
+  startsAt?: string
   expiresAt?: string
+  productId?: string
+  promoPrice?: number
 }
 
 export type UpdateCouponData = Partial<CreateCouponData & { isActive: boolean }>
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
-export async function listCoupons(isActive?: boolean): Promise<Coupon[]> {
-  const { data } = await api.get('/admin/coupons', {
-    params: isActive !== undefined ? { isActive } : undefined,
-  })
+export async function listCoupons(params?: { isActive?: boolean; productId?: string }): Promise<Coupon[]> {
+  const { data } = await api.get('/admin/coupons', { params })
   return data.data
 }
 

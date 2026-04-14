@@ -15,6 +15,7 @@ import {
   createProductController,
   updateProductController,
   deleteProductController,
+  duplicateProductController,
   downloadTemplateController,
   importProductsController,
 } from './products.controller'
@@ -33,6 +34,7 @@ router.post('/import', upload.single('file'), importProductsController)  // reau
 router.get('/', listProductsController)
 router.get('/:id', getProductController)
 router.post('/', createProductController)       // reauth required (TODO)
+router.post('/:id/duplicate', duplicateProductController)
 router.patch('/:id', updateProductController)   // reauth required (TODO)
 router.delete('/:id', deleteProductController)  // reauth required (TODO)
 

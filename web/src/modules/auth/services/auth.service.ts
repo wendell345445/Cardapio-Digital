@@ -35,6 +35,10 @@ export async function logout(refreshToken: string): Promise<void> {
   await api.post('/auth/logout', { refreshToken })
 }
 
+export async function reauth(password: string): Promise<void> {
+  await api.post('/auth/reauth', { password })
+}
+
 export async function refreshToken(refreshToken: string): Promise<RefreshTokenResponse> {
   const response = await api.post<ApiEnvelope<RefreshTokenResponse>>('/auth/refresh', { refreshToken })
   return response.data.data

@@ -81,10 +81,46 @@ Em **arquivos de teste** (`__tests__/**`, `*.test.ts`, `tests/**`) a regra é de
 
 5. **Subdomain routing — TASK-122.** A rota pública `GET /api/v1/menu` pega o slug do `req.hostname` via `publicTenantMiddleware`, não da URL. Em supertest use `.set('Host', '<slug>.cardapio.test')` — nunca `GET /api/v1/menu/:slug`.
 
+6. **Mock de `prisma.coupon`.** Qualquer suíte que toque `/menu/*` (serviço `getMenu` ou `createOrder`) precisa mockar `coupon.findMany` (usado por `getActiveProductPromos`) **e** `coupon.findFirst` (usado pelo recalculo de `unitPrice` em `createOrder`) retornando `null`/`[]` no beforeEach, senão quebra com `TypeError: coupon.findFirst is not a function` ou 500. Ver [api/src/tests/integration/menu.routes.test.ts](api/src/tests/integration/menu.routes.test.ts) como referência.
+
+### Envelope de erro da API
+
+Erros do backend saem sempre como `{ success: false, error: '<mensagem>', code?: '<CODE>' }` — **não** `message`. O [errorHandler](api/src/shared/middleware/error.middleware.ts) traduz `AppError`, `ZodError` e `Error` genérico nesse shape. No frontend, leia de `err.response.data.error` (com fallback pra `message` por segurança).
+
 ### Convenções de rotas
 
 - `DELETE` retorna `res.json({ success: true })` (status 200), **não** 204. É o padrão consistente em todos os controllers admin — não mude pra 204 sem alinhar antes.
 - Validação de input vem via `schema.parse(req.body)` dentro do try/catch do controller. `ZodError` é capturado pelo `errorHandler` global e vira **400** com `details`. Erros de regra de negócio lançam `AppError` com status explícito (normalmente **422** pra regra, **404** pra não encontrado, **403** pra permissão).
+
+### Uploads de imagem
+
+`api/src/modules/admin/upload.service.ts` detecta o backend na primeira chamada:
+
+- Se `CLOUDINARY_URL` ou o trio `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` estiver preenchido com valores reais → usa Cloudinary e retorna URL absoluta.
+- Se estiver vazio ou com placeholder (`your-cloud-name`, etc.) → fallback em disco local: grava em `api/uploads/<storeId>/products/<uuid>.<ext>` e retorna caminho relativo `/uploads/<storeId>/products/<uuid>.ext`.
+
+O Express serve `/uploads` estaticamente em [api/src/app.ts](api/src/app.ts) com header `Cross-Origin-Resource-Policy: cross-origin` (helmet bloqueia por default). Vite proxy em [web/vite.config.ts](web/vite.config.ts) roteia `/uploads` pra :3001 em dev.
+
+O Zod `imageUrl` no [products.schema.ts](api/src/modules/admin/products.schema.ts) aceita URL absoluta **ou** caminho começando com `/uploads/` — não use `.url()` direto.
+
+A pasta `api/uploads/` está no `.gitignore`.
+
+### Re-autenticação para ações sensíveis
+
+Backend: `POST /api/v1/auth/reauth` (requer JWT, valida `password` via `bcrypt.compare`). Implementado em [auth.service.ts](api/src/modules/auth/auth.service.ts) `reauth()`.
+
+Frontend: componente reutilizável [ReauthModal](web/src/modules/auth/components/ReauthModal.tsx) renderiza **sem `<form>`** (evita o prompt "salvar senha" do Chrome) e usa `autoComplete="one-time-code"`. Usado antes de: criar/editar/duplicar produto, excluir produto/categoria/adicional.
+
+**Axios interceptor** em [api.ts](web/src/shared/lib/api.ts) tem uma lista `SKIP_AUTO_LOGOUT_ON_401` com `/auth/reauth` e `/auth/login` — 401 nessas rotas é "senha incorreta", não "sessão inválida". Qualquer outra rota que retorne 401 derruba a sessão.
+
+### Promoções por produto (Coupon.productId)
+
+O model `Coupon` cobre dois casos:
+
+1. **Cupom clássico** — `code + type + value`, aplicado no checkout via `validateCoupon(storeId, code)`.
+2. **Promoção por produto** — `productId + promoPrice + startsAt? + expiresAt?`. Auto-aplicada no cardápio público, sem código (auto-gerado como `PROMO_xxx`). O menu exibe preço riscado quando há promo ativa; `createOrder` recalcula `unitPrice` consultando a promo no banco — cliente nunca dita o preço.
+
+Helper `getActiveProductPromos(storeId)` em [coupons.service.ts](api/src/modules/admin/coupons.service.ts) retorna Map\<productId, {promoPrice, startsAt, expiresAt}> das promos vigentes agora. Promo **não se aplica** a produtos com variations (variação tem preço próprio). `validateCoupon` ignora cupons com `productId` (não servem pra checkout manual).
 
 ### ENV e domínios
 

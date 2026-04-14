@@ -5,6 +5,7 @@ import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
+import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { sendOrderCreatedMessage } from '../whatsapp/messages.service'
 
 import { generatePix } from './pix.service'
@@ -73,12 +74,16 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.type === 'DELIVERY' && !data.address) {
     throw new AppError('Endereço é obrigatório para entrega', 422)
   }
-  if (
-    data.type === 'DELIVERY' &&
-    !store.allowCashOnDelivery &&
-    data.paymentMethod === 'CASH_ON_DELIVERY'
-  ) {
+  const isOnDeliveryPayment =
+    data.paymentMethod === 'CASH_ON_DELIVERY' ||
+    data.paymentMethod === 'CREDIT_ON_DELIVERY' ||
+    data.paymentMethod === 'DEBIT_ON_DELIVERY' ||
+    data.paymentMethod === 'PIX_ON_DELIVERY'
+  if (data.type === 'DELIVERY' && !store.allowCashOnDelivery && isOnDeliveryPayment) {
     throw new AppError('Pagamento na entrega não permitido nesta loja', 422)
+  }
+  if (data.paymentMethod === 'CREDIT_CARD' && !store.allowCreditCard) {
+    throw new AppError('Pagamento em cartão de crédito não permitido nesta loja', 422)
   }
 
   // 4. Valida e calcula itens
@@ -119,6 +124,26 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       }
       unitPrice = variation.price
       variationName = variation.name
+    } else {
+      // Aplica promo ativa do produto quando não há variação (variation já tem
+      // preço próprio). Valida janela startsAt/expiresAt no próprio banco.
+      const now = new Date()
+      const promo = await prisma.coupon.findFirst({
+        where: {
+          storeId: store.id,
+          productId: product.id,
+          isActive: true,
+          promoPrice: { not: null },
+          AND: [
+            { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+            { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+          ],
+        },
+        select: { promoPrice: true },
+      })
+      if (promo?.promoPrice != null && promo.promoPrice < unitPrice) {
+        unitPrice = promo.promoPrice
+      }
     }
 
     const additionals: Array<{ name: string; price: number }> = []
@@ -270,8 +295,9 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     return created
   })
 
-  // 11. Invalida cache do menu
+  // 11. Invalida cache do menu e analytics
   await cache.del(`menu:${store.id}`)
+  await invalidateAnalyticsCache(store.id)
 
   // 12. Emite evento Socket.io para admin
   emit.orderNew(store.id, order)

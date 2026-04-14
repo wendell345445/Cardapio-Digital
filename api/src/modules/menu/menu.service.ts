@@ -1,6 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
+import { getActiveProductPromos } from '../admin/coupons.service'
 
 // ─── TASK-060: Menu Público ───────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ export async function getMenu(slug: string) {
       pixKeyType: true,
       allowCashOnDelivery: true,
       allowPickup: true,
+      allowCreditCard: true,
       manualOpen: true,
       features: true,
       plan: true,
@@ -113,9 +115,26 @@ export async function getMenu(slug: string) {
 
   const { businessHours: _bh, ...storeData } = store
 
+  // Anexa preço promocional quando houver promo ativa pro produto.
+  const promos = await getActiveProductPromos(store.id)
+  const categoriesWithPromos = categories.map((cat) => ({
+    ...cat,
+    products: cat.products.map((p) => {
+      const promo = promos.get(p.id)
+      return promo
+        ? {
+            ...p,
+            promoPrice: promo.promoPrice,
+            promoStartsAt: promo.startsAt,
+            promoExpiresAt: promo.expiresAt,
+          }
+        : p
+    }),
+  }))
+
   const result = {
     store: { ...storeData, storeStatus },
-    categories,
+    categories: categoriesWithPromos,
   }
 
   // Salva no cache com TTL de 5 minutos

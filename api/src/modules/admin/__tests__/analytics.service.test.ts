@@ -5,8 +5,12 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     order: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     orderItem: {
+      findMany: jest.fn(),
+    },
+    customer: {
       findMany: jest.fn(),
     },
   },
@@ -16,12 +20,19 @@ jest.mock('../../../shared/redis/redis', () => ({
   cache: {
     get: jest.fn(),
     set: jest.fn(),
+    del: jest.fn(),
   },
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
-import { getSalesSummary, getTopProducts, getPeakHours, getClientRanking } from '../analytics.service'
+import {
+  getClientRanking,
+  getPeakHours,
+  getSalesSummary,
+  getTopProducts,
+  invalidateAnalyticsCache,
+} from '../analytics.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockCache = cache as jest.Mocked<typeof cache>
@@ -32,14 +43,14 @@ function makeOrder(overrides: {
   total?: number
   createdAt?: Date
   paymentMethod?: string
-  clientWhatsapp?: string
+  whatsapp?: string
   clientName?: string
 }) {
   return {
     total: overrides.total ?? 100,
     createdAt: overrides.createdAt ?? new Date('2026-04-01T12:00:00.000Z'),
     paymentMethod: overrides.paymentMethod ?? 'PIX',
-    clientWhatsapp: overrides.clientWhatsapp ?? '5511999990001',
+    clientWhatsapp: overrides.whatsapp ?? '5511999990001',
     clientName: overrides.clientName ?? 'Cliente A',
     clientId: 'client-1',
   }
@@ -49,6 +60,9 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(mockCache.get as jest.Mock).mockResolvedValue(null) // sem cache por padrão
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
+  ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
+  ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
+  ;(mockPrisma.customer.findMany as jest.Mock).mockResolvedValue([])
 })
 
 // ─── getSalesSummary ──────────────────────────────────────────────────────────
@@ -93,6 +107,22 @@ describe('getSalesSummary', () => {
     expect(day1?.orders).toBe(2)
   })
 
+  it('agrupa por data BRT (pedido às 23h BRT = 02h UTC do dia seguinte cai no mesmo dia BRT)', async () => {
+    // 2026-04-13T23:00:00 BRT = 2026-04-14T02:00:00 UTC
+    // Antes do fix: agrupava em "2026-04-14" (UTC). Agora: "2026-04-13" (BRT) ✅
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 100, createdAt: new Date('2026-04-13T14:00:00Z') }), // 11h BRT 13/04
+      makeOrder({ total: 80, createdAt: new Date('2026-04-14T02:00:00Z') }), // 23h BRT 13/04
+    ])
+
+    const result = await getSalesSummary(STORE_ID, { period: 'week' })
+
+    expect(result.timeline).toHaveLength(1)
+    expect(result.timeline[0].date).toBe('2026-04-13')
+    expect(result.timeline[0].orders).toBe(2)
+    expect(result.timeline[0].revenue).toBe(180)
+  })
+
   it('retorna dados do cache quando disponível', async () => {
     const cachedData = { totalRevenue: 999, totalOrders: 1, averageTicket: 999, timeline: [] }
     ;(mockCache.get as jest.Mock).mockResolvedValue(cachedData)
@@ -128,6 +158,22 @@ describe('getSalesSummary', () => {
         }),
       })
     )
+  })
+})
+
+// ─── invalidateAnalyticsCache ─────────────────────────────────────────────────
+
+describe('invalidateAnalyticsCache', () => {
+  it('apaga todas as chaves de analytics da store', async () => {
+    await invalidateAnalyticsCache(STORE_ID)
+
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:day`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:week`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:sales:${STORE_ID}:month`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:day:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:week:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:month:4`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}`)
   })
 })
 
@@ -242,9 +288,9 @@ describe('getClientRanking', () => {
   const defaultQuery = { period: '30d' as const, page: 1, limit: 10 }
 
   const orders = [
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
-    makeOrder({ clientWhatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
+    makeOrder({ whatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
   ]
 
   it('ordena clientes por total gasto decrescente', async () => {
@@ -252,10 +298,10 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110002') // Bruno: R$ 500
-    expect(result.clients[0].rank).toBe(1)
-    expect(result.clients[1].clientWhatsapp).toBe('5511111110001') // Ana: R$ 250
-    expect(result.clients[1].rank).toBe(2)
+    expect(result.clients[0].whatsapp).toBe('5511111110002') // Bruno: R$ 500
+    expect(result.clients[0].position).toBe(1)
+    expect(result.clients[1].whatsapp).toBe('5511111110001') // Ana: R$ 250
+    expect(result.clients[1].position).toBe(2)
   })
 
   it('agrega pedidos do mesmo cliente corretamente', async () => {
@@ -263,10 +309,8 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
-    const ana = result.clients.find(
-      (c: { clientWhatsapp: string }) => c.clientWhatsapp === '5511111110001'
-    )
-    expect(ana?.orderCount).toBe(2)
+    const ana = result.clients.find((c) => c.whatsapp === '5511111110001')
+    expect(ana?.totalOrders).toBe(2)
     expect(ana?.totalSpent).toBe(250)
   })
 
@@ -289,13 +333,38 @@ describe('getClientRanking', () => {
     expect(result.clients[0].name).toBe('Bruno')
   })
 
+  it('filtra por nome ignorando acentua\u00e7\u00e3o (busca "Katia" encontra "K\u00e1tia")', async () => {
+    const ordersAcento = [
+      makeOrder({ whatsapp: '5511111110010', clientName: 'K\u00e1tia Almeida', total: 200 }),
+      makeOrder({ whatsapp: '5511111110011', clientName: 'Jo\u00e3o Silva', total: 100 }),
+    ]
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(ordersAcento)
+
+    const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: 'Katia' })
+
+    expect(result.clients).toHaveLength(1)
+    expect(result.clients[0].name).toBe('K\u00e1tia Almeida')
+  })
+
+  it('filtra por nome com acento quando usu\u00e1rio tamb\u00e9m digita com acento', async () => {
+    const ordersAcento = [
+      makeOrder({ whatsapp: '5511111110010', clientName: 'K\u00e1tia Almeida', total: 200 }),
+    ]
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(ordersAcento)
+
+    const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: 'K\u00e1tia' })
+
+    expect(result.clients).toHaveLength(1)
+    expect(result.clients[0].name).toBe('K\u00e1tia Almeida')
+  })
+
   it('filtra por whatsapp parcial (case-insensitive)', async () => {
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(orders)
 
     const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: '0001' })
 
     expect(result.clients).toHaveLength(1)
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110001')
+    expect(result.clients[0].whatsapp).toBe('5511111110001')
   })
 
   it('não aplica filtro de data quando period=all', async () => {
@@ -319,13 +388,13 @@ describe('getClientRanking', () => {
 
   it('pagina corretamente (página 2 offset correto)', async () => {
     const manyOrders = Array.from({ length: 25 }, (_, i) =>
-      makeOrder({ clientWhatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
+      makeOrder({ whatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
     )
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(manyOrders)
 
     const result = await getClientRanking(STORE_ID, { period: 'all' as const, page: 2, limit: 10 })
 
-    expect(result.clients[0].rank).toBe(11)
+    expect(result.clients[0].position).toBe(11)
     expect(result.clients).toHaveLength(10)
   })
 
@@ -351,3 +420,4 @@ describe('getClientRanking', () => {
     )
   })
 })
+
