@@ -88,7 +88,7 @@ type PeriodOption = (typeof PERIOD_OPTIONS)[number]['value']
 const PAGE_SIZE = 10
 
 export function ClientsPage() {
-  const [periodOpt, setPeriodOpt] = useState<PeriodOption>('30d')
+  const [periodOpt, setPeriodOpt] = useState<PeriodOption>('7d')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
