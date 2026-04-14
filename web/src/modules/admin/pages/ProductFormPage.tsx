@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 
 import { ImageUpload } from '../components/ImageUpload'
-import { useCategories } from '../hooks/useCategories'
+import { useCategories, useCreateCategory } from '../hooks/useCategories'
 import { useCreateProduct, useProduct, useUpdateProduct } from '../hooks/useProducts'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
@@ -52,6 +52,11 @@ export function ProductFormPage() {
   const { data: existingProduct, isLoading: isLoadingProduct } = useProduct(isEdit ? id! : '')
   const createMutation = useCreateProduct()
   const updateMutation = useUpdateProduct()
+  const createCategoryMutation = useCreateCategory()
+
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null)
 
   const [pendingValues, setPendingValues] = useState<ProductFormValues | null>(null)
 
@@ -137,6 +142,25 @@ export function ProductFormPage() {
     navigate('/admin/products')
   }
 
+  async function handleCreateCategory() {
+    const name = newCategoryName.trim()
+    if (name.length < 2) {
+      setNewCategoryError('Nome deve ter pelo menos 2 caracteres')
+      return
+    }
+    try {
+      const created = await createCategoryMutation.mutateAsync({ name })
+      setValue('categoryId', created.id, { shouldValidate: true })
+      setNewCategoryOpen(false)
+      setNewCategoryName('')
+    } catch (err) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } }).response?.data?.error ??
+        'Erro ao criar categoria. Tente novamente.'
+      setNewCategoryError(msg)
+    }
+  }
+
   if (isEdit && isLoadingProduct) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -185,9 +209,22 @@ export function ProductFormPage() {
 
             {/* Categoria */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Categoria <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">
+                  Categoria <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewCategoryName('')
+                    setNewCategoryError(null)
+                    setNewCategoryOpen(true)
+                  }}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  + Nova categoria
+                </button>
+              </div>
               <select
                 {...register('categoryId')}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -427,6 +464,64 @@ export function ProductFormPage() {
         onCancel={() => setPendingValues(null)}
         onConfirm={persistPendingValues}
       />
+
+      {newCategoryOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !createCategoryMutation.isPending && setNewCategoryOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-gray-900">Nova categoria</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nome <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={newCategoryName}
+                onChange={(e) => {
+                  setNewCategoryName(e.target.value)
+                  if (newCategoryError) setNewCategoryError(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleCreateCategory()
+                  }
+                }}
+                placeholder="Ex: Sobremesas"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={createCategoryMutation.isPending}
+              />
+              {newCategoryError && (
+                <p className="mt-1 text-xs text-red-600">{newCategoryError}</p>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setNewCategoryOpen(false)}
+                disabled={createCategoryMutation.isPending}
+                className="px-3 py-1.5 rounded-md border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateCategory}
+                disabled={createCategoryMutation.isPending}
+                className="px-3 py-1.5 rounded-md bg-red-500 text-white text-sm font-medium hover:bg-red-600 disabled:opacity-50"
+              >
+                {createCategoryMutation.isPending ? 'Criando...' : 'Criar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
