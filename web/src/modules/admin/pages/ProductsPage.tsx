@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import {
   Search,
   ArrowUpDown,
@@ -8,6 +8,7 @@ import {
   Tag,
   ChevronDown,
   ChevronRight,
+  X,
 } from 'lucide-react'
 
 
@@ -275,10 +276,28 @@ function CategorySection({
 
 export function ProductsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [search, setSearch] = useState('')
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [productForPromo, setProductForPromo] = useState<Product | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
+  const [toast, setToast] = useState<string | null>(null)
+
+  // Lê toast vindo do ProductFormPage via navigate state e limpa o history state
+  // pra não reaparecer em refresh/back-forward.
+  useEffect(() => {
+    const incoming = (location.state as { toast?: string } | null)?.toast
+    if (incoming) {
+      setToast(incoming)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   function toggleCategoryExpanded(categoryId: string) {
     setExpandedCategories((prev) => {
@@ -482,6 +501,20 @@ export function ProductsPage() {
           )
         }}
       />
+
+      {toast && (
+        <div className="fixed top-4 right-4 z-[60] flex items-center gap-3 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+          <span>{toast}</span>
+          <button
+            type="button"
+            onClick={() => setToast(null)}
+            className="ml-1 opacity-80 hover:opacity-100"
+            aria-label="Fechar"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
