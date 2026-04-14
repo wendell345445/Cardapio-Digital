@@ -86,7 +86,13 @@ export function AdminDashboardPage() {
               Ver pedidos →
             </Link>
             <a
-              href={store?.slug ? `${window.location.protocol}//${store.slug}.${PUBLIC_ROOT_DOMAIN}` : '#'}
+              href={
+                store?.customDomain
+                  ? `${window.location.protocol}//${store.customDomain}`
+                  : store?.slug
+                  ? `${window.location.protocol}//${store.slug}.${PUBLIC_ROOT_DOMAIN}`
+                  : '#'
+              }
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition-colors"

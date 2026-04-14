@@ -31,6 +31,7 @@ export async function getStore(storeId: string) {
       id: true,
       name: true,
       slug: true,
+      customDomain: true,
       description: true,
       logo: true,
       address: true,
