@@ -14,6 +14,10 @@ import {
   getSalesController,
   getTopProductsController,
 } from './analytics.controller'
+import {
+  getCustomerDetailController,
+  updateCustomerController,
+} from './customers.controller'
 
 // ─── TASK-093 / TASK-094: Rotas de Analytics e Ranking ───────────────────────
 
@@ -28,5 +32,9 @@ router.get('/peak-hours', getPeakHoursController)
 
 // Ranking de Clientes (TASK-094)
 router.get('/clients/ranking', getClientRankingController)
+
+// Detalhe + edição do perfil do cliente
+router.get('/clients/:whatsapp', getCustomerDetailController)
+router.patch('/clients/:whatsapp', updateCustomerController)
 
 export default router

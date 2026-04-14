@@ -13,6 +13,9 @@ jest.mock('../../shared/prisma/prisma', () => ({
     store: {
       findUnique: jest.fn(),
     },
+    customer: {
+      findMany: jest.fn(),
+    },
   },
 }))
 
@@ -76,6 +79,8 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(mockCache.get as jest.Mock).mockResolvedValue(null)
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
+  ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+  ;(mockPrisma.customer.findMany as jest.Mock).mockResolvedValue([])
 })
 
 // ─── GET /admin/analytics/sales ───────────────────────────────────────────────
@@ -267,8 +272,8 @@ describe('GET /api/v1/admin/analytics/clients/ranking', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.clients).toHaveLength(2)
-    expect(res.body.data.clients[0].clientWhatsapp).toBe('5511111110002') // Bruno: R$ 500
-    expect(res.body.data.clients[0].rank).toBe(1)
+    expect(res.body.data.clients[0].whatsapp).toBe('5511111110002') // Bruno: R$ 500
+    expect(res.body.data.clients[0].position).toBe(1)
     expect(res.body.data.total).toBe(2)
   })
 
@@ -314,7 +319,7 @@ describe('GET /api/v1/admin/analytics/clients/ranking', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.clients).toHaveLength(10)
-    expect(res.body.data.clients[0].rank).toBe(11)
+    expect(res.body.data.clients[0].position).toBe(11)
     expect(res.body.data.page).toBe(2)
   })
 

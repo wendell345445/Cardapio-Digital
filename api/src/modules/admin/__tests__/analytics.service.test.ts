@@ -9,6 +9,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     orderItem: {
       findMany: jest.fn(),
     },
+    customer: {
+      findMany: jest.fn(),
+    },
   },
 }))
 
@@ -32,14 +35,14 @@ function makeOrder(overrides: {
   total?: number
   createdAt?: Date
   paymentMethod?: string
-  clientWhatsapp?: string
+  whatsapp?: string
   clientName?: string
 }) {
   return {
     total: overrides.total ?? 100,
     createdAt: overrides.createdAt ?? new Date('2026-04-01T12:00:00.000Z'),
     paymentMethod: overrides.paymentMethod ?? 'PIX',
-    clientWhatsapp: overrides.clientWhatsapp ?? '5511999990001',
+    clientWhatsapp: overrides.whatsapp ?? '5511999990001',
     clientName: overrides.clientName ?? 'Cliente A',
     clientId: 'client-1',
   }
@@ -49,6 +52,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   ;(mockCache.get as jest.Mock).mockResolvedValue(null) // sem cache por padrão
   ;(mockCache.set as jest.Mock).mockResolvedValue(undefined)
+  ;(mockPrisma.customer.findMany as jest.Mock).mockResolvedValue([])
 })
 
 // ─── getSalesSummary ──────────────────────────────────────────────────────────
@@ -242,9 +246,9 @@ describe('getClientRanking', () => {
   const defaultQuery = { period: '30d' as const, page: 1, limit: 10 }
 
   const orders = [
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
-    makeOrder({ clientWhatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
-    makeOrder({ clientWhatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 150 }),
+    makeOrder({ whatsapp: '5511111110001', clientName: 'Ana', total: 100 }),
+    makeOrder({ whatsapp: '5511111110002', clientName: 'Bruno', total: 500 }),
   ]
 
   it('ordena clientes por total gasto decrescente', async () => {
@@ -252,10 +256,10 @@ describe('getClientRanking', () => {
 
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110002') // Bruno: R$ 500
-    expect(result.clients[0].rank).toBe(1)
-    expect(result.clients[1].clientWhatsapp).toBe('5511111110001') // Ana: R$ 250
-    expect(result.clients[1].rank).toBe(2)
+    expect(result.clients[0].whatsapp).toBe('5511111110002') // Bruno: R$ 500
+    expect(result.clients[0].position).toBe(1)
+    expect(result.clients[1].whatsapp).toBe('5511111110001') // Ana: R$ 250
+    expect(result.clients[1].position).toBe(2)
   })
 
   it('agrega pedidos do mesmo cliente corretamente', async () => {
@@ -264,9 +268,9 @@ describe('getClientRanking', () => {
     const result = await getClientRanking(STORE_ID, defaultQuery)
 
     const ana = result.clients.find(
-      (c: { clientWhatsapp: string }) => c.clientWhatsapp === '5511111110001'
+      (c: { whatsapp: string }) => c.whatsapp === '5511111110001'
     )
-    expect(ana?.orderCount).toBe(2)
+    expect(ana?.totalOrders).toBe(2)
     expect(ana?.totalSpent).toBe(250)
   })
 
@@ -295,7 +299,7 @@ describe('getClientRanking', () => {
     const result = await getClientRanking(STORE_ID, { ...defaultQuery, search: '0001' })
 
     expect(result.clients).toHaveLength(1)
-    expect(result.clients[0].clientWhatsapp).toBe('5511111110001')
+    expect(result.clients[0].whatsapp).toBe('5511111110001')
   })
 
   it('não aplica filtro de data quando period=all', async () => {
@@ -319,13 +323,13 @@ describe('getClientRanking', () => {
 
   it('pagina corretamente (página 2 offset correto)', async () => {
     const manyOrders = Array.from({ length: 25 }, (_, i) =>
-      makeOrder({ clientWhatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
+      makeOrder({ whatsapp: `551111111${String(i).padStart(4, '0')}`, total: 100 - i })
     )
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(manyOrders)
 
     const result = await getClientRanking(STORE_ID, { period: 'all' as const, page: 2, limit: 10 })
 
-    expect(result.clients[0].rank).toBe(11)
+    expect(result.clients[0].position).toBe(11)
     expect(result.clients).toHaveLength(10)
   })
 

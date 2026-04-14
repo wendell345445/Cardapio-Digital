@@ -57,6 +57,7 @@ model Store {
   auditLogs             AuditLog[]
   whatsappTemplates     WhatsAppTemplate[]
   conversations         Conversation[]
+  customers             Customer[]
 
   @@index([slug])
   @@index([customDomain])
@@ -173,6 +174,59 @@ model ProductAdditional {
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+}
+
+// ─── CUSTOMER (profile editável do ranking) ───────────────────────
+// Materializado sob demanda quando o admin edita um cliente pela 1ª vez.
+// Ranking continua agregando Orders — Customer só sobrescreve nome quando existe.
+
+model Customer {
+  id        String   @id @default(uuid())
+  storeId   String
+  whatsapp  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addresses CustomerAddress[]
+  phones    CustomerPhone[]
+
+  @@unique([storeId, whatsapp])
+  @@index([storeId])
+}
+
+model CustomerAddress {
+  id           String   @id @default(uuid())
+  customerId   String
+  isPrimary    Boolean  @default(false)
+  zipCode      String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  reference    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+model CustomerPhone {
+  id         String   @id @default(uuid())
+  customerId String
+  isPrimary  Boolean  @default(false)
+  phone      String
+  label      String?
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
 }
 
 // ─── ORDERS ───────────────────────────────────────────────────────

@@ -73,3 +73,80 @@ export async function getClientRanking(
   const { data } = await api.get('/admin/analytics/clients/ranking', { params })
   return data.data
 }
+
+// ─── Customer detail + update ────────────────────────────────────────────────
+
+export interface CustomerAddress {
+  id: string
+  isPrimary: boolean
+  zipCode: string
+  street: string
+  number: string
+  complement: string | null
+  neighborhood: string
+  city: string
+  state: string
+  reference: string | null
+}
+
+export interface CustomerPhone {
+  id: string
+  isPrimary: boolean
+  phone: string
+  label: string | null
+}
+
+export interface CustomerDetail {
+  whatsapp: string
+  name: string | null
+  totalOrders: number
+  totalSpent: number
+  averageTicket: number
+  firstOrderAt: string | null
+  lastOrderAt: string | null
+  addresses: CustomerAddress[]
+  phones: CustomerPhone[]
+  hasProfile: boolean
+}
+
+export interface UpdateCustomerAddressInput {
+  id?: string
+  isPrimary?: boolean
+  zipCode: string
+  street: string
+  number: string
+  complement?: string | null
+  neighborhood: string
+  city: string
+  state: string
+  reference?: string | null
+}
+
+export interface UpdateCustomerPhoneInput {
+  id?: string
+  phone: string
+  label?: string | null
+}
+
+export interface UpdateCustomerInput {
+  name: string
+  primaryPhone: string
+  addresses: UpdateCustomerAddressInput[]
+  secondaryPhones: UpdateCustomerPhoneInput[]
+}
+
+export async function getCustomerDetail(whatsapp: string): Promise<CustomerDetail> {
+  const { data } = await api.get(`/admin/analytics/clients/${encodeURIComponent(whatsapp)}`)
+  return data.data
+}
+
+export async function updateCustomer(
+  whatsapp: string,
+  input: UpdateCustomerInput
+): Promise<CustomerDetail> {
+  const { data } = await api.patch(
+    `/admin/analytics/clients/${encodeURIComponent(whatsapp)}`,
+    input
+  )
+  return data.data
+}

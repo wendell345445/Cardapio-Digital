@@ -26,16 +26,18 @@ type PeakHoursResult = { hour: number; count: number }[]
 
 type ClientRankingResult = {
   clients: {
-    rank: number
-    clientWhatsapp: string
+    position: number
+    clientId: string
+    whatsapp: string
     name: string | null
-    orderCount: number
+    totalOrders: number
     totalSpent: number
     lastOrderAt: Date
   }[]
   total: number
   page: number
   limit: number
+  totalPages: number
 }
 
 /** Retorna meia-noite BRT (03:00 UTC) de hoje */
@@ -204,24 +206,46 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   // Group by clientWhatsapp
   const clientMap: Record<
     string,
-    { clientWhatsapp: string; name: string | null; orderCount: number; totalSpent: number; lastOrderAt: Date }
+    {
+      clientId: string
+      whatsapp: string
+      name: string | null
+      totalOrders: number
+      totalSpent: number
+      lastOrderAt: Date
+    }
   > = {}
 
   for (const order of orders) {
     const key = order.clientWhatsapp
     if (!clientMap[key]) {
       clientMap[key] = {
-        clientWhatsapp: key,
+        clientId: order.clientId ?? key,
+        whatsapp: key,
         name: order.clientName,
-        orderCount: 0,
+        totalOrders: 0,
         totalSpent: 0,
         lastOrderAt: order.createdAt,
       }
     }
-    clientMap[key].orderCount += 1
+    clientMap[key].totalOrders += 1
     clientMap[key].totalSpent += order.total
     if (order.createdAt > clientMap[key].lastOrderAt) {
       clientMap[key].lastOrderAt = order.createdAt
+    }
+  }
+
+  // Override do nome pelo Customer.name quando o perfil existe.
+  const whatsapps = Object.keys(clientMap)
+  if (whatsapps.length > 0) {
+    const customers = await prisma.customer.findMany({
+      where: { storeId, whatsapp: { in: whatsapps } },
+      select: { whatsapp: true, name: true },
+    })
+    for (const c of customers) {
+      if (clientMap[c.whatsapp] && c.name) {
+        clientMap[c.whatsapp].name = c.name
+      }
     }
   }
 
@@ -231,17 +255,24 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
     const q = query.search.toLowerCase()
     ranked = ranked.filter(
       (c) =>
-        c.clientWhatsapp.includes(q) ||
+        c.whatsapp.includes(q) ||
         (c.name && c.name.toLowerCase().includes(q))
     )
   }
 
   const total = ranked.length
+  const totalPages = Math.max(1, Math.ceil(total / query.limit))
   const paginated = ranked
     .slice((query.page - 1) * query.limit, query.page * query.limit)
-    .map((c, i) => ({ rank: (query.page - 1) * query.limit + i + 1, ...c }))
+    .map((c, i) => ({ position: (query.page - 1) * query.limit + i + 1, ...c }))
 
-  const result: ClientRankingResult = { clients: paginated, total, page: query.page, limit: query.limit }
+  const result: ClientRankingResult = {
+    clients: paginated,
+    total,
+    page: query.page,
+    limit: query.limit,
+    totalPages,
+  }
   await cache.set(cacheKey, result, 60) // 1 min cache for ranking
   return result
 }
