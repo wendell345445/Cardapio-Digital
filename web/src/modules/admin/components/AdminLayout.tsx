@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
-
+import { useNewOrdersCount } from '../hooks/useNewOrdersCount'
 import { useStore } from '../hooks/useStore'
-import { fetchOrders } from '../services/orders.service'
 
 import { AdminSidebar } from './AdminSidebar'
 import { AdminGuard } from './AdminGuard'
@@ -12,18 +10,11 @@ interface AdminLayoutProps {
 }
 
 function AdminLayoutInner({ children }: AdminLayoutProps) {
-  const { data } = useQuery({
-    queryKey: ['orders', 'new-count'],
-    queryFn: () =>
-      fetchOrders({ status: 'PENDING,WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION', limit: 100 }),
-    refetchInterval: 30_000,
-  })
-
-  const newOrdersCount = data?.orders.length ?? 0
+  const { count } = useNewOrdersCount()
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AdminSidebar newOrdersCount={newOrdersCount} />
+      <AdminSidebar newOrdersCount={count} />
       <main className="flex-1 overflow-y-auto bg-gray-50 ml-60">
         {children}
       </main>
