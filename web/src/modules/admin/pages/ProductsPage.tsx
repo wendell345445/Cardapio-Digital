@@ -217,13 +217,22 @@ export function ProductsPage() {
       {/* Title row */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Produtos</h1>
-        <button
-          onClick={() => navigate('/admin/categorias')}
-          className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Nova categoria
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/admin/produtos/new')}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Produto
+          </button>
+          <button
+            onClick={() => navigate('/admin/categorias')}
+            className="flex items-center gap-2 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg border border-gray-200 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Nova categoria
+          </button>
+        </div>
       </div>
 
       {/* Category pills */}
