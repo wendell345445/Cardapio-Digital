@@ -8,6 +8,7 @@ export interface StoreData {
   id: string
   name: string
   slug: string
+  customDomain?: string | null
   description?: string
   logo?: string
   address?: string
