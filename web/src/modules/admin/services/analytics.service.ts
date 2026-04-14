@@ -43,8 +43,6 @@ export interface ClientRankingResponse {
   totalPages: number
 }
 
-export type RankingPeriod = '7d' | '30d' | '90d' | 'all'
-
 export interface ClientRankingParams {
   period?: RankingPeriod
   page?: number
