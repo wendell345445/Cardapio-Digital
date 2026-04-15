@@ -11,7 +11,7 @@ const menuApi = axios.create({ baseURL })
 
 export interface OrderAddress {
   zipCode?: string
-  street: string; number: string; complement?: string; neighborhood: string; city: string
+  street: string; number: string; complement?: string; neighborhood: string; city: string; state?: string
 }
 
 export interface OrderItem {
