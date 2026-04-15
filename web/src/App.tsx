@@ -310,6 +310,7 @@ export function App() {
 
           {/* Motoboy */}
           <Route path="/motoboy" element={<MotoboyPage />} />
+          <Route path="/:slug/motoboy" element={<MotoboyPage />} />
 
           <Route
             path="*"
