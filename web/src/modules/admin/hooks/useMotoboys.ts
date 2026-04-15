@@ -4,7 +4,9 @@ import {
   createMotoboy,
   deleteMotoboy,
   fetchMotoboys,
+  updateMotoboy,
   type CreateMotoboyDto,
+  type UpdateMotoboyDto,
 } from '../services/motoboys.service'
 
 // ─── TASK-053: Hooks de motoboys ─────────────────────────────────────────────
@@ -20,6 +22,14 @@ export function useCreateMotoboy() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (dto: CreateMotoboyDto) => createMotoboy(dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['motoboys'] }),
+  })
+}
+
+export function useUpdateMotoboy() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: UpdateMotoboyDto }) => updateMotoboy(id, dto),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['motoboys'] }),
   })
 }
