@@ -48,7 +48,7 @@ function LoginForm({ onSuccess, slug }: { onSuccess: () => void; slug: string | 
     setError(null)
     setLoading(true)
     try {
-      const { data } = await api.post('/auth/login', { email, password })
+      const { data } = await api.post('/auth/login', { email, password, scope: 'motoboy' })
       const token: string = data.data?.accessToken ?? data.accessToken ?? ''
       const storeId: string = data.data?.user?.storeId ?? data.user?.storeId ?? ''
 

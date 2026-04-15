@@ -315,7 +315,7 @@ describe('Motoboy login and RBAC enforcement (TASK-014)', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'moto@loja.com', password: 'senha123' })
+      .send({ email: 'moto@loja.com', password: 'senha123', scope: 'motoboy' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.user.role).toBe('MOTOBOY')
@@ -338,7 +338,7 @@ describe('Motoboy login and RBAC enforcement (TASK-014)', () => {
 
     const res = await request(app)
       .post('/api/v1/auth/login')
-      .send({ email: 'moto@loja.com', password: 'senha123' })
+      .send({ email: 'moto@loja.com', password: 'senha123', scope: 'motoboy' })
 
     const { verify } = require('jsonwebtoken')
     const decoded = verify(res.body.data.accessToken, 'test-secret') as { storeId: string }

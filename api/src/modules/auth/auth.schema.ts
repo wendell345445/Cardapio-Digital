@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const loginSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(1, 'Senha obrigatória'),
+  scope: z.enum(['admin', 'motoboy']).optional(),
 })
 
 export const refreshSchema = z.object({

@@ -55,8 +55,8 @@ export async function registerStoreController(req: Request, res: Response, next:
 
 export async function loginController(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password } = loginSchema.parse(req.body)
-    const result = await loginWithPassword(email, password)
+    const { email, password, scope } = loginSchema.parse(req.body)
+    const result = await loginWithPassword(email, password, scope)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 
-import { login } from '../services/auth.service'
+import { login, type LoginScope } from '../services/auth.service'
 import { useAuthStore } from '../store/useAuthStore'
 
 const REFRESH_TOKEN_KEY = 'refresh_token'
@@ -15,12 +15,12 @@ interface UseLoginResult {
   error: string | null
 }
 
-export function useLogin(): UseLoginResult {
+export function useLogin(scope: LoginScope = 'admin'): UseLoginResult {
   const setAuth = useAuthStore((state) => state.setAuth)
 
   const mutation = useMutation({
     mutationFn: ({ email, password }: { email: string; password: string }) =>
-      login(email, password),
+      login(email, password, scope),
     onSuccess: (data) => {
       setAuth(data.user, data.accessToken)
       sessionStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken)

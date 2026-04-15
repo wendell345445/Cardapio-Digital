@@ -56,8 +56,23 @@ export async function validateCredentials(email: string, password: string) {
   return user
 }
 
-export async function loginWithPassword(email: string, password: string): Promise<AuthResult> {
+export type LoginScope = 'admin' | 'motoboy'
+
+export async function loginWithPassword(
+  email: string,
+  password: string,
+  scope: LoginScope = 'admin'
+): Promise<AuthResult> {
   const user = await validateCredentials(email, password)
+
+  // Scope enforcement: motoboy login só aceita MOTOBOY; admin login rejeita MOTOBOY.
+  // OWNER e ADMIN compartilham o scope 'admin' (ambos usam /login).
+  if (scope === 'motoboy' && user.role !== 'MOTOBOY') {
+    throw new AppError('Este login é exclusivo para entregadores', 403, 'WRONG_SCOPE')
+  }
+  if (scope === 'admin' && user.role === 'MOTOBOY') {
+    throw new AppError('Este login é exclusivo para administradores', 403, 'WRONG_SCOPE')
+  }
 
   await prisma.user.update({
     where: { id: user.id },

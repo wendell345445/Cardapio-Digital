@@ -93,13 +93,40 @@ describe('validateCredentials / loginWithPassword', () => {
     ;(mockPrisma.user.update as jest.Mock).mockResolvedValue(motoboyUser)
     ;(mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({})
 
-    const result = await loginWithPassword('motoboy@example.com', 'correct-password')
+    const result = await loginWithPassword('motoboy@example.com', 'correct-password', 'motoboy')
 
     const decoded = verify(result.accessToken, 'test-secret') as { exp: number; iat: number }
     const durationSeconds = decoded.exp - decoded.iat
     // 8h = 28800s (allow some tolerance)
     expect(durationSeconds).toBeGreaterThanOrEqual(28799)
     expect(durationSeconds).toBeLessThanOrEqual(28801)
+  })
+
+  it('rejects MOTOBOY login via admin scope with 403', async () => {
+    const motoboyUser = { ...mockUser, role: 'MOTOBOY' as const }
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(motoboyUser)
+
+    await expect(
+      loginWithPassword('motoboy@example.com', 'correct-password', 'admin')
+    ).rejects.toMatchObject({ status: 403, code: 'WRONG_SCOPE' })
+  })
+
+  it('rejects ADMIN login via motoboy scope with 403', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(mockUser)
+
+    await expect(
+      loginWithPassword('test@example.com', 'correct-password', 'motoboy')
+    ).rejects.toMatchObject({ status: 403, code: 'WRONG_SCOPE' })
+  })
+
+  it('allows OWNER login via admin scope', async () => {
+    const ownerUser = { ...mockUser, role: 'OWNER' as const }
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(ownerUser)
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue(ownerUser)
+    ;(mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({})
+
+    const result = await loginWithPassword('owner@example.com', 'correct-password', 'admin')
+    expect(result.user.role).toBe('OWNER')
   })
 })
 

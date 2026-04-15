@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react'
 
 import { useAuthConfig } from '../hooks/useAuthConfig'
 import { useLogin } from '../hooks/useLogin'
+import type { LoginScope } from '../services/auth.service'
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001'
 
@@ -23,10 +24,11 @@ type LoginFormValues = z.infer<typeof loginSchema>
 
 interface LoginFormProps {
   onSuccess?: () => void
+  scope?: LoginScope
 }
 
-export function LoginForm({ onSuccess }: LoginFormProps) {
-  const { login, isLoading, error } = useLogin()
+export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
+  const { login, isLoading, error } = useLogin(scope)
   const { data: authConfig, isLoading: isAuthConfigLoading } = useAuthConfig()
 
   const googleEnabled = !!authConfig?.providers.google

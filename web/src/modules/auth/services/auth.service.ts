@@ -26,8 +26,18 @@ interface ApiEnvelope<T> {
   data: T
 }
 
-export async function login(email: string, password: string): Promise<LoginResponse> {
-  const response = await api.post<ApiEnvelope<LoginResponse>>('/auth/login', { email, password })
+export type LoginScope = 'admin' | 'motoboy'
+
+export async function login(
+  email: string,
+  password: string,
+  scope: LoginScope = 'admin'
+): Promise<LoginResponse> {
+  const response = await api.post<ApiEnvelope<LoginResponse>>('/auth/login', {
+    email,
+    password,
+    scope,
+  })
   return response.data.data
 }
 
