@@ -23,6 +23,9 @@ export interface CreateOrderDto {
   paymentMethod: 'PIX' | 'CASH_ON_DELIVERY'
   notes?: string; couponCode?: string
   address?: OrderAddress
+  /** C-002/C-022: número da mesa quando cliente entrou via QR code */
+  tableNumber?: number
+  scheduledFor?: string
   items: OrderItem[]
 }
 

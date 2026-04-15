@@ -7,10 +7,13 @@ jest.mock('../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     category: { findMany: jest.fn() },
     product: { findUnique: jest.fn() },
-    coupon: { findUnique: jest.fn(), update: jest.fn() },
+    coupon: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     deliveryNeighborhood: { findFirst: jest.fn(), count: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     order: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+    // C-027: getPaymentMethodsForClient consulta blacklist por loja
+    clientPaymentAccess: { findFirst: jest.fn() },
+    table: { findUnique: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   },
 }))
@@ -160,6 +163,10 @@ beforeEach(() => {
   ;(mockCache.get as jest.Mock).mockResolvedValue(null)
   // resetAllMocks limpa mockReturnValue do jsonwebtoken mock — re-configura
   ;(require('jsonwebtoken').sign as jest.Mock).mockReturnValue('mock-jwt-token')
+  // C-027: blacklist vazia por default; C-022: mesa não encontrada por default
+  ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue(null)
+  ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
+  ;(mockPrisma.table.update as jest.Mock).mockResolvedValue({})
 })
 
 // ─── GET /menu/:slug ──────────────────────────────────────────────────────────

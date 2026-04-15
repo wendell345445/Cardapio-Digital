@@ -50,7 +50,7 @@ export const DEFAULT_TEMPLATES: Record<WhatsAppEventType, string> = {
   DELIVERED:
     '🎉 *Pedido #{{numero}} entregue!*\nEsperamos que aproveite! Obrigado pela preferência, {{loja}}.',
   CANCELLED:
-    '❌ *Pedido #{{numero}} cancelado.*\nEntre em contato com {{loja}} para mais informações.',
+    '❌ *Pedido #{{numero}} cancelado.*\n{{motivo}}Entre em contato com {{loja}} para mais informações.',
   MOTOBOY_ASSIGNED:
     '🛵 *Novo pedido para entrega — #{{numero}}*\n\n👤 *Cliente:* {{cliente}}\n📍 *Endereço:* {{endereco}}\n\n{{itens}}\n\n💰 *Total:* {{total}}',
 }

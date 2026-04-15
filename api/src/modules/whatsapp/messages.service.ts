@@ -101,8 +101,13 @@ export async function sendStatusUpdateMessage(
   storeName: string,
   /** Pass order type so READY maps to READY_FOR_PICKUP for pickup orders */
   orderType?: string,
-  /** Extra data to fill template variables {{total}} and {{itens}} */
-  extra?: { total?: number; items?: Array<{ quantity: number; productName: string }> }
+  /** Extra data to fill template variables {{total}}, {{itens}}, {{motivo}} */
+  extra?: {
+    total?: number
+    items?: Array<{ quantity: number; productName: string }>
+    /** C-040: motivo do cancelamento — preenche {{motivo}} no template CANCELLED */
+    cancelReason?: string
+  }
 ): Promise<void> {
   // Map DB status → WhatsApp event type
   // READY dispatches READY_FOR_PICKUP for pickup orders; delivery uses MOTOBOY_ASSIGNED separately
@@ -125,6 +130,7 @@ export async function sendStatusUpdateMessage(
 
   const itemsStr = extra?.items?.map(i => `${i.quantity}x ${i.productName}`).join(', ') ?? ''
   const totalStr = extra?.total != null ? formatMoney(extra.total) : ''
+  const motivoStr = extra?.cancelReason ? `Motivo: _${extra.cancelReason}_\n` : ''
 
   const templateText = await getTemplate(storeId, eventType as any)
   const text = templateText
@@ -133,6 +139,7 @@ export async function sendStatusUpdateMessage(
     .replace(/\{\{status\}\}/g, status)
     .replace(/\{\{total\}\}/g, totalStr)
     .replace(/\{\{itens\}\}/g, itemsStr)
+    .replace(/\{\{motivo\}\}/g, motivoStr)
     .replace(/\{\{horario\}\}/g, '')
 
   await sendMessage(storeId, phone, text)
@@ -152,6 +159,7 @@ export async function sendWaitingPaymentMessage(
     .replace(/\{\{total\}\}/g, formatMoney(total))
     .replace(/\{\{status\}\}/g, 'Aguardando pagamento')
     .replace(/\{\{itens\}\}/g, '')
+    .replace(/\{\{motivo\}\}/g, '')
     .replace(/\{\{horario\}\}/g, '')
 
   await sendMessage(storeId, phone, text)

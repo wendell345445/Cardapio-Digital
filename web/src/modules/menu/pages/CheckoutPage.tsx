@@ -28,7 +28,7 @@ function toDatetimeLocalValue(d: Date) {
 const checkoutSchema = z.object({
   clientWhatsapp: z.string().length(11, 'Informe 11 dígitos (com DDD, sem espaços)'),
   clientName: z.string().min(1, 'Informe seu nome').optional(),
-  type: z.enum(['DELIVERY', 'PICKUP']),
+  type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum(['PIX', 'CASH_ON_DELIVERY']),
   notes: z.string().optional(),
   couponCode: z.string().optional(),
@@ -61,11 +61,13 @@ export function CheckoutPage() {
   const items = useCartStore(s => s.items)
   const subtotal = useCartStore(s => s.subtotal)
   const clearCart = useCartStore(s => s.clearCart)
+  const tableNumber = useCartStore(s => s.tableNumber)
   const mutation = useCreateOrder(slug ?? '')
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(checkoutSchema),
-    defaultValues: { type: 'DELIVERY', paymentMethod: 'PIX', scheduleOrder: false },
+    // C-022: se entrou via QR de mesa, força type=TABLE
+    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY', paymentMethod: 'PIX', scheduleOrder: false },
   })
 
   const orderType = watch('type')
@@ -93,6 +95,7 @@ export function CheckoutPage() {
         neighborhood: form.neighborhood!,
         city: form.city!,
       } : undefined,
+      tableNumber: form.type === 'TABLE' && tableNumber ? tableNumber : undefined,
       items: items.map(i => ({
         productId: i.productId,
         variationId: i.variationId,

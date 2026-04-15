@@ -20,6 +20,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       findUnique: jest.fn(),
       create: jest.fn(),
     },
+    // C-027: getPaymentMethodsForClient consulta blacklist
+    clientPaymentAccess: { findFirst: jest.fn() },
+    table: { findUnique: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   },
 }))
@@ -147,6 +150,10 @@ function setupDefaultMocks() {
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(mockPrisma))
   ;(mockPrisma.order.create as jest.Mock).mockResolvedValue(mockOrder)
   ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder)
+  // C-027: blacklist vazia por default
+  ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue(null)
+  ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
+  ;(mockPrisma.table.update as jest.Mock).mockResolvedValue({})
 }
 
 beforeEach(() => {
@@ -729,5 +736,79 @@ describe('createOrder — retorno e side-effects', () => {
     await createOrder(SLUG, baseOrderInput)
 
     expect(emit.orderNew).toHaveBeenCalledWith(STORE_ID, expect.objectContaining({ id: 'order-1' }))
+  })
+})
+
+// ─── C-002/C-022: Mesa via QR code ────────────────────────────────────────────
+
+describe('createOrder — mesa via QR code (C-002/C-022)', () => {
+  it('lança 422 quando type=TABLE e nem tableId nem tableNumber são informados', async () => {
+    setupDefaultMocks()
+
+    await expect(
+      createOrder(SLUG, { ...baseOrderInput, type: 'TABLE' as const })
+    ).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('lança 404 quando tableNumber não existe na loja', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
+
+    await expect(
+      createOrder(SLUG, { ...baseOrderInput, type: 'TABLE' as const, tableNumber: 99 })
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('resolve tableNumber → tableId, cria pedido e marca mesa como ocupada', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue({
+      id: 'table-uuid-1',
+      storeId: STORE_ID,
+      number: 5,
+      isOccupied: false,
+    })
+
+    await createOrder(SLUG, { ...baseOrderInput, type: 'TABLE' as const, tableNumber: 5 })
+
+    expect(mockPrisma.table.findUnique).toHaveBeenCalledWith({
+      where: { storeId_number: { storeId: STORE_ID, number: 5 } },
+    })
+    expect(mockPrisma.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tableId: 'table-uuid-1', type: 'TABLE' }),
+      })
+    )
+    expect(mockPrisma.table.update).toHaveBeenCalledWith({
+      where: { id: 'table-uuid-1' },
+      data: { isOccupied: true },
+    })
+  })
+})
+
+// ─── C-027: Blacklist bloqueia "Pagar na entrega" ────────────────────────────
+
+describe('createOrder — blacklist (C-027)', () => {
+  it('lança 422 quando cliente está na blacklist e tenta pagar com CASH_ON_DELIVERY', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue({
+      id: 'access-1',
+      type: 'BLACKLIST',
+      storeId: STORE_ID,
+      clientId: CLIENT_ID,
+    })
+
+    await expect(
+      createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' as const })
+    ).rejects.toMatchObject({ status: 422 })
+
+    expect(mockPrisma.order.create).not.toHaveBeenCalled()
+  })
+
+  it('permite CASH_ON_DELIVERY quando cliente não está em blacklist', async () => {
+    setupDefaultMocks() // clientPaymentAccess.findFirst → null por default
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' as const })
+
+    expect(mockPrisma.order.create).toHaveBeenCalled()
   })
 })
