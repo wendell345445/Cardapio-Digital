@@ -12,8 +12,11 @@ export interface CartItem {
 
 interface CartStore {
   storeSlug: string | null
+  /** C-002/C-022: número da mesa quando cliente entrou via QR code (?mesa=N) */
+  tableNumber: number | null
   items: CartItem[]
   setStore: (slug: string) => void
+  setTableNumber: (n: number | null) => void
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateQty: (id: string, quantity: number) => void
   removeItem: (id: string) => void
@@ -26,15 +29,17 @@ export const useCartStore = create<CartStore>()(
   persist(
     (set, get) => ({
       storeSlug: null,
+      tableNumber: null,
       items: [],
       setStore: (slug) => set({ storeSlug: slug }),
+      setTableNumber: (n) => set({ tableNumber: n }),
       addItem: (item) => set((s) => ({ items: [...s.items, { ...item, id: crypto.randomUUID() }] })),
       updateQty: (id, quantity) => {
         if (quantity <= 0) { get().removeItem(id); return }
         set((s) => ({ items: s.items.map((i) => i.id === id ? { ...i, quantity } : i) }))
       },
       removeItem: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
-      clearCart: () => set({ items: [] }),
+      clearCart: () => set({ items: [] }), // mesa permanece — cliente segue na mesma mesa
       subtotal: () => {
         return get().items.reduce((acc, item) => {
           const base = item.variationPrice ?? item.unitPrice

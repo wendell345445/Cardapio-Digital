@@ -17,6 +17,8 @@ export const createOrderSchema = z.object({
   notes: z.string().optional(),
   couponCode: z.string().optional(),
   tableId: z.string().uuid().optional(),
+  // C-002/C-022: cliente escaneia QR e abre /menu?mesa=N — frontend manda só o número
+  tableNumber: z.number().int().positive().optional(),
   address: z
     .object({
       zipCode: z.string().optional(),

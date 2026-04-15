@@ -43,7 +43,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 const schema = z.object({
   clientWhatsapp: z.string().length(11, 'Informe 11 dígitos (com DDD)'),
   clientName: z.string().min(1, 'Informe seu nome').optional(),
-  type: z.enum(['DELIVERY', 'PICKUP']),
+  type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum(PAYMENT_METHODS),
   zipCode: z.string().optional(),
   street: z.string().optional(),
@@ -75,6 +75,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const items = useCartStore(s => s.items)
   const subtotal = useCartStore(s => s.subtotal)
   const clearCart = useCartStore(s => s.clearCart)
+  const tableNumber = useCartStore(s => s.tableNumber)
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
@@ -82,7 +83,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(schema),
-    defaultValues: { type: 'DELIVERY', paymentMethod: 'PIX' },
+    // C-022: se entrou via QR de mesa, força type=TABLE
+    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY', paymentMethod: 'PIX' },
   })
 
   const orderType = watch('type')
@@ -123,6 +125,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           neighborhood: form.neighborhood!,
           city: form.city!,
         } : undefined,
+        tableNumber: form.type === 'TABLE' && tableNumber ? tableNumber : undefined,
         items: items.map(i => ({
           productId: i.productId,
           variationId: i.variationId,
@@ -193,21 +196,28 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         <div className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-5">
             {/* Tipo de entrega */}
-            <div className="grid grid-cols-2 gap-2">
-              {['DELIVERY', ...(store?.allowPickup ? ['PICKUP'] : [])].map(t => (
-                <label
-                  key={t}
-                  className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors ${
-                    orderType === t
-                      ? 'border-red-500 bg-red-50 text-red-700'
-                      : 'border-gray-200 text-gray-600'
-                  }`}
-                >
-                  <input type="radio" value={t} {...register('type')} className="sr-only" />
-                  {t === 'DELIVERY' ? '🛵 Entrega' : '🏪 Retirar no local'}
-                </label>
-              ))}
-            </div>
+            {tableNumber ? (
+              <div className="p-3 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 text-sm font-medium text-center">
+                <input type="hidden" value="TABLE" {...register('type')} />
+                🍽️ Pedido para Mesa {tableNumber}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {['DELIVERY', ...(store?.allowPickup ? ['PICKUP'] : [])].map(t => (
+                  <label
+                    key={t}
+                    className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors ${
+                      orderType === t
+                        ? 'border-red-500 bg-red-50 text-red-700'
+                        : 'border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    <input type="radio" value={t} {...register('type')} className="sr-only" />
+                    {t === 'DELIVERY' ? '🛵 Entrega' : '🏪 Retirar no local'}
+                  </label>
+                ))}
+              </div>
+            )}
 
             {/* Seus dados */}
             <div className="space-y-3">

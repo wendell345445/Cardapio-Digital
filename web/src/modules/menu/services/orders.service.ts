@@ -32,6 +32,9 @@ export interface CreateOrderDto {
   paymentMethod: PaymentMethod
   notes?: string; couponCode?: string
   address?: OrderAddress
+  /** C-002/C-022: número da mesa quando cliente entrou via QR code */
+  tableNumber?: number
+  scheduledFor?: string
   items: OrderItem[]
 }
 

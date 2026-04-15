@@ -7,6 +7,7 @@ import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { sendOrderCreatedMessage } from '../whatsapp/messages.service'
+import { getPaymentMethodsForClient } from '../admin/payment-access.service'
 
 import { generatePix } from './pix.service'
 import type { PixData } from './pix.service'
@@ -84,6 +85,21 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   }
   if (data.paymentMethod === 'CREDIT_CARD' && !store.allowCreditCard) {
     throw new AppError('Pagamento em cartão de crédito não permitido nesta loja', 422)
+  }
+
+  // 3a. C-002/C-022: TABLE — resolve tableNumber → tableId quando QR code da mesa
+  let resolvedTableId: string | undefined = data.tableId
+  if (data.type === 'TABLE') {
+    if (!resolvedTableId && !data.tableNumber) {
+      throw new AppError('Mesa é obrigatória para pedidos no local', 422)
+    }
+    if (!resolvedTableId && data.tableNumber) {
+      const table = await prisma.table.findUnique({
+        where: { storeId_number: { storeId: store.id, number: data.tableNumber } },
+      })
+      if (!table) throw new AppError(`Mesa ${data.tableNumber} não encontrada`, 404)
+      resolvedTableId = table.id
+    }
   }
 
   // 4. Valida e calcula itens
@@ -234,6 +250,15 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     })
   }
 
+  // 7a. C-027: Bloqueia "Pagar na entrega" quando cliente está na blacklist
+  // (e libera quando whitelist mesmo se a loja não tem CASH habilitado por default)
+  if (data.paymentMethod === 'CASH_ON_DELIVERY') {
+    const allowed = await getPaymentMethodsForClient(client.id, store.id)
+    if (!allowed.cashOnDelivery) {
+      throw new AppError('Pagamento em dinheiro indisponível para este cliente', 422)
+    }
+  }
+
   // 8. Número sequencial por loja
   const lastOrder = await prisma.order.findFirst({
     where: { storeId: store.id },
@@ -263,7 +288,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         total,
         address: data.address ?? undefined,
         notes: data.notes,
-        tableId: data.tableId,
+        tableId: resolvedTableId,
         couponId,
         scheduledFor: data.scheduledFor,
         items: {
@@ -289,6 +314,14 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       await tx.coupon.update({
         where: { id: couponId },
         data: { usedCount: { increment: 1 } },
+      })
+    }
+
+    // C-022: marca mesa como ocupada quando pedido é criado a partir do QR
+    if (resolvedTableId) {
+      await tx.table.update({
+        where: { id: resolvedTableId },
+        data: { isOccupied: true },
       })
     }
 

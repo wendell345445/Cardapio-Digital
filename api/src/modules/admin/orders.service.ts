@@ -159,6 +159,8 @@ export async function updateOrderStatus(
     sendStatusUpdateMessage(storeId, order.clientWhatsapp, order.number, newStatus, store.name, order.type, {
       total: updated.total,
       items: updated.items,
+      // C-040: passa motivo do cancelamento pro template {{motivo}}
+      cancelReason: newStatus === 'CANCELLED' ? input.cancelReason : undefined,
     }).catch(() => void 0)
   }
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, Phone, MapPin, Clock, ChevronDown, ChevronUp, ShoppingCart } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Search, Phone, MapPin, Clock, ChevronDown, ChevronUp, ShoppingCart, UtensilsCrossed } from 'lucide-react'
 
 import { useMenu } from '../hooks/useMenu'
 import { ProductCard } from '../components/ProductCard'
@@ -16,9 +16,12 @@ import { useStoreSlug } from '@/hooks/useStoreSlug'
 export function MenuPage() {
   const slug = useStoreSlug()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data, isLoading } = useMenu(slug)
 
   const setStore = useCartStore(s => s.setStore)
+  const setTableNumber = useCartStore(s => s.setTableNumber)
+  const tableNumber = useCartStore(s => s.tableNumber)
   const cartItems = useCartStore(s => s.items)
   const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0)
 
@@ -30,6 +33,15 @@ export function MenuPage() {
   useEffect(() => {
     if (slug && slug !== '__custom_domain__') setStore(slug)
   }, [slug, setStore])
+
+  // C-002/C-022: captura ?mesa=N do QR code da mesa
+  useEffect(() => {
+    const mesaParam = searchParams.get('mesa')
+    if (mesaParam) {
+      const n = parseInt(mesaParam, 10)
+      if (Number.isInteger(n) && n > 0) setTableNumber(n)
+    }
+  }, [searchParams, setTableNumber])
 
   const allProducts = useMemo(() => {
     if (!data) return []
@@ -132,6 +144,12 @@ export function MenuPage() {
                 >
                   {isOpen ? '● Aberto agora' : '● Fechado'}
                 </span>
+                {tableNumber && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
+                    <UtensilsCrossed className="w-3 h-3" />
+                    Mesa {tableNumber}
+                  </span>
+                )}
               </div>
               <h1 className="text-xl font-bold text-gray-900">{store.name}</h1>
               {store.description && (
