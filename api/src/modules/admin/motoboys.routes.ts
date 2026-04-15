@@ -12,6 +12,7 @@ import {
   createMotoboyController,
   deleteMotoboyController,
   listMotoboysController,
+  updateMotoboyController,
 } from './motoboys.controller'
 
 const router = Router()
@@ -20,6 +21,7 @@ router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requir
 
 router.get('/', listMotoboysController)
 router.post('/', createMotoboyController)
+router.patch('/:id', updateMotoboyController)
 router.delete('/:id', deleteMotoboyController)
 
 export default router

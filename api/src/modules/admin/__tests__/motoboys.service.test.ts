@@ -7,6 +7,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       findFirst: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
+      update: jest.fn(),
       delete: jest.fn(),
     },
     refreshToken: { deleteMany: jest.fn() },
@@ -19,7 +20,7 @@ jest.mock('bcrypt', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { listMotoboys, createMotoboy, deleteMotoboy } from '../motoboys.service'
+import { listMotoboys, createMotoboy, deleteMotoboy, updateMotoboy } from '../motoboys.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -177,6 +178,81 @@ describe('createMotoboy', () => {
     )
 
     expect(result.email).toBeNull()
+  })
+})
+
+// ─── updateMotoboy ────────────────────────────────────────────────────────────
+
+describe('updateMotoboy', () => {
+  it('atualiza nome e email, registra AuditLog', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue({ ...mockMotoboySelect, name: 'Novo Nome' })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const result = await updateMotoboy(
+      STORE_ID,
+      MOTOBOY_ID,
+      { name: 'Novo Nome', email: 'novo@moto.com' },
+      USER_ID,
+      IP
+    )
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: MOTOBOY_ID },
+        data: expect.objectContaining({ name: 'Novo Nome', email: 'novo@moto.com' }),
+      })
+    )
+    expect(result.name).toBe('Novo Nome')
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'motoboy.update', entity: 'User' }),
+      })
+    )
+  })
+
+  it('reseta senha (hash novo + invalida refresh tokens)', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue(mockMotoboySelect)
+    ;(mockPrisma.refreshToken.deleteMany as jest.Mock).mockResolvedValue({ count: 1 })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    await updateMotoboy(STORE_ID, MOTOBOY_ID, { password: 'nova-senha-123' }, USER_ID)
+
+    const { hash } = await import('bcrypt')
+    expect(hash).toHaveBeenCalledWith('nova-senha-123', 12)
+    expect(mockPrisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: MOTOBOY_ID } })
+  })
+
+  it('lança 404 quando motoboy pertence a outra loja', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      ...mockMotoboy,
+      storeId: 'outra-loja',
+    })
+
+    await expect(
+      updateMotoboy(STORE_ID, MOTOBOY_ID, { name: 'X' }, USER_ID)
+    ).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('lança 422 quando novo email já existe em outro motoboy da mesma loja', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ ...mockMotoboy, id: 'outro' })
+
+    await expect(
+      updateMotoboy(STORE_ID, MOTOBOY_ID, { email: 'conflito@moto.com' }, USER_ID)
+    ).rejects.toMatchObject({ status: 422 })
+
+    expect(mockPrisma.user.update).not.toHaveBeenCalled()
+  })
+
+  it('lança 422 quando remove ambos email e whatsapp', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+
+    await expect(
+      updateMotoboy(STORE_ID, MOTOBOY_ID, { email: null, whatsapp: null }, USER_ID)
+    ).rejects.toMatchObject({ status: 422 })
   })
 })
 

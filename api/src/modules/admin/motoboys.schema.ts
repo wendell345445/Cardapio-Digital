@@ -8,3 +8,12 @@ export const createMotoboySchema = z.object({
 })
 
 export type CreateMotoboyInput = z.infer<typeof createMotoboySchema>
+
+export const updateMotoboySchema = z.object({
+  name: z.string().min(2).max(100).optional(),
+  whatsapp: z.string().min(10).max(20).nullable().optional(),
+  email: z.string().email().nullable().optional(),
+  password: z.string().min(6).max(72).optional(),
+})
+
+export type UpdateMotoboyInput = z.infer<typeof updateMotoboySchema>

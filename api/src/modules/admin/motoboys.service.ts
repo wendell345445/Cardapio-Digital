@@ -3,7 +3,7 @@ import { hash } from 'bcrypt'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 
-import type { CreateMotoboyInput } from './motoboys.schema'
+import type { CreateMotoboyInput, UpdateMotoboyInput } from './motoboys.schema'
 
 // ─── TASK-053: Cadastro de Motoboys ───────────────────────────────────────────
 
@@ -87,6 +87,91 @@ export async function createMotoboy(
   })
 
   return motoboy
+}
+
+export async function updateMotoboy(
+  storeId: string,
+  motoboyId: string,
+  data: UpdateMotoboyInput,
+  userId: string,
+  ip?: string
+) {
+  const current = await prisma.user.findUnique({ where: { id: motoboyId } })
+
+  if (!current || current.storeId !== storeId || current.role !== 'MOTOBOY') {
+    throw new AppError('Motoboy não encontrado', 404)
+  }
+
+  if (data.email !== undefined && data.email !== null && data.email !== current.email) {
+    const existing = await prisma.user.findFirst({
+      where: { email: data.email, storeId, NOT: { id: motoboyId } },
+    })
+    if (existing) {
+      throw new AppError('Já existe um motoboy com esse email nesta loja', 422)
+    }
+  }
+
+  if (data.whatsapp !== undefined && data.whatsapp !== null && data.whatsapp !== current.whatsapp) {
+    const existing = await prisma.user.findFirst({
+      where: { whatsapp: data.whatsapp, storeId, NOT: { id: motoboyId } },
+    })
+    if (existing) {
+      throw new AppError('Já existe um motoboy com esse WhatsApp nesta loja', 422)
+    }
+  }
+
+  const nextEmail = data.email === undefined ? current.email : data.email
+  const nextWhatsapp = data.whatsapp === undefined ? current.whatsapp : data.whatsapp
+  if (!nextEmail && !nextWhatsapp) {
+    throw new AppError('Informe email ou WhatsApp', 422)
+  }
+
+  const updateData: {
+    name?: string
+    email?: string | null
+    whatsapp?: string | null
+    passwordHash?: string
+  } = {}
+  if (data.name !== undefined) updateData.name = data.name
+  if (data.email !== undefined) updateData.email = data.email
+  if (data.whatsapp !== undefined) updateData.whatsapp = data.whatsapp
+  if (data.password) updateData.passwordHash = await hash(data.password, 12)
+
+  const updated = await prisma.user.update({
+    where: { id: motoboyId },
+    data: updateData,
+    select: {
+      id: true,
+      name: true,
+      whatsapp: true,
+      email: true,
+      isActive: true,
+      storeId: true,
+    },
+  })
+
+  if (data.password) {
+    await prisma.refreshToken.deleteMany({ where: { userId: motoboyId } })
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'motoboy.update',
+      entity: 'User',
+      entityId: motoboyId,
+      data: {
+        name: data.name,
+        email: data.email,
+        whatsapp: data.whatsapp,
+        passwordChanged: !!data.password,
+      },
+      ip,
+    },
+  })
+
+  return updated
 }
 
 export async function deleteMotoboy(

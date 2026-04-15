@@ -20,6 +20,13 @@ export interface CreateMotoboyDto {
   password: string
 }
 
+export interface UpdateMotoboyDto {
+  name?: string
+  whatsapp?: string | null
+  email?: string | null
+  password?: string
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function fetchMotoboys(): Promise<Motoboy[]> {
@@ -29,6 +36,11 @@ export async function fetchMotoboys(): Promise<Motoboy[]> {
 
 export async function createMotoboy(dto: CreateMotoboyDto): Promise<Motoboy> {
   const { data } = await api.post('/admin/store/motoboys', dto)
+  return data.data
+}
+
+export async function updateMotoboy(id: string, dto: UpdateMotoboyDto): Promise<Motoboy> {
+  const { data } = await api.patch(`/admin/store/motoboys/${id}`, dto)
   return data.data
 }
 
