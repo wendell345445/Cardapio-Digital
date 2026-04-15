@@ -22,7 +22,10 @@ export function useMenu(slug: string | null) {
   useEffect(() => {
     if (!query.data?.store.id) return
     const storeId = query.data.store.id
-    const socket = io(import.meta.env.VITE_API_URL ?? '/', { auth: { storeId } })
+    const socket = io(import.meta.env.VITE_API_URL ?? '/', {
+      auth: { storeId },
+      transports: ['websocket'],
+    })
     socket.on('menu:updated', () => {
       qc.invalidateQueries({ queryKey: ['menu', slug] })
     })

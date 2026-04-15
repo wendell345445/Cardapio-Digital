@@ -1,6 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
+import { emit } from '../../shared/socket/socket'
 import { reauth } from '../auth/auth.service'
 
 import type {
@@ -86,6 +87,7 @@ export async function updateStore(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -171,6 +173,7 @@ export async function updateBusinessHours(
   updated.sort((a, b) => a.dayOfWeek - b.dayOfWeek)
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -211,6 +214,7 @@ export async function updateStoreStatus(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -249,6 +253,7 @@ export async function updateWhatsapp(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -289,6 +294,9 @@ export async function updatePix(
     },
     select: { id: true, pixKey: true, pixKeyType: true },
   })
+
+  await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -343,6 +351,7 @@ export async function updatePaymentSettings(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {

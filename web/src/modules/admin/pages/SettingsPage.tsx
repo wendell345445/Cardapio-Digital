@@ -11,32 +11,26 @@ import {
 } from '../hooks/useMotoboys'
 import type { Motoboy } from '../services/motoboys.service'
 import {
-  useBusinessHours,
   useStore,
-  useUpdateBusinessHours,
   useUpdatePaymentSettings,
   useUpdatePix,
   useUpdateStore,
   useUpdateStoreStatus,
   useUpdateWhatsapp,
 } from '../hooks/useStore'
-import type { BusinessHour } from '../services/store.service'
 // ─── TASK-050/051/052/053/054: Página de Configurações da Loja ───────────────
 // ─── TASK-109/Epic10: Aba "Mensagens WhatsApp" movida para WhatsAppPage ───────
 // ─── Epic 13 hardening: Aba "Assinatura" (Stripe Customer Portal) ─────────────
 
-type Tab = 'dados' | 'horarios' | 'pagamentos' | 'motoboys' | 'acesso' | 'assinatura'
+type Tab = 'dados' | 'pagamentos' | 'motoboys' | 'acesso' | 'assinatura'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'dados', label: 'Dados' },
-  { id: 'horarios', label: 'Horários' },
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'motoboys', label: 'Motoboys' },
   { id: 'acesso', label: 'Blacklist/Whitelist' },
   { id: 'assinatura', label: 'Assinatura' },
 ]
-
-const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 const PIX_TYPES = [
   { value: 'CPF', label: 'CPF' },
@@ -202,121 +196,6 @@ function TabDados() {
           </div>
         </form>
       </div>
-    </div>
-  )
-}
-
-function TabHorarios() {
-  const { data: hours, isLoading } = useBusinessHours()
-  const updateMutation = useUpdateBusinessHours()
-
-  const [localHours, setLocalHours] = useState<BusinessHour[] | null>(null)
-  const [initialized, setInitialized] = useState(false)
-
-  if (hours && !initialized) {
-    const sorted = [...hours].sort((a, b) => a.dayOfWeek - b.dayOfWeek)
-    // fill missing days
-    const filled: BusinessHour[] = Array.from({ length: 7 }, (_, i) => {
-      const found = sorted.find((h) => h.dayOfWeek === i)
-      return (
-        found ?? {
-          id: '',
-          storeId: '',
-          dayOfWeek: i,
-          openTime: '08:00',
-          closeTime: '22:00',
-          isClosed: false,
-        }
-      )
-    })
-    setLocalHours(filled)
-    setInitialized(true)
-  }
-
-  function updateHour(dayOfWeek: number, field: keyof BusinessHour, value: unknown) {
-    setLocalHours((prev) =>
-      prev
-        ? prev.map((h) => (h.dayOfWeek === dayOfWeek ? { ...h, [field]: value } : h))
-        : prev
-    )
-  }
-
-  function handleSave() {
-    if (!localHours) return
-    updateMutation.mutate(
-      { hours: localHours },
-      { onError: () => alert('Erro ao salvar horários.') }
-    )
-  }
-
-  if (isLoading) {
-    return <p className="text-sm text-gray-500 py-6 text-center">Carregando...</p>
-  }
-
-  const displayHours = localHours ?? []
-
-  return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Horários de Funcionamento</h2>
-        <button
-          onClick={handleSave}
-          disabled={updateMutation.isPending}
-          className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {updateMutation.isPending ? 'Salvando...' : 'Salvar Horários'}
-        </button>
-      </div>
-      {updateMutation.isSuccess && (
-        <p className="px-6 py-2 text-sm text-green-600 bg-green-50 border-b border-green-100">
-          Horários salvos com sucesso!
-        </p>
-      )}
-      <table className="min-w-full divide-y divide-gray-100 text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left font-medium text-gray-600">Dia</th>
-            <th className="px-6 py-3 text-center font-medium text-gray-600">Fechado</th>
-            <th className="px-6 py-3 text-center font-medium text-gray-600">Abre</th>
-            <th className="px-6 py-3 text-center font-medium text-gray-600">Fecha</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {displayHours.map((hour) => (
-            <tr key={hour.dayOfWeek} className="hover:bg-gray-50">
-              <td className="px-6 py-3 font-medium text-gray-900">
-                {DAY_NAMES[hour.dayOfWeek]}
-              </td>
-              <td className="px-6 py-3 text-center">
-                <input
-                  type="checkbox"
-                  checked={hour.isClosed}
-                  onChange={(e) => updateHour(hour.dayOfWeek, 'isClosed', e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-              </td>
-              <td className="px-6 py-3 text-center">
-                <input
-                  type="time"
-                  value={hour.openTime}
-                  disabled={hour.isClosed}
-                  onChange={(e) => updateHour(hour.dayOfWeek, 'openTime', e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-                />
-              </td>
-              <td className="px-6 py-3 text-center">
-                <input
-                  type="time"
-                  value={hour.closeTime}
-                  disabled={hour.isClosed}
-                  onChange={(e) => updateHour(hour.dayOfWeek, 'closeTime', e.target.value)}
-                  className="rounded-md border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   )
 }
@@ -1142,7 +1021,6 @@ export function SettingsPage() {
 
         {/* Conteúdo da Tab ativa */}
         {activeTab === 'dados' && <TabDados />}
-        {activeTab === 'horarios' && <TabHorarios />}
         {activeTab === 'pagamentos' && <TabPagamentos />}
         {activeTab === 'motoboys' && <TabMotoboys />}
         {activeTab === 'acesso' && <TabAcesso />}

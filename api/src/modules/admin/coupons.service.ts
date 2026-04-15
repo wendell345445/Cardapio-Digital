@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
+import { emit } from '../../shared/socket/socket'
 
 import type { CreateCouponInput, ListCouponsInput, UpdateCouponInput } from './coupons.schema'
 
@@ -77,6 +78,7 @@ export async function createCoupon(
 
   if (isProductPromo) {
     await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
   }
 
   await prisma.auditLog.create({
@@ -134,6 +136,7 @@ export async function updateCoupon(
 
   if (coupon.productId || updated.productId) {
     await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
   }
 
   await prisma.auditLog.create({
@@ -164,6 +167,7 @@ export async function deleteCoupon(
 
   if (coupon.productId) {
     await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
   }
 
   await prisma.auditLog.create({
