@@ -8,6 +8,8 @@ import {
   requireStore,
 } from '../../shared/middleware/auth.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import { cache } from '../../shared/redis/redis'
+import { emit } from '../../shared/socket/socket'
 
 // ─── TASK-109: Adicionais centralizados ──────────────────────────────────────
 // Agrupa ProductAdditional por produto para gestão centralizada na sidebar
@@ -89,6 +91,9 @@ router.patch('/items/:itemId', async (req, res, next) => {
       },
     })
 
+    await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
+
     res.json({ success: true, data: updated })
   } catch (err) {
     next(err)
@@ -120,6 +125,9 @@ router.post('/:productId/items', async (req, res, next) => {
       data: { productId, name, price: Number(price) },
     })
 
+    await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
+
     res.status(201).json({ success: true, data: item })
   } catch (err) {
     next(err)
@@ -143,6 +151,10 @@ router.delete('/items/:itemId', async (req, res, next) => {
     }
 
     await prisma.productAdditional.delete({ where: { id: itemId } })
+
+    await cache.del(`menu:${storeId}`)
+    emit.menuUpdated(storeId)
+
     res.json({ success: true, data: null })
   } catch (err) {
     next(err)

@@ -21,8 +21,13 @@ jest.mock('../../../shared/redis/redis', () => ({
   cache: { del: jest.fn() },
 }))
 
+jest.mock('../../../shared/socket/socket', () => ({
+  emit: { menuUpdated: jest.fn() },
+}))
+
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
+import { emit } from '../../../shared/socket/socket'
 import {
   listCategories,
   createCategory,
@@ -32,6 +37,7 @@ import {
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockCache = cache as jest.Mocked<typeof cache>
+const mockEmit = emit as jest.Mocked<typeof emit>
 
 const STORE_ID = 'store-1'
 const USER_ID = 'user-1'
@@ -78,6 +84,7 @@ describe('createCategory', () => {
 
     expect(result.id).toBe('cat-1')
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
+    expect(mockEmit.menuUpdated).toHaveBeenCalledWith(STORE_ID)
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -121,6 +128,7 @@ describe('updateCategory', () => {
 
     expect(result.name).toBe('Lanches')
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
+    expect(mockEmit.menuUpdated).toHaveBeenCalledWith(STORE_ID)
   })
 
   it('updates isActive (soft toggle) without name change', async () => {
@@ -183,6 +191,7 @@ describe('deleteCategory', () => {
 
     expect(mockPrisma.category.delete).toHaveBeenCalledWith({ where: { id: 'cat-1' } })
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
+    expect(mockEmit.menuUpdated).toHaveBeenCalledWith(STORE_ID)
   })
 
   it('throws 404 when category does not exist', async () => {

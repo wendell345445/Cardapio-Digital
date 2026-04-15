@@ -1,6 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
+import { emit } from '../../shared/socket/socket'
 
 import type { CreateCategoryInput, UpdateCategoryInput } from './categories.schema'
 
@@ -36,6 +37,7 @@ export async function createCategory(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -80,6 +82,7 @@ export async function updateCategory(
   })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {
@@ -119,6 +122,7 @@ export async function deleteCategory(
   await prisma.category.delete({ where: { id: categoryId } })
 
   await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
 
   await prisma.auditLog.create({
     data: {

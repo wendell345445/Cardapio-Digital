@@ -18,12 +18,17 @@ jest.mock('../../../shared/redis/redis', () => ({
   cache: { del: jest.fn() },
 }))
 
+jest.mock('../../../shared/socket/socket', () => ({
+  emit: { menuUpdated: jest.fn() },
+}))
+
 jest.mock('../../auth/auth.service', () => ({
   reauth: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
+import { emit } from '../../../shared/socket/socket'
 import { reauth } from '../../auth/auth.service'
 import {
   getStore,
@@ -38,6 +43,7 @@ import {
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockCache = cache as jest.Mocked<typeof cache>
+const mockEmit = emit as jest.Mocked<typeof emit>
 const mockReauth = reauth as jest.Mock
 
 const STORE_ID = 'store-1'
@@ -108,6 +114,7 @@ describe('updateStore', () => {
 
     expect(result.name).toBe('Nova Pizzaria')
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
+    expect(mockEmit.menuUpdated).toHaveBeenCalledWith(STORE_ID)
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -228,6 +235,7 @@ describe('updateBusinessHours', () => {
     expect(result[0].dayOfWeek).toBe(0)
     expect(result[6].dayOfWeek).toBe(6)
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
+    expect(mockEmit.menuUpdated).toHaveBeenCalledWith(STORE_ID)
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ action: 'store.hours.update' }),
