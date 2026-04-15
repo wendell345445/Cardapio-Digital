@@ -69,6 +69,15 @@ export function useOAuthCallback(): void {
       sessionStorage.setItem(REFRESH_TOKEN_KEY, refresh)
     }
 
+    if (user.role === 'MOTOBOY') {
+      sessionStorage.setItem('token', token)
+      if (user.storeId) sessionStorage.setItem('storeId', user.storeId)
+      const returnTo = sessionStorage.getItem('oauth_return_to') ?? '/motoboy'
+      sessionStorage.removeItem('oauth_return_to')
+      void navigate(returnTo, { replace: true })
+      return
+    }
+
     void navigate('/dashboard', { replace: true })
   }, [searchParams, navigate, setAuth])
 }
