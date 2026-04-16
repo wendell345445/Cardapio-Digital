@@ -17,3 +17,9 @@ export const updateMotoboySchema = z.object({
 })
 
 export type UpdateMotoboyInput = z.infer<typeof updateMotoboySchema>
+
+export const setMotoboyAvailabilitySchema = z.object({
+  available: z.boolean(),
+})
+
+export type SetMotoboyAvailabilityInput = z.infer<typeof setMotoboyAvailabilitySchema>

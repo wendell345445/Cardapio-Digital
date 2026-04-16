@@ -4,6 +4,7 @@ import {
   createMotoboy,
   deleteMotoboy,
   fetchMotoboys,
+  setMotoboyAvailability,
   updateMotoboy,
   type CreateMotoboyDto,
   type UpdateMotoboyDto,
@@ -38,6 +39,15 @@ export function useDeleteMotoboy() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteMotoboy(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['motoboys'] }),
+  })
+}
+
+export function useSetMotoboyAvailability() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, available }: { id: string; available: boolean }) =>
+      setMotoboyAvailability(id, available),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['motoboys'] }),
   })
 }

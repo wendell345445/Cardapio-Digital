@@ -56,6 +56,7 @@ export const updatePaymentSettingsSchema = z.object({
   allowPix: z.boolean().optional(),
   allowPickup: z.boolean().optional(),
   allowCreditCard: z.boolean().optional(),
+  allowDelivery: z.boolean().optional(),
   serviceChargePercent: z.number().min(0).max(100).nullable().optional(),
 })
 

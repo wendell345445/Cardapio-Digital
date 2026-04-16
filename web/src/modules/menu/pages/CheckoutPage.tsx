@@ -147,7 +147,7 @@ export function CheckoutPage() {
           <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><ShoppingBag size={18} /> Como receber?</h2>
           <div className="grid grid-cols-2 gap-2">
             {[
-              { value: 'DELIVERY', label: '🛵 Entrega' },
+              ...(store?.allowDelivery !== false ? [{ value: 'DELIVERY', label: '🛵 Entrega' }] : []),
               ...(store?.allowPickup ? [{ value: 'PICKUP', label: '🏪 Retirada' }] : []),
             ].map(opt => (
               <label key={opt.value} className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer min-h-[44px] font-medium text-sm transition-colors ${orderType === opt.value ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-600'}`}>

@@ -63,6 +63,7 @@ export async function getMenu(slug: string) {
       allowCashOnDelivery: true,
       allowPickup: true,
       allowCreditCard: true,
+      allowDelivery: true,
       manualOpen: true,
       features: true,
       plan: true,

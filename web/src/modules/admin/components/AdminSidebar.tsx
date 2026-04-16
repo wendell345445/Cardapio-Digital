@@ -3,7 +3,6 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
   LogOut,
-  MapPin,
   MessageCircle,
   ShoppingBag,
   Package,
@@ -14,6 +13,7 @@ import {
   Settings,
   ExternalLink,
   Users,
+  Truck,
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
@@ -28,7 +28,7 @@ const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | 
 
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
-  { label: 'Bairros', to: '/admin/bairros', icon: MapPin },
+  { label: 'Entregas', to: '/admin/entregas', icon: Truck },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
   { label: 'Clientes', to: '/admin/clientes', icon: Users },
   { label: 'Produtos', to: '/admin/produtos', icon: Package },

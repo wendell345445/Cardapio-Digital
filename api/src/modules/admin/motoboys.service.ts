@@ -6,6 +6,20 @@ import { prisma } from '../../shared/prisma/prisma'
 import type { CreateMotoboyInput, UpdateMotoboyInput } from './motoboys.schema'
 
 // ─── TASK-053: Cadastro de Motoboys ───────────────────────────────────────────
+// ─── A-032/Entregas: disponibilidade diária (lazy reset) + round-robin ────────
+
+// Lazy reset diário: motoboy é considerado disponível hoje se availableAt
+// caiu em "hoje" (timezone do servidor). Meia-noite já invalida naturalmente,
+// sem cron — dono precisa reativar cada dia.
+export function isAvailableToday(availableAt: Date | null | undefined): boolean {
+  if (!availableAt) return false
+  const now = new Date()
+  return (
+    availableAt.getFullYear() === now.getFullYear() &&
+    availableAt.getMonth() === now.getMonth() &&
+    availableAt.getDate() === now.getDate()
+  )
+}
 
 export async function listMotoboys(storeId: string) {
   const motoboys = await prisma.user.findMany({
@@ -18,9 +32,58 @@ export async function listMotoboys(storeId: string) {
       email: true,
       isActive: true,
       storeId: true,
+      availableAt: true,
+      lastAssignedAt: true,
     },
   })
-  return motoboys
+  return motoboys.map(({ availableAt, ...m }) => ({
+    ...m,
+    availableAt,
+    availableToday: isAvailableToday(availableAt),
+  }))
+}
+
+export async function setMotoboyAvailability(
+  storeId: string,
+  motoboyId: string,
+  available: boolean,
+  userId: string,
+  ip?: string
+) {
+  const current = await prisma.user.findUnique({ where: { id: motoboyId } })
+
+  if (!current || current.storeId !== storeId || current.role !== 'MOTOBOY') {
+    throw new AppError('Motoboy não encontrado', 404)
+  }
+
+  const updated = await prisma.user.update({
+    where: { id: motoboyId },
+    data: { availableAt: available ? new Date() : null },
+    select: {
+      id: true,
+      name: true,
+      whatsapp: true,
+      email: true,
+      isActive: true,
+      storeId: true,
+      availableAt: true,
+      lastAssignedAt: true,
+    },
+  })
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'motoboy.availability',
+      entity: 'User',
+      entityId: motoboyId,
+      data: { available },
+      ip,
+    },
+  })
+
+  return { ...updated, availableToday: isAvailableToday(updated.availableAt) }
 }
 
 export async function createMotoboy(

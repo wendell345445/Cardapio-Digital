@@ -20,7 +20,14 @@ jest.mock('bcrypt', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { listMotoboys, createMotoboy, deleteMotoboy, updateMotoboy } from '../motoboys.service'
+import {
+  createMotoboy,
+  deleteMotoboy,
+  isAvailableToday,
+  listMotoboys,
+  setMotoboyAvailability,
+  updateMotoboy,
+} from '../motoboys.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -304,5 +311,87 @@ describe('deleteMotoboy', () => {
     })
 
     await expect(deleteMotoboy(STORE_ID, MOTOBOY_ID, USER_ID)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+// ─── isAvailableToday ─────────────────────────────────────────────────────────
+
+describe('isAvailableToday', () => {
+  it('retorna false quando availableAt é null/undefined', () => {
+    expect(isAvailableToday(null)).toBe(false)
+    expect(isAvailableToday(undefined)).toBe(false)
+  })
+
+  it('retorna true quando availableAt é hoje', () => {
+    expect(isAvailableToday(new Date())).toBe(true)
+  })
+
+  it('retorna false quando availableAt é ontem (reset diário lazy)', () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    expect(isAvailableToday(yesterday)).toBe(false)
+  })
+})
+
+// ─── setMotoboyAvailability ───────────────────────────────────────────────────
+
+describe('setMotoboyAvailability', () => {
+  it('ativa disponibilidade (grava availableAt=now) e registra AuditLog', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+    const updatedAt = new Date()
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue({
+      ...mockMotoboySelect,
+      availableAt: updatedAt,
+      lastAssignedAt: null,
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const result = await setMotoboyAvailability(STORE_ID, MOTOBOY_ID, true, USER_ID, IP)
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: MOTOBOY_ID },
+        data: { availableAt: expect.any(Date) },
+      })
+    )
+    expect(result.availableToday).toBe(true)
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'motoboy.availability',
+          data: { available: true },
+        }),
+      })
+    )
+  })
+
+  it('desativa disponibilidade (grava availableAt=null)', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockMotoboy)
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue({
+      ...mockMotoboySelect,
+      availableAt: null,
+      lastAssignedAt: null,
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const result = await setMotoboyAvailability(STORE_ID, MOTOBOY_ID, false, USER_ID)
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { availableAt: null } })
+    )
+    expect(result.availableToday).toBe(false)
+  })
+
+  it('lança 404 quando motoboy pertence a outra loja', async () => {
+    ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      ...mockMotoboy,
+      storeId: 'outra-loja',
+    })
+
+    await expect(
+      setMotoboyAvailability(STORE_ID, MOTOBOY_ID, true, USER_ID)
+    ).rejects.toMatchObject({ status: 404 })
+
+    expect(mockPrisma.user.update).not.toHaveBeenCalled()
   })
 })

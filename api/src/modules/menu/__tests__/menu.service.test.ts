@@ -47,6 +47,7 @@ const mockStore = {
   pixKeyType: null,
   allowCashOnDelivery: true,
   allowPickup: false,
+  allowDelivery: true,
   manualOpen: null,
   features: { allowPix: true },
   plan: 'PROFESSIONAL',

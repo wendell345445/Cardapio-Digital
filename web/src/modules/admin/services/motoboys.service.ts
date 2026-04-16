@@ -10,6 +10,9 @@ export interface Motoboy {
   storeId: string
   role: string
   isActive: boolean
+  availableAt?: string | null
+  lastAssignedAt?: string | null
+  availableToday?: boolean
   createdAt: string
 }
 
@@ -46,4 +49,12 @@ export async function updateMotoboy(id: string, dto: UpdateMotoboyDto): Promise<
 
 export async function deleteMotoboy(id: string): Promise<void> {
   await api.delete(`/admin/store/motoboys/${id}`)
+}
+
+export async function setMotoboyAvailability(
+  id: string,
+  available: boolean
+): Promise<Motoboy> {
+  const { data } = await api.patch(`/admin/store/motoboys/${id}/availability`, { available })
+  return data.data
 }

@@ -72,6 +72,12 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   }
 
   // 3. Valida tipo de entrega
+  if (data.type === 'DELIVERY' && !store.allowDelivery) {
+    throw new AppError('Loja não está aceitando entregas no momento', 422)
+  }
+  if (data.type === 'PICKUP' && !store.allowPickup) {
+    throw new AppError('Retirada no local não está habilitada', 422)
+  }
   if (data.type === 'DELIVERY' && !data.address) {
     throw new AppError('Endereço é obrigatório para entrega', 422)
   }
