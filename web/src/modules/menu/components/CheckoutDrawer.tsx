@@ -533,28 +533,32 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 Pagamento
               </h3>
 
-              <button
-                type="button"
-                onClick={() => selectPaymentGroup('PIX')}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-              >
-                <span className={`w-4 h-4 rounded-full border-2 ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
-                <span className="font-medium">💰 Pix (online)</span>
-              </button>
+              {store?.features?.allowPix !== false && store?.pixKey && (
+                <button
+                  type="button"
+                  onClick={() => selectPaymentGroup('PIX')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full border-2 ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
+                  <span className="font-medium">💰 Pix (online)</span>
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => selectPaymentGroup('CREDIT_CARD')}
-                className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-              >
-                <span className={`w-4 h-4 rounded-full border-2 mt-0.5 ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
-                <span className="flex-1">
-                  <span className="font-medium block">💳 Cartão de Crédito (online)</span>
-                  <span className="text-xs text-gray-400">Integração com gateway em breve</span>
-                </span>
-              </button>
+              {store?.allowCreditCard && (
+                <button
+                  type="button"
+                  onClick={() => selectPaymentGroup('CREDIT_CARD')}
+                  className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                >
+                  <span className={`w-4 h-4 rounded-full border-2 mt-0.5 ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
+                  <span className="flex-1">
+                    <span className="font-medium block">💳 Cartão de Crédito (online)</span>
+                    <span className="text-xs text-gray-400">Integração com gateway em breve</span>
+                  </span>
+                </button>
+              )}
 
-              {orderType === 'DELIVERY' && (
+              {store?.allowCashOnDelivery && orderType === 'DELIVERY' && (
                 <div className={`rounded-lg border-2 transition-colors ${paymentGroup === 'ON_DELIVERY' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                   <button
                     type="button"
@@ -588,7 +592,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               )}
 
-              {paymentMethod === 'PIX' && store?.pixKey && (
+              {paymentMethod === 'PIX' && store?.features?.allowPix !== false && store?.pixKey && (
                 <div className="p-3 bg-yellow-50 rounded-lg text-xs text-yellow-800">
                   <p className="font-semibold">Chave Pix ({store.pixKeyType}): {store.pixKey}</p>
                   <p className="mt-0.5">Envie o comprovante via WhatsApp após o pedido.</p>
