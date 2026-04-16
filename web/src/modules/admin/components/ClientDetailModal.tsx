@@ -29,8 +29,18 @@ interface Props {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ClientDetailModal({ whatsapp, onClose }: Props) {
-  const { data, isLoading, isError } = useCustomerDetail(whatsapp)
+  const { data: raw, isLoading, isError } = useCustomerDetail(whatsapp)
   const [editing, setEditing] = useState(false)
+
+  // Defensive: arrays podem faltar se backend estiver em shape antigo.
+  const data = raw
+    ? {
+        ...raw,
+        addresses: raw.addresses ?? [],
+        phones: raw.phones ?? [],
+        hasProfile: raw.hasProfile ?? false,
+      }
+    : undefined
 
   return (
     <>

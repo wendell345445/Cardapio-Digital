@@ -27,6 +27,7 @@ export const createOrderSchema = z.object({
       complement: z.string().optional(),
       neighborhood: z.string().min(1),
       city: z.string().min(1),
+      state: z.string().optional(),
     })
     .optional(),
   scheduledFor: z.coerce.date().optional(),

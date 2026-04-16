@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus, Star, Trash2, X } from 'lucide-react'
@@ -107,29 +107,26 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
   const phonesFA = useFieldArray({ control, name: 'secondaryPhones' })
 
   const cepLookup = useViaCep()
-  const addresses = watch('addresses')
+  // Evita lookup repetido pro mesmo CEP já resolvido.
+  const lastLookedUp = useRef<Record<number, string>>({})
 
-  // Lookup CEP ao completar 8 dígitos em qualquer endereço.
-  useEffect(() => {
-    addresses.forEach((addr, idx) => {
-      const digits = onlyDigits(addr.zipCode)
-      if (digits.length === 8 && !addr.street) {
-        cepLookup.lookup(digits).then((res) => {
-          if (res) {
-            if (res.street) setValue(`addresses.${idx}.street`, res.street, { shouldValidate: true })
-            if (res.neighborhood)
-              setValue(`addresses.${idx}.neighborhood`, res.neighborhood, { shouldValidate: true })
-            if (res.city) setValue(`addresses.${idx}.city`, res.city, { shouldValidate: true })
-            if (res.state && (STATE_VALUES as readonly string[]).includes(res.state)) {
-              setValue(`addresses.${idx}.state`, res.state as FormValues['addresses'][number]['state'], {
-                shouldValidate: true,
-              })
-            }
-          }
+  function handleCepLookup(idx: number, digits: string) {
+    if (digits.length !== 8) return
+    if (lastLookedUp.current[idx] === digits) return
+    lastLookedUp.current[idx] = digits
+    cepLookup.lookup(digits).then((res) => {
+      if (!res) return
+      if (res.street) setValue(`addresses.${idx}.street`, res.street, { shouldValidate: true })
+      if (res.neighborhood)
+        setValue(`addresses.${idx}.neighborhood`, res.neighborhood, { shouldValidate: true })
+      if (res.city) setValue(`addresses.${idx}.city`, res.city, { shouldValidate: true })
+      if (res.state && (STATE_VALUES as readonly string[]).includes(res.state)) {
+        setValue(`addresses.${idx}.state`, res.state as FormValues['addresses'][number]['state'], {
+          shouldValidate: true,
         })
       }
     })
-  }, [addresses, cepLookup, setValue])
+  }
 
   function setPrimaryAddress(index: number) {
     addressesFA.fields.forEach((_, i) => {
@@ -342,7 +339,9 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
                         <input
                           {...register(`addresses.${idx}.zipCode`, {
                             onChange: (e) => {
-                              e.target.value = maskCep(e.target.value)
+                              const masked = maskCep(e.target.value)
+                              e.target.value = masked
+                              handleCepLookup(idx, onlyDigits(masked))
                             },
                           })}
                           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"

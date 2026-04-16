@@ -72,11 +72,18 @@ describe('CheckoutDrawer — carrinho', () => {
     useCartStore.setState({ items: [], storeSlug: 'loja-teste', tableNumber: null })
   })
 
+  // A lista de itens fica dentro de um bloco colapsável; o botão que
+  // mostra o contador (`N item(s) no pedido`) expande/recolhe a lista.
+  function expandItems() {
+    fireEvent.click(screen.getByText(/item\(s\) no pedido/))
+  }
+
   it('renderiza os itens do carrinho com nome e subtotal da linha', () => {
     useCartStore.getState().addItem(pizza)
     useCartStore.getState().addItem(esfiha)
 
     render(<CheckoutDrawer open onClose={vi.fn()} />, { wrapper })
+    expandItems()
 
     expect(screen.getByText('Pizza Calabresa')).toBeDefined()
     expect(screen.getByText('Esfiha de Carne')).toBeDefined()
@@ -99,6 +106,7 @@ describe('CheckoutDrawer — carrinho', () => {
     const id = useCartStore.getState().items[0].id
 
     render(<CheckoutDrawer open onClose={vi.fn()} />, { wrapper })
+    expandItems()
 
     const li = screen.getByTestId(`cart-item-${id}`)
     fireEvent.click(within(li).getByLabelText('Aumentar quantidade'))
@@ -111,6 +119,7 @@ describe('CheckoutDrawer — carrinho', () => {
     const id = useCartStore.getState().items[0].id
 
     render(<CheckoutDrawer open onClose={vi.fn()} />, { wrapper })
+    expandItems()
 
     const li = screen.getByTestId(`cart-item-${id}`)
     fireEvent.click(within(li).getByLabelText('Diminuir quantidade'))
@@ -123,6 +132,7 @@ describe('CheckoutDrawer — carrinho', () => {
     useCartStore.getState().addItem(esfiha)
 
     render(<CheckoutDrawer open onClose={vi.fn()} />, { wrapper })
+    expandItems()
 
     fireEvent.click(screen.getByLabelText('Remover Pizza Calabresa'))
 
