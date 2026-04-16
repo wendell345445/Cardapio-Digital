@@ -26,7 +26,7 @@ export interface Category { id: string; name: string; order: number; isActive: b
 export interface StoreInfo {
   id: string; name: string; slug: string; description?: string; logo?: string
   address?: string; phone: string; pixKey?: string; pixKeyType?: string
-  allowCashOnDelivery: boolean; allowPickup: boolean; allowCreditCard: boolean
+  allowCashOnDelivery: boolean; allowPickup: boolean; allowCreditCard: boolean; allowDelivery: boolean
   storeStatus: 'open' | 'closed' | 'suspended'
   businessHours?: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }>
   facebookPixelId?: string // TASK-096

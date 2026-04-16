@@ -83,6 +83,7 @@ const mockStore = {
   pixKeyType: 'EMAIL',
   allowCashOnDelivery: true,
   allowPickup: true,
+  allowDelivery: true,
   status: 'ACTIVE',
   manualOpen: null,
   businessHours: openAllWeek,
@@ -248,6 +249,28 @@ describe('createOrder — tipo de entrega', () => {
     })
 
     const input = { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' as const }
+
+    await expect(createOrder(SLUG, input)).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('lança 422 quando DELIVERY mas loja não aceita entregas (A-032)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      allowDelivery: false,
+    })
+
+    await expect(createOrder(SLUG, baseOrderInput)).rejects.toMatchObject({
+      status: 422,
+    })
+  })
+
+  it('lança 422 quando PICKUP mas loja não permite retirada', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      allowPickup: false,
+    })
+
+    const input = { ...baseOrderInput, type: 'PICKUP' as const, address: undefined }
 
     await expect(createOrder(SLUG, input)).rejects.toMatchObject({ status: 422 })
   })

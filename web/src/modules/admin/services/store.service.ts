@@ -20,6 +20,7 @@ export interface StoreData {
   allowPix: boolean
   allowPickup: boolean
   allowCreditCard: boolean
+  allowDelivery: boolean
   serviceChargePercent: number
   features: Record<string, boolean>
   plan?: string
@@ -49,6 +50,7 @@ export interface UpdatePaymentSettingsDto {
   allowPix?: boolean
   allowPickup?: boolean
   allowCreditCard?: boolean
+  allowDelivery?: boolean
   serviceChargePercent?: number
 }
 

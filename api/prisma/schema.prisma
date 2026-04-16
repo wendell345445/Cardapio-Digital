@@ -36,6 +36,7 @@ model Store {
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)
   allowCreditCard      Boolean       @default(false)
+  allowDelivery        Boolean       @default(true)
   manualOpen           Boolean?
   whatsappMode         WhatsAppMode  @default(WHATSAPP)
   stripeCustomerId     String?
@@ -68,19 +69,21 @@ model Store {
 // ─── USER ─────────────────────────────────────────────────────────
 
 model User {
-  id           String    @id @default(uuid())
-  email        String?
-  whatsapp     String?
-  name         String?
-  passwordHash String?
-  role         Role
-  storeId      String?
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  googleId     String?
-  facebookId   String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  email          String?
+  whatsapp       String?
+  name           String?
+  passwordHash   String?
+  role           Role
+  storeId        String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  googleId       String?
+  facebookId     String?
+  availableAt    DateTime?
+  lastAssignedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   store             Store?                @relation(fields: [storeId], references: [id])
   refreshTokens     RefreshToken[]

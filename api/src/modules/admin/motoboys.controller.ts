@@ -2,8 +2,14 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { createMotoboySchema, updateMotoboySchema } from './motoboys.schema'
-import { createMotoboy, deleteMotoboy, listMotoboys, updateMotoboy } from './motoboys.service'
+import { createMotoboySchema, setMotoboyAvailabilitySchema, updateMotoboySchema } from './motoboys.schema'
+import {
+  createMotoboy,
+  deleteMotoboy,
+  listMotoboys,
+  setMotoboyAvailability,
+  updateMotoboy,
+} from './motoboys.service'
 
 function getUser(req: Request): JwtPayload {
   return req.user as unknown as JwtPayload
@@ -51,6 +57,23 @@ export async function deleteMotoboyController(req: Request, res: Response, next:
     const { id } = req.params
     await deleteMotoboy(storeId, id, userId, req.ip)
     res.json({ success: true })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function setMotoboyAvailabilityController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const { available } = setMotoboyAvailabilitySchema.parse(req.body)
+    const result = await setMotoboyAvailability(storeId, id, available, userId, req.ip)
+    res.json({ success: true, data: result })
   } catch (err) {
     next(err)
   }

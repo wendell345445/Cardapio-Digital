@@ -203,7 +203,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {['DELIVERY', ...(store?.allowPickup ? ['PICKUP'] : [])].map(t => (
+                {[
+                  ...(store?.allowDelivery !== false ? ['DELIVERY'] : []),
+                  ...(store?.allowPickup ? ['PICKUP'] : []),
+                ].map(t => (
                   <label
                     key={t}
                     className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors ${

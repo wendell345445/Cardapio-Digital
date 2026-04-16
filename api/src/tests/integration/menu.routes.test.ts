@@ -94,6 +94,7 @@ const mockStore = {
   pixKeyType: 'EMAIL',
   allowCashOnDelivery: true,
   allowPickup: true,
+  allowDelivery: true,
   manualOpen: null,
   features: { allowPix: true },
   plan: 'PROFESSIONAL',
