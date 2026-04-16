@@ -299,7 +299,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 Pagamento
               </h3>
 
-              {store?.pixKey && (
+              {store?.features?.allowPix !== false && store?.pixKey && (
                 <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer text-sm ${paymentMethod === 'PIX' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                   <input type="radio" value="PIX" {...register('paymentMethod')} className="accent-red-500" />
                   <span className="font-medium">💰 Pix (online)</span>
@@ -343,7 +343,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               )}
 
-              {paymentMethod === 'PIX' && store?.pixKey && (
+              {paymentMethod === 'PIX' && store?.features?.allowPix !== false && store?.pixKey && (
                 <div className="p-3 bg-yellow-50 rounded-lg text-xs text-yellow-800">
                   <p className="font-semibold">Chave Pix ({store.pixKeyType}): {store.pixKey}</p>
                   <p className="mt-0.5">Envie o comprovante via WhatsApp após o pedido.</p>

@@ -221,7 +221,7 @@ export function CheckoutPage() {
         <section className="bg-white rounded-xl p-4 shadow-sm">
           <h2 className="font-bold text-gray-800 mb-3 flex items-center gap-2"><CreditCard size={18} /> Forma de pagamento</h2>
           <div className="space-y-2">
-            {store?.pixKey && (
+            {store?.features?.allowPix !== false && store?.pixKey && (
               <label className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer min-h-[44px] transition-colors ${paymentMethod === 'PIX' ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}>
                 <input type="radio" value="PIX" {...register('paymentMethod')} className="accent-green-500" />
                 <span className="font-medium text-sm">💰 Pix</span>
@@ -236,7 +236,7 @@ export function CheckoutPage() {
           </div>
 
           {/* Pix info */}
-          {paymentMethod === 'PIX' && store?.pixKey && (
+          {paymentMethod === 'PIX' && store?.features?.allowPix !== false && store?.pixKey && (
             <div className="mt-3 p-3 bg-yellow-50 rounded-lg text-sm text-yellow-800">
               <p className="font-semibold">Chave Pix: {store.pixKeyType}</p>
               <p className="font-mono mt-1 break-all">{store.pixKey}</p>
