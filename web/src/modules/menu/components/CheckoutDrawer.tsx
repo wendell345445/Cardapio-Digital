@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, ShoppingBag, ArrowLeft } from 'lucide-react'
+import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus } from 'lucide-react'
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
@@ -75,7 +75,17 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const items = useCartStore(s => s.items)
   const subtotal = useCartStore(s => s.subtotal)
   const clearCart = useCartStore(s => s.clearCart)
+  const updateQty = useCartStore(s => s.updateQty)
+  const removeItem = useCartStore(s => s.removeItem)
   const tableNumber = useCartStore(s => s.tableNumber)
+
+  const totalQty = items.reduce((s, i) => s + i.quantity, 0)
+
+  function itemUnitPrice(item: typeof items[number]): number {
+    const base = item.variationPrice ?? item.unitPrice
+    const adds = item.additionals.reduce((s, a) => s + a.price, 0)
+    return base + adds
+  }
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
@@ -180,7 +190,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         <div className="flex items-center justify-between gap-4 px-5 py-3 bg-gray-50 border-b border-gray-100">
           <div>
             <p className="text-xl font-bold text-gray-900">{fmt(total)}</p>
-            <p className="text-xs text-gray-400">{items.length} item(s) no pedido</p>
+            <p className="text-xs text-gray-400">{totalQty} item(s) no pedido</p>
           </div>
           <button
             type="button"
@@ -195,6 +205,87 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         {/* Form */}
         <div className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-5">
+            {/* Items do carrinho */}
+            {items.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Itens do pedido
+                </h3>
+                <ul className="space-y-2">
+                  {items.map((item) => {
+                    const unit = itemUnitPrice(item)
+                    const lineTotal = unit * item.quantity
+                    const title = item.variationName
+                      ? `${item.productName} — ${item.variationName}`
+                      : item.productName
+                    return (
+                      <li
+                        key={item.id}
+                        data-testid={`cart-item-${item.id}`}
+                        className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg"
+                      >
+                        {item.imageUrl && (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.productName}
+                            className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
+                          {item.additionals.length > 0 && (
+                            <p className="text-xs text-gray-500 truncate">
+                              + {item.additionals.map((a) => a.name).join(', ')}
+                            </p>
+                          )}
+                          {item.notes && (
+                            <p className="text-xs text-gray-400 truncate">Obs: {item.notes}</p>
+                          )}
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="inline-flex items-center border border-gray-200 rounded-full">
+                              <button
+                                type="button"
+                                aria-label="Diminuir quantidade"
+                                onClick={() => updateQty(item.id, item.quantity - 1)}
+                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-l-full"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span
+                                className="w-7 text-center text-sm font-medium"
+                                data-testid={`cart-item-qty-${item.id}`}
+                              >
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                aria-label="Aumentar quantidade"
+                                onClick={() => updateQty(item.id, item.quantity + 1)}
+                                className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-r-full"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <span className="text-sm font-semibold text-gray-900">
+                              {fmt(lineTotal)}
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label={`Remover ${item.productName}`}
+                          onClick={() => removeItem(item.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )}
+
             {/* Tipo de entrega */}
             {tableNumber ? (
               <div className="p-3 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 text-sm font-medium text-center">
