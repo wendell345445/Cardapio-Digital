@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CalendarClock, ChevronLeft, CreditCard, MapPin, ShoppingBag } from 'lucide-react'
+import { CalendarClock, ChevronLeft, CreditCard, MapPin, ShoppingBag, Trash2, Minus, Plus } from 'lucide-react'
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
@@ -61,6 +61,8 @@ export function CheckoutPage() {
   const items = useCartStore(s => s.items)
   const subtotal = useCartStore(s => s.subtotal)
   const clearCart = useCartStore(s => s.clearCart)
+  const updateQty = useCartStore(s => s.updateQty)
+  const removeItem = useCartStore(s => s.removeItem)
   const tableNumber = useCartStore(s => s.tableNumber)
   const mutation = useCreateOrder(slug ?? '')
 
@@ -312,22 +314,83 @@ export function CheckoutPage() {
         {/* Resumo */}
         <section className="bg-white rounded-xl p-4 shadow-sm">
           <h2 className="font-bold text-gray-800 mb-3">Resumo do pedido</h2>
-          <div className="space-y-2 text-sm">
+          <ul className="space-y-2">
             {items.map(item => {
               const base = item.variationPrice ?? item.unitPrice
               const adds = item.additionals.reduce((s, a) => s + a.price, 0)
-              const total = (base + adds) * item.quantity
+              const unit = base + adds
+              const lineTotal = unit * item.quantity
+              const title = item.variationName
+                ? `${item.productName} (${item.variationName})`
+                : item.productName
               return (
-                <div key={item.id} className="flex justify-between">
-                  <span className="text-gray-600">{item.quantity}x {item.productName}{item.variationName ? ` (${item.variationName})` : ''}</span>
-                  <span className="font-medium">{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                </div>
+                <li
+                  key={item.id}
+                  data-testid={`cart-item-${item.id}`}
+                  className="flex items-start gap-3 p-3 border border-gray-100 rounded-lg"
+                >
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt={item.productName}
+                      className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{title}</p>
+                    {item.additionals.length > 0 && (
+                      <p className="text-xs text-gray-500 truncate">
+                        + {item.additionals.map((a) => a.name).join(', ')}
+                      </p>
+                    )}
+                    {item.notes && (
+                      <p className="text-xs text-gray-400 truncate">Obs: {item.notes}</p>
+                    )}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="inline-flex items-center border border-gray-200 rounded-full">
+                        <button
+                          type="button"
+                          aria-label="Diminuir quantidade"
+                          onClick={() => updateQty(item.id, item.quantity - 1)}
+                          className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-l-full"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span
+                          className="w-7 text-center text-sm font-medium"
+                          data-testid={`cart-item-qty-${item.id}`}
+                        >
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Aumentar quantidade"
+                          onClick={() => updateQty(item.id, item.quantity + 1)}
+                          className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-r-full"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {lineTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Remover ${item.productName}`}
+                    onClick={() => removeItem(item.id)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </li>
               )
             })}
-            <div className="border-t pt-2 flex justify-between font-bold text-base">
-              <span>Total</span>
-              <span>{subtotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-            </div>
+          </ul>
+          <div className="border-t mt-3 pt-3 flex justify-between font-bold text-base">
+            <span>Total</span>
+            <span>{subtotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
           </div>
         </section>
       </form>

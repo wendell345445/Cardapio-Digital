@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, ShoppingBag, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
+import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
@@ -148,7 +148,17 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const items = useCartStore(s => s.items)
   const subtotal = useCartStore(s => s.subtotal)
   const clearCart = useCartStore(s => s.clearCart)
+  const updateQty = useCartStore(s => s.updateQty)
+  const removeItem = useCartStore(s => s.removeItem)
   const tableNumber = useCartStore(s => s.tableNumber)
+
+  const totalQty = items.reduce((s, i) => s + i.quantity, 0)
+
+  function itemUnitPrice(item: typeof items[number]): number {
+    const base = item.variationPrice ?? item.unitPrice
+    const adds = item.additionals.reduce((s, a) => s + a.price, 0)
+    return base + adds
+  }
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
@@ -276,7 +286,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 onClick={() => setItemsOpen(o => !o)}
                 className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
               >
-                <span>{items.length} item(s) no pedido</span>
+                <span>{totalQty} item(s) no pedido</span>
                 {itemsOpen
                   ? <ChevronUp className="w-3 h-3" />
                   : <ChevronDown className="w-3 h-3" />}
@@ -295,28 +305,72 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           {itemsOpen && items.length > 0 && (
             <ul className="px-5 pb-3 space-y-2 text-sm">
               {items.map(item => {
-                const base = item.variationPrice ?? item.unitPrice
-                const addsTotal = item.additionals.reduce((s, a) => s + a.price, 0)
-                const line = (base + addsTotal) * item.quantity
+                const unit = itemUnitPrice(item)
+                const lineTotal = unit * item.quantity
                 return (
-                  <li key={item.id} className="flex justify-between gap-3 bg-white rounded-lg border border-gray-100 p-3">
+                  <li
+                    key={item.id}
+                    data-testid={`cart-item-${item.id}`}
+                    className="flex items-start gap-3 bg-white rounded-lg border border-gray-100 p-3"
+                  >
+                    {item.imageUrl && (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.productName}
+                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-800 truncate">
-                        {item.quantity}× {item.productName}
+                        {item.productName}
                         {item.variationName && ` — ${item.variationName}`}
                       </p>
                       {item.additionals.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
                           + {item.additionals.map(a => a.name).join(', ')}
                         </p>
                       )}
                       {item.notes && (
-                        <p className="text-xs text-gray-400 italic mt-0.5">Obs: {item.notes}</p>
+                        <p className="text-xs text-gray-400 italic mt-0.5 truncate">Obs: {item.notes}</p>
                       )}
+                      <div className="flex items-center justify-between mt-2 gap-2">
+                        <div className="inline-flex items-center border border-gray-200 rounded-full bg-white">
+                          <button
+                            type="button"
+                            aria-label="Diminuir quantidade"
+                            onClick={() => updateQty(item.id, item.quantity - 1)}
+                            className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-l-full"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span
+                            className="w-7 text-center text-sm font-medium"
+                            data-testid={`cart-item-qty-${item.id}`}
+                          >
+                            {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            aria-label="Aumentar quantidade"
+                            onClick={() => updateQty(item.id, item.quantity + 1)}
+                            className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-r-full"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">
+                          {fmt(lineTotal)}
+                        </span>
+                      </div>
                     </div>
-                    <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                      {fmt(line)}
-                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Remover ${item.productName}`}
+                      onClick={() => removeItem(item.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </li>
                 )
               })}
