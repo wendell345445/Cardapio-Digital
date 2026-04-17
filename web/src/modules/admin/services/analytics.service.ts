@@ -137,6 +137,42 @@ export interface UpdateCustomerInput {
   secondaryPhones: UpdateCustomerPhoneInput[]
 }
 
+// ─── Customer order history ─────────────────────────────────────────────────
+
+export interface CustomerOrderItem {
+  id: string
+  number: number
+  type: string
+  status: string
+  paymentMethod: string
+  subtotal: number
+  deliveryFee: number
+  discount: number
+  total: number
+  itemCount: number
+  createdAt: string
+}
+
+export interface CustomerOrdersResponse {
+  orders: CustomerOrderItem[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export async function getCustomerOrders(
+  whatsapp: string,
+  page = 1,
+  limit = 10
+): Promise<CustomerOrdersResponse> {
+  const { data } = await api.get(
+    `/admin/analytics/clients/${encodeURIComponent(whatsapp)}/orders`,
+    { params: { page, limit } }
+  )
+  return data.data
+}
+
 export async function getCustomerDetail(whatsapp: string): Promise<CustomerDetail> {
   const { data } = await api.get(`/admin/analytics/clients/${encodeURIComponent(whatsapp)}`)
   return data.data

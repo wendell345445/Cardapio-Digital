@@ -16,6 +16,7 @@ import {
 } from './analytics.controller'
 import {
   getCustomerDetailController,
+  getCustomerOrdersController,
   updateCustomerController,
 } from './customers.controller'
 
@@ -35,6 +36,7 @@ router.get('/clients/ranking', getClientRankingController)
 
 // Detalhe + edição do perfil do cliente — deve vir DEPOIS de /clients/ranking
 router.get('/clients/:whatsapp', getCustomerDetailController)
+router.get('/clients/:whatsapp/orders', getCustomerOrdersController)
 router.patch('/clients/:whatsapp', updateCustomerController)
 
 export default router
