@@ -84,7 +84,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(schema),
     // C-022: se entrou via QR de mesa, força type=TABLE
-    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY', paymentMethod: 'PIX' },
+    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY' },
   })
 
   const orderType = watch('type')
@@ -343,6 +343,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               )}
 
+              {!paymentMethod && (
+                <p className="text-amber-600 text-xs font-medium">Selecione uma forma de pagamento</p>
+              )}
+
               {paymentMethod === 'PIX' && store?.pixKey && (
                 <div className="p-3 bg-yellow-50 rounded-lg text-xs text-yellow-800">
                   <p className="font-semibold">Chave Pix ({store.pixKeyType}): {store.pixKey}</p>
@@ -403,7 +407,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         <div className="p-5 border-t border-gray-100 space-y-2">
           <button
             onClick={handleSubmit(onSubmit)}
-            disabled={mutation.isPending || items.length === 0}
+            disabled={mutation.isPending || items.length === 0 || !paymentMethod}
             className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
           >
             {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
