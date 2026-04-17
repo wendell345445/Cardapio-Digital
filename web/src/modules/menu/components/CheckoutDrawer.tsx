@@ -490,6 +490,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                       value={auth.whatsapp}
                       onChange={(e) => auth.setWhatsapp(e.target.value.replace(/\D/g, '').slice(0, 11))}
                       maxLength={11}
+                      autoComplete="off"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                       style={{ fontSize: 16 }}
                     />
