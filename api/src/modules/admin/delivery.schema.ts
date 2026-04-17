@@ -21,6 +21,11 @@ export const setDeliveryModeSchema = z.object({
   mode: z.enum(['NEIGHBORHOOD', 'DISTANCE']).nullable(),
 })
 
+export const setStoreCoordinatesSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+})
+
 export const calculateDeliverySchema = z.object({
   neighborhood: z.string().optional(),
   latitude: z.number().optional(),
@@ -32,4 +37,5 @@ export type UpdateNeighborhoodInput = z.infer<typeof updateNeighborhoodSchema>
 export type CreateDistanceInput = z.infer<typeof createDistanceSchema>
 export type UpdateDistanceInput = z.infer<typeof updateDistanceSchema>
 export type SetDeliveryModeInput = z.infer<typeof setDeliveryModeSchema>
+export type SetStoreCoordinatesInput = z.infer<typeof setStoreCoordinatesSchema>
 export type CalculateDeliveryInput = z.infer<typeof calculateDeliverySchema>

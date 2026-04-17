@@ -7,6 +7,7 @@ import {
   deleteNeighborhood,
   getDeliveryConfig,
   setDeliveryMode,
+  setStoreCoordinates,
   updateDistance,
   updateNeighborhood,
   type CreateDistanceData,
@@ -64,6 +65,19 @@ export function useDeleteNeighborhood() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => deleteNeighborhood(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['delivery-config'] })
+    },
+  })
+}
+
+// Coordinates
+
+export function useSetStoreCoordinates() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ latitude, longitude }: { latitude: number; longitude: number }) =>
+      setStoreCoordinates(latitude, longitude),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['delivery-config'] })
     },

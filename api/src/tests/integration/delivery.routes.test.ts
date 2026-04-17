@@ -339,7 +339,7 @@ describe('PATCH /api/v1/admin/delivery/distances/:id', () => {
 // ─── DELETE /admin/delivery/distances/:id ────────────────────────────────────
 
 describe('DELETE /api/v1/admin/delivery/distances/:id', () => {
-  it('retorna 204 ao deletar faixa de distância', async () => {
+  it('retorna 200 ao deletar faixa de distância', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
     ;(mockPrisma.deliveryDistance.findUnique as jest.Mock).mockResolvedValue(mockDistance)
     ;(mockPrisma.deliveryDistance.delete as jest.Mock).mockResolvedValue(mockDistance)
@@ -350,5 +350,57 @@ describe('DELETE /api/v1/admin/delivery/distances/:id', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.success).toBe(true)
+  })
+})
+
+// ─── PATCH /admin/delivery/coordinates ──────────────────────────────────────
+
+describe('PATCH /api/v1/admin/delivery/coordinates', () => {
+  it('retorna 200 ao definir coordenadas da loja', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
+
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/coordinates')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ latitude: -23.5505, longitude: -46.6333 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.latitude).toBe(-23.5505)
+    expect(res.body.data.longitude).toBe(-46.6333)
+  })
+
+  it('retorna 400 para latitude fora do range', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/coordinates')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ latitude: -100, longitude: -46.63 })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('retorna 400 para longitude fora do range', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/coordinates')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ latitude: -23.55, longitude: -200 })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('retorna 401 sem token', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/coordinates')
+      .send({ latitude: -23.55, longitude: -46.63 })
+
+    expect(res.status).toBe(401)
   })
 })
