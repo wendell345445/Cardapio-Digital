@@ -829,6 +829,26 @@ describe('createOrder — blacklist (C-027)', () => {
     expect(mockPrisma.order.create).not.toHaveBeenCalled()
   })
 
+  it.each([
+    'CREDIT_ON_DELIVERY' as const,
+    'DEBIT_ON_DELIVERY' as const,
+    'PIX_ON_DELIVERY' as const,
+  ])('lança 422 quando cliente está na blacklist e tenta pagar com %s', async (method) => {
+    setupDefaultMocks()
+    ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue({
+      id: 'access-1',
+      type: 'BLACKLIST',
+      storeId: STORE_ID,
+      clientId: CLIENT_ID,
+    })
+
+    await expect(
+      createOrder(SLUG, { ...baseOrderInput, paymentMethod: method })
+    ).rejects.toMatchObject({ status: 422 })
+
+    expect(mockPrisma.order.create).not.toHaveBeenCalled()
+  })
+
   it('permite CASH_ON_DELIVERY quando cliente não está em blacklist', async () => {
     setupDefaultMocks() // clientPaymentAccess.findFirst → null por default
 

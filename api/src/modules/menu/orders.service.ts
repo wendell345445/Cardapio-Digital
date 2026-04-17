@@ -256,12 +256,17 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     })
   }
 
-  // 7a. C-027: Bloqueia "Pagar na entrega" quando cliente está na blacklist
-  // (e libera quando whitelist mesmo se a loja não tem CASH habilitado por default)
-  if (data.paymentMethod === 'CASH_ON_DELIVERY') {
+  // 7a. C-027: Bloqueia qualquer pagamento na entrega quando cliente está na blacklist
+  // (e libera quando whitelist mesmo se a loja não tem COD habilitado por default)
+  const isOnDeliveryPmt =
+    data.paymentMethod === 'CASH_ON_DELIVERY' ||
+    data.paymentMethod === 'CREDIT_ON_DELIVERY' ||
+    data.paymentMethod === 'DEBIT_ON_DELIVERY' ||
+    data.paymentMethod === 'PIX_ON_DELIVERY'
+  if (isOnDeliveryPmt) {
     const allowed = await getPaymentMethodsForClient(client.id, store.id)
     if (!allowed.cashOnDelivery) {
-      throw new AppError('Pagamento em dinheiro indisponível para este cliente', 422)
+      throw new AppError('Pagamento na entrega indisponível para este cliente', 422)
     }
   }
 
