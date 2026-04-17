@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronRight, Download, Medal, Search, Users } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ChevronRight, Download, Medal, Search, Users, X } from 'lucide-react'
 
 import { ClientDetailModal } from '../components/ClientDetailModal'
 import { useClientRanking } from '../hooks/useAnalytics'
@@ -93,6 +93,19 @@ export function ClientsPage() {
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [selectedWhatsapp, setSelectedWhatsapp] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Debounce: dispara busca 400ms após parar de digitar
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      setSearch(searchInput)
+      setPage(1)
+    }, 400)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [searchInput])
 
   const { data, isLoading, isFetching, isError } = useClientRanking({
     period: periodOpt,
@@ -110,12 +123,6 @@ export function ClientsPage() {
   const showPodium = !search && page === 1
   const topThree = showPodium ? clients.slice(0, 3) : []
   const tableClients = showPodium ? clients.slice(3) : clients
-
-  function handleSearch(e: React.FormEvent) {
-    e.preventDefault()
-    setSearch(searchInput)
-    setPage(1)
-  }
 
   function handlePeriodChange(opt: PeriodOption) {
     setPeriodOpt(opt)
@@ -150,37 +157,30 @@ export function ClientsPage() {
           </div>
 
           {/* Search */}
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Nome ou WhatsApp..."
-                className="pl-9 pr-3 py-1.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-56"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
-            >
-              Buscar
-            </button>
-            {search && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Nome ou WhatsApp..."
+              className="pl-9 pr-8 py-1.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+            />
+            {searchInput && (
               <button
                 type="button"
                 onClick={() => {
-                  setSearch('')
                   setSearchInput('')
+                  setSearch('')
                   setPage(1)
                 }}
-                className="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label="Limpar busca"
               >
-                Limpar
+                <X className="w-4 h-4" />
               </button>
             )}
-          </form>
+          </div>
         </div>
       </header>
 

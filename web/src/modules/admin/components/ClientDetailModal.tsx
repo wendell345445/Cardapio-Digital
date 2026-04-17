@@ -51,8 +51,8 @@ export function ClientDetailModal({ whatsapp, onClose }: Props) {
                 <h2 className="text-xl font-bold text-gray-900">
                   {data?.name ?? 'Cliente'}
                 </h2>
-                <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-0.5">
-                  <Phone className="w-3.5 h-3.5" />
+                <p className="text-base text-gray-700 font-medium flex items-center gap-1.5 mt-0.5">
+                  <Phone className="w-4 h-4 text-blue-500" />
                   {maskWhatsapp(whatsapp)}
                 </p>
               </div>

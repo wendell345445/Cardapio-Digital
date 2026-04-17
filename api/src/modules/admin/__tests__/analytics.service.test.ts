@@ -367,6 +367,18 @@ describe('getClientRanking', () => {
     expect(result.clients[0].whatsapp).toBe('5511111110001')
   })
 
+  it('filtra por whatsapp formatado com parênteses, espaços e traços', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(orders)
+
+    const result = await getClientRanking(STORE_ID, {
+      ...defaultQuery,
+      search: '(55) 11111-110001',
+    })
+
+    expect(result.clients).toHaveLength(1)
+    expect(result.clients[0].whatsapp).toBe('5511111110001')
+  })
+
   it('não aplica filtro de data quando period=all', async () => {
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
 

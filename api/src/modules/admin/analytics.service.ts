@@ -285,9 +285,10 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
 
   if (query.search) {
     const q = normalizeSearch(query.search)
+    const qDigits = q.replace(/\D/g, '')
     ranked = ranked.filter(
       (c) =>
-        c.whatsapp.includes(q) ||
+        (qDigits && c.whatsapp.includes(qDigits)) ||
         (c.name && normalizeSearch(c.name).includes(q))
     )
   }
