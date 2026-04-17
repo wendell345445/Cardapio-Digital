@@ -163,11 +163,17 @@ function OrderCard({
   const sendWaitingPaymentMutation = useSendWaitingPayment()
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm space-y-2 text-sm">
+    <div className={`bg-white rounded-lg border p-3 shadow-sm space-y-2 text-sm ${order.deliveryIssueReason ? 'border-red-300 ring-1 ring-red-200' : 'border-gray-200'}`}>
       <div className="flex items-center justify-between">
         <span className="font-bold text-gray-900">#{order.number}</span>
         <span className="text-xs text-gray-400">{formatTime(order.createdAt)}</span>
       </div>
+
+      {order.deliveryIssueReason && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-md px-2 py-1.5">
+          <span className="font-semibold">Devolvido:</span> {order.deliveryIssueReason}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-1">
         <span

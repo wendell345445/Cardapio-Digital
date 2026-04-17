@@ -45,6 +45,7 @@ export interface Order {
   dispatchedAt?: string | null
   deliveredAt?: string | null
   cancelledAt?: string | null
+  deliveryIssueReason?: string | null
 }
 
 export interface ListOrdersParams {

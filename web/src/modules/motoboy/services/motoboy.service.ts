@@ -40,3 +40,11 @@ export async function markDelivered(orderId: string): Promise<MotoboyOrder> {
   const { data } = await api.patch(`/motoboy/orders/${orderId}/deliver`)
   return data.data as MotoboyOrder
 }
+
+export async function reportDeliveryProblem(
+  orderId: string,
+  reason: string
+): Promise<MotoboyOrder> {
+  const { data } = await api.patch(`/motoboy/orders/${orderId}/report-problem`, { reason })
+  return data.data as MotoboyOrder
+}

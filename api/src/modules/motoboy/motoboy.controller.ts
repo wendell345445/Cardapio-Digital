@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { listMotoboyOrders, markDelivered } from './motoboy.service'
+import { listMotoboyOrders, markDelivered, reportDeliveryProblem } from './motoboy.service'
 
 // ─── TASK-083: Controllers do Motoboy ────────────────────────────────────────
 
@@ -36,6 +36,28 @@ export async function markDeliveredController(req: Request, res: Response, next:
     const { id } = req.params
 
     const order = await markDelivered(storeId, id, userId, userId, req.ip)
+    res.json({ success: true, data: order })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * PATCH /:slug/motoboy/orders/:id/report-problem
+ */
+export async function reportProblemController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const { reason } = req.body
+
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
+      res.status(400).json({ success: false, error: 'Motivo é obrigatório' })
+      return
+    }
+
+    const order = await reportDeliveryProblem(storeId, id, userId, reason.trim(), userId, req.ip)
     res.json({ success: true, data: order })
   } catch (err) {
     next(err)
