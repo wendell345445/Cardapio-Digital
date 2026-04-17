@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -8,6 +8,7 @@ import { X, ShoppingBag, ArrowLeft } from 'lucide-react'
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
+import { calculateDeliveryFee as fetchDeliveryFee } from '../services/orders.service'
 
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { maskCep } from '@/shared/lib/masks'
@@ -79,6 +80,9 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
+  const [deliveryFee, setDeliveryFee] = useState(0)
+  const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
+  const [deliveryFeeError, setDeliveryFeeError] = useState('')
   const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
@@ -94,8 +98,37 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const onDeliverySelected = ON_DELIVERY_METHODS.includes(paymentMethod)
 
-  const deliveryFee = 0 // TODO: integrate with neighborhoods
   const total = subtotal() + deliveryFee
+
+  const lookupDeliveryFee = useCallback(async (neighborhood: string) => {
+    const trimmed = neighborhood.trim()
+    if (!trimmed) {
+      setDeliveryFee(0)
+      setDeliveryFeeError('')
+      return
+    }
+    setDeliveryFeeLoading(true)
+    setDeliveryFeeError('')
+    try {
+      const result = await fetchDeliveryFee(trimmed)
+      setDeliveryFee(result.fee)
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { data?: { error?: string } } }
+      const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
+      setDeliveryFeeError(msg)
+      setDeliveryFee(0)
+    } finally {
+      setDeliveryFeeLoading(false)
+    }
+  }, [])
+
+  // Reset fee when switching away from DELIVERY
+  useEffect(() => {
+    if (orderType !== 'DELIVERY') {
+      setDeliveryFee(0)
+      setDeliveryFeeError('')
+    }
+  }, [orderType])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')
@@ -103,7 +136,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     const result = await cepLookup(digits)
     if (!result) return
     if (result.street) setValue('street', result.street, { shouldValidate: true })
-    if (result.neighborhood) setValue('neighborhood', result.neighborhood, { shouldValidate: true })
+    if (result.neighborhood) {
+      setValue('neighborhood', result.neighborhood, { shouldValidate: true })
+      lookupDeliveryFee(result.neighborhood)
+    }
     if (result.city) setValue('city', result.city, { shouldValidate: true })
   }
 
@@ -275,8 +311,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                   { name: 'street', placeholder: 'Rua' },
                   { name: 'number', placeholder: 'Número' },
                   { name: 'complement', placeholder: 'Complemento (opcional)' },
-                  { name: 'neighborhood', placeholder: 'Bairro' },
-                  { name: 'city', placeholder: 'Cidade' },
                 ].map(f => (
                   <input
                     key={f.name}
@@ -287,6 +321,31 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     style={{ fontSize: 16 }}
                   />
                 ))}
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Bairro"
+                    {...register('neighborhood')}
+                    onBlur={(e) => lookupDeliveryFee(e.target.value)}
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      deliveryFeeError ? 'border-red-400' : 'border-gray-200'
+                    }`}
+                    style={{ fontSize: 16 }}
+                  />
+                  {deliveryFeeLoading && (
+                    <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
+                  )}
+                  {deliveryFeeError && (
+                    <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Cidade"
+                  {...register('city')}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  style={{ fontSize: 16 }}
+                />
                 {errors.street && (
                   <p className="text-red-500 text-xs">{errors.street.message}</p>
                 )}
@@ -375,10 +434,18 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <span>Subtotal</span>
                 <span>{fmt(subtotal())}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
-                <span>Taxa de entrega</span>
-                <span>{deliveryFee === 0 ? 'Grátis' : fmt(deliveryFee)}</span>
-              </div>
+              {orderType === 'DELIVERY' && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Taxa de entrega</span>
+                  <span>
+                    {deliveryFeeLoading
+                      ? 'Calculando…'
+                      : deliveryFee > 0
+                        ? fmt(deliveryFee)
+                        : 'Grátis'}
+                  </span>
+                </div>
+              )}
               <div className="flex justify-between text-gray-500">
                 <span>Pagamento</span>
                 <span>{PAYMENT_LABELS[paymentMethod] ?? '—'}</span>
@@ -403,7 +470,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         <div className="p-5 border-t border-gray-100 space-y-2">
           <button
             onClick={handleSubmit(onSubmit)}
-            disabled={mutation.isPending || items.length === 0}
+            disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError}
             className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
           >
             {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
