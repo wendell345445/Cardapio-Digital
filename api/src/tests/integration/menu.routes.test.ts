@@ -11,6 +11,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     deliveryNeighborhood: { findFirst: jest.fn(), count: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     order: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+    customer: { findUnique: jest.fn() },
     // C-027: getPaymentMethodsForClient consulta blacklist por loja
     clientPaymentAccess: { findFirst: jest.fn() },
     table: { findUnique: jest.fn(), update: jest.fn() },
@@ -154,6 +155,10 @@ function setupOrderMocks() {
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(mockPrisma))
   ;(mockPrisma.order.create as jest.Mock).mockResolvedValue(mockOrder)
   ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrder)
+  // Verificação de cliente: simula customer cadastrado para passar a validação
+  ;(mockPrisma.customer.findUnique as jest.Mock).mockResolvedValue({
+    whatsapp: '54999990000', name: 'Teste', addresses: [],
+  })
 }
 
 beforeEach(() => {
@@ -171,6 +176,9 @@ beforeEach(() => {
   ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.table.update as jest.Mock).mockResolvedValue({})
+  // Verificação de cliente: customer não cadastrado mas tem pedido anterior → passa verificação
+  ;(mockPrisma.customer.findUnique as jest.Mock).mockResolvedValue(null)
+  ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue({ clientName: 'Teste', address: null })
 })
 
 // ─── GET /menu/:slug ──────────────────────────────────────────────────────────

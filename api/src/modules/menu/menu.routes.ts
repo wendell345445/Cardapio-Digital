@@ -8,6 +8,12 @@ import { prisma } from '../../shared/prisma/prisma'
 import { validateCoupon } from '../admin/coupons.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
 
+import {
+  checkCustomerController,
+  requestOtpController,
+  verifyOtpController,
+  customerMeController,
+} from './customer-verify.controller'
 import { getMenuController } from './menu.controller'
 import { createOrderController } from './orders.controller'
 import { getOrderTrackingController } from './tracking.controller'
@@ -26,6 +32,12 @@ menuRouter.use(publicTenantMiddleware)
 menuRouter.get('/', getMenuController)
 menuRouter.post('/orders', createOrderController)
 menuRouter.get('/pedido/:token', getOrderTrackingController)
+
+// ─── Verificação de cliente (WhatsApp + OTP) ────────────────────────────────
+menuRouter.get('/customer/check', checkCustomerController)
+menuRouter.post('/customer/otp/request', requestOtpController)
+menuRouter.post('/customer/otp/verify', verifyOtpController)
+menuRouter.get('/customer/me', customerMeController)
 
 // POST /menu/coupon/validate
 menuRouter.post(
