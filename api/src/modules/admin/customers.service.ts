@@ -159,6 +159,14 @@ export async function getCustomerDetail(
 
 // ─── Histórico de pedidos do cliente ────────────────────────────────────────
 
+export interface CustomerOrderItemView {
+  productName: string
+  variationName: string | null
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+}
+
 export interface CustomerOrderView {
   id: string
   number: number
@@ -169,7 +177,7 @@ export interface CustomerOrderView {
   deliveryFee: number
   discount: number
   total: number
-  itemCount: number
+  items: CustomerOrderItemView[]
   createdAt: Date
 }
 
@@ -203,7 +211,15 @@ export async function getCustomerOrders(
         discount: true,
         total: true,
         createdAt: true,
-        _count: { select: { items: true } },
+        items: {
+          select: {
+            productName: true,
+            variationName: true,
+            quantity: true,
+            unitPrice: true,
+            totalPrice: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
@@ -223,7 +239,13 @@ export async function getCustomerOrders(
       deliveryFee: o.deliveryFee,
       discount: o.discount,
       total: o.total,
-      itemCount: o._count.items,
+      items: o.items.map((i) => ({
+        productName: i.productName,
+        variationName: i.variationName,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        totalPrice: i.totalPrice,
+      })),
       createdAt: o.createdAt,
     })),
     total,
