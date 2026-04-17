@@ -162,7 +162,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
-  const [itemsOpen, setItemsOpen] = useState(false)
+  const [itemsOpen, setItemsOpen] = useState(true)
   const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
