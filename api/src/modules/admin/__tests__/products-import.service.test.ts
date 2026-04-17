@@ -182,6 +182,8 @@ describe('importProducts — validation', () => {
 
     expect(result.errors).toHaveLength(1)
     expect(result.success).toBe(1)
+    expect(result.created).toBe(1)
+    expect(result.updated).toBe(0)
     expect(result.total).toBe(2)
   })
 })
@@ -197,6 +199,8 @@ describe('importProducts — success', () => {
     const result = await importProducts(mockFile, STORE_ID, USER_ID)
 
     expect(result.success).toBe(2)
+    expect(result.created).toBe(2)
+    expect(result.updated).toBe(0)
     expect(result.errors).toHaveLength(0)
     expect(result.total).toBe(2)
   })
@@ -235,6 +239,8 @@ describe('importProducts — success', () => {
     const result = await importProducts(mockFile, STORE_ID, USER_ID)
 
     expect(result.success).toBe(1)
+    expect(result.created).toBe(0)
+    expect(result.updated).toBe(1)
     expect(mockPrisma.product.update).toHaveBeenCalled()
     expect(mockPrisma.product.create).not.toHaveBeenCalled()
   })

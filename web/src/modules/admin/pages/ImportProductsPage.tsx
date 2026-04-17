@@ -5,6 +5,8 @@ import { api } from '@/shared/lib/api'
 
 interface ImportResult {
   success: number
+  created: number
+  updated: number
   errors: { linha: number; erro: string }[]
   total: number
 }
@@ -101,8 +103,13 @@ export function ImportProductsPage() {
       {result && (
         <div className="border rounded-lg p-4 space-y-3">
           <h2 className="font-semibold">Resultado da importação</h2>
-          <div className="flex gap-4 text-sm">
-            <span className="text-green-600 font-medium">✓ {result.success} importados</span>
+          <div className="flex flex-wrap gap-4 text-sm">
+            {result.created > 0 && (
+              <span className="text-green-600 font-medium">+ {result.created} criados</span>
+            )}
+            {result.updated > 0 && (
+              <span className="text-blue-600 font-medium">↻ {result.updated} atualizados</span>
+            )}
             <span className="text-red-500 font-medium">✗ {result.errors.length} erros</span>
             <span className="text-gray-500">Total: {result.total} linhas</span>
           </div>

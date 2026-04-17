@@ -17,6 +17,8 @@ export interface ImportRow {
 
 export interface ImportResult {
   success: number
+  created: number
+  updated: number
   errors: { linha: number; erro: string }[]
   total: number
 }
@@ -79,7 +81,8 @@ export async function importProducts(
   const categoryMap = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]))
 
   const errors: { linha: number; erro: string }[] = []
-  let successCount = 0
+  let createdCount = 0
+  let updatedCount = 0
   const totalRows = sheet.rowCount - 1 // -1 para header
 
   // Processar cada linha (pular header na linha 1)
@@ -167,7 +170,7 @@ export async function importProducts(
 
     // Upsert produto por nome
     try {
-      await prisma.$transaction(async (tx) => {
+      const wasUpdate = await prisma.$transaction(async (tx) => {
         const existing = await tx.product.findFirst({
           where: { storeId, name: nome },
         })
@@ -201,14 +204,18 @@ export async function importProducts(
             data: additionals.map((a) => ({ productId, ...a })),
           })
         }
+
+        return !!existing
       })
-      successCount++
+      if (wasUpdate) updatedCount++
+      else createdCount++
     } catch {
       errors.push({ linha: rowNum, erro: 'Erro interno ao salvar produto' })
     }
   }
 
   // Invalidar cache e emitir socket após importação
+  const successCount = createdCount + updatedCount
   if (successCount > 0) {
     await cache.del(`menu:${storeId}`)
     emit.menuUpdated(storeId)
@@ -219,11 +226,11 @@ export async function importProducts(
         userId,
         action: 'product.import',
         entity: 'Product',
-        data: { successCount, errorCount: errors.length, total: totalRows },
+        data: { createdCount, updatedCount, errorCount: errors.length, total: totalRows },
         ip,
       },
     })
   }
 
-  return { success: successCount, errors, total: totalRows }
+  return { success: successCount, created: createdCount, updated: updatedCount, errors, total: totalRows }
 }
