@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Info, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Info, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react'
 
 import {
   useCreateDistance,
@@ -11,6 +11,7 @@ import {
   useDeleteNeighborhood,
   useDeliveryConfig,
   useSetDeliveryMode,
+  useSetStoreCoordinates,
   useUpdateDistance,
   useUpdateNeighborhood,
 } from '../hooks/useDelivery'
@@ -318,6 +319,7 @@ const MODES: { value: DeliveryMode; label: string; description: string }[] = [
 export function DeliveryPage() {
   const { data: config, isLoading, isError } = useDeliveryConfig()
   const setModeMutation = useSetDeliveryMode()
+  const setCoordsMutation = useSetStoreCoordinates()
   const deleteNeighborhoodMutation = useDeleteNeighborhood()
   const deleteDistanceMutation = useDeleteDistance()
 
@@ -328,6 +330,8 @@ export function DeliveryPage() {
     { type: 'neighborhood'; entry: Neighborhood } | { type: 'distance'; entry: DistanceRange } | null
   >(null)
   const [toast, setToast] = useState<ToastState>(null)
+  const [coordLat, setCoordLat] = useState('')
+  const [coordLng, setCoordLng] = useState('')
 
   function showToast(message: string, type: 'success' | 'error') {
     setToast({ message, type })
@@ -489,7 +493,97 @@ export function DeliveryPage() {
               </section>
             )}
 
-            {/* DISTANCE mode */}
+            {/* DISTANCE mode — coordinates */}
+            {config.mode === 'DISTANCE' && (
+              <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} className="text-blue-500" />
+                  <h2 className="text-base font-semibold text-gray-900">
+                    Localização da loja
+                  </h2>
+                </div>
+
+                {config.latitude && config.longitude ? (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-700">
+                      Lat: <span className="font-medium">{config.latitude}</span>, Lng:{' '}
+                      <span className="font-medium">{config.longitude}</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        setCoordLat(String(config.latitude))
+                        setCoordLng(String(config.longitude))
+                      }}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                    >
+                      Alterar
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                      <Info size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-amber-800">
+                        Configure a localização da loja para que o cálculo de taxa por
+                        distância funcione. Informe as coordenadas (latitude e longitude).
+                      </p>
+                    </div>
+                    <div className="flex items-end gap-3">
+                      <div className="w-40">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Latitude
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={coordLat}
+                          onChange={(e) => setCoordLat(e.target.value)}
+                          placeholder="-23.5505"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="w-40">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Longitude
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={coordLng}
+                          onChange={(e) => setCoordLng(e.target.value)}
+                          placeholder="-46.6333"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const lat = Number(coordLat)
+                          const lng = Number(coordLng)
+                          if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                            showToast('Coordenadas inválidas.', 'error')
+                            return
+                          }
+                          try {
+                            await setCoordsMutation.mutateAsync({ latitude: lat, longitude: lng })
+                            setCoordLat('')
+                            setCoordLng('')
+                            showToast('Localização salva!', 'success')
+                          } catch {
+                            showToast('Erro ao salvar localização.', 'error')
+                          }
+                        }}
+                        disabled={setCoordsMutation.isPending}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                      >
+                        {setCoordsMutation.isPending ? 'Salvando...' : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* DISTANCE mode — ranges */}
             {config.mode === 'DISTANCE' && (
               <section className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">

@@ -37,6 +37,7 @@ import {
   updateDistance,
   deleteDistance,
   setDeliveryMode,
+  setStoreCoordinates,
   calculateDeliveryFee,
 } from '../delivery.service'
 
@@ -320,6 +321,31 @@ describe('setDeliveryMode', () => {
   })
 })
 
+// ─── setStoreCoordinates ─────────────────────────────────────────────────────
+
+describe('setStoreCoordinates', () => {
+  it('atualiza latitude e longitude da loja', async () => {
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
+
+    const result = await setStoreCoordinates(STORE_ID, {
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
+
+    expect(mockPrisma.store.update).toHaveBeenCalledWith({
+      where: { id: STORE_ID },
+      data: { latitude: -23.5505, longitude: -46.6333 },
+      select: { id: true, latitude: true, longitude: true },
+    })
+    expect(result.latitude).toBe(-23.5505)
+    expect(result.longitude).toBe(-46.6333)
+  })
+})
+
 // ─── calculateDeliveryFee ─────────────────────────────────────────────────────
 
 describe('calculateDeliveryFee', () => {
@@ -369,5 +395,96 @@ describe('calculateDeliveryFee', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'DISTANCE' })
 
     await expect(calculateDeliveryFee(STORE_ID, {})).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('modo DISTANCE: lança 422 quando loja não tem coordenadas configuradas', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
+      .mockResolvedValueOnce({ latitude: null, longitude: null })
+
+    await expect(
+      calculateDeliveryFee(STORE_ID, { latitude: -23.55, longitude: -46.63 })
+    ).rejects.toMatchObject({ status: 422, message: 'Coordenadas da loja não configuradas' })
+  })
+
+  it('modo DISTANCE: lança 422 quando nenhuma faixa de distância está cadastrada', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
+      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
+
+    await expect(
+      calculateDeliveryFee(STORE_ID, { latitude: -23.55, longitude: -46.63 })
+    ).rejects.toMatchObject({ status: 422, message: 'Nenhuma faixa de distância configurada' })
+  })
+
+  it('modo DISTANCE: retorna taxa correta para distância dentro de uma faixa', async () => {
+    // Loja em São Paulo (Paulista), cliente a ~3km de distância
+    const storeLat = -23.5614
+    const storeLng = -46.6558
+    // Ponto a ~3km (Vila Mariana)
+    const clientLat = -23.5889
+    const clientLng = -46.6388
+
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
+      .mockResolvedValueOnce({ latitude: storeLat, longitude: storeLng })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
+      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
+      { id: 'd3', storeId: STORE_ID, minKm: 10, maxKm: 20, fee: 18.0 },
+    ])
+
+    const result = await calculateDeliveryFee(STORE_ID, {
+      latitude: clientLat,
+      longitude: clientLng,
+    })
+
+    expect(result.fee).toBe(5.0)
+    expect(result.mode).toBe('DISTANCE')
+    expect(result.distance).toBeGreaterThan(0)
+    expect(result.distance).toBeLessThan(5)
+  })
+
+  it('modo DISTANCE: retorna taxa da faixa correta para distância maior', async () => {
+    // Loja no centro de SP, cliente em Guarulhos (~15km)
+    const storeLat = -23.5505
+    const storeLng = -46.6333
+    const clientLat = -23.4538
+    const clientLng = -46.5333
+
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
+      .mockResolvedValueOnce({ latitude: storeLat, longitude: storeLng })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
+      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
+      { id: 'd3', storeId: STORE_ID, minKm: 10, maxKm: 20, fee: 18.0 },
+    ])
+
+    const result = await calculateDeliveryFee(STORE_ID, {
+      latitude: clientLat,
+      longitude: clientLng,
+    })
+
+    expect(result.fee).toBe(18.0)
+    expect(result.mode).toBe('DISTANCE')
+    expect(result.distance).toBeGreaterThan(10)
+    expect(result.distance).toBeLessThan(20)
+  })
+
+  it('modo DISTANCE: lança 422 quando distância fora de todas as faixas', async () => {
+    // Loja em SP, cliente no Rio (~357km) — fora de qualquer faixa configurada
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
+      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
+      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
+    ])
+
+    await expect(
+      calculateDeliveryFee(STORE_ID, { latitude: -22.9068, longitude: -43.1729 })
+    ).rejects.toMatchObject({ status: 422, message: 'Distância fora da área de entrega' })
   })
 })

@@ -17,6 +17,7 @@ import {
   listDistancesController,
   listNeighborhoodsController,
   setDeliveryModeController,
+  setStoreCoordinatesController,
   updateDistanceController,
   updateNeighborhoodController,
 } from './delivery.controller'
@@ -29,6 +30,7 @@ router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requir
 
 router.get('/', getDeliveryConfigController)
 router.patch('/mode', setDeliveryModeController)
+router.patch('/coordinates', setStoreCoordinatesController)
 
 router.get('/neighborhoods', listNeighborhoodsController)
 router.post('/neighborhoods', createNeighborhoodController)

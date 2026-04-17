@@ -116,11 +116,33 @@ export async function setDeliveryMode(
 
 export async function getDeliveryConfig(storeId: string) {
   const [store, neighborhoods, distances] = await Promise.all([
-    prisma.store.findUnique({ where: { id: storeId }, select: { deliveryMode: true } }),
+    prisma.store.findUnique({
+      where: { id: storeId },
+      select: { deliveryMode: true, latitude: true, longitude: true },
+    }),
     prisma.deliveryNeighborhood.findMany({ where: { storeId }, orderBy: { name: 'asc' } }),
     prisma.deliveryDistance.findMany({ where: { storeId }, orderBy: { minKm: 'asc' } }),
   ])
-  return { deliveryMode: store?.deliveryMode ?? null, neighborhoods, distances }
+  return {
+    deliveryMode: store?.deliveryMode ?? null,
+    latitude: store?.latitude ?? null,
+    longitude: store?.longitude ?? null,
+    neighborhoods,
+    distances,
+  }
+}
+
+// ─── Store coordinates ──────────────────────────────────────────────────────
+
+export async function setStoreCoordinates(
+  storeId: string,
+  input: { latitude: number; longitude: number }
+) {
+  return prisma.store.update({
+    where: { id: storeId },
+    data: { latitude: input.latitude, longitude: input.longitude },
+    select: { id: true, latitude: true, longitude: true },
+  })
 }
 
 // ─── Calculate delivery fee (public) ─────────────────────────────────────────
@@ -152,14 +174,12 @@ export async function calculateDeliveryFee(storeId: string, input: CalculateDeli
 
   const storeData = await prisma.store.findUnique({
     where: { id: storeId },
-    select: { address: true },
+    select: { latitude: true, longitude: true },
   })
 
-  // Store address must contain lat/lng in a parseable format
-  // For now we return an error if store coordinates are not available
-  // TODO: integrate geocoding API to resolve store address to coordinates
-  // The store's lat/lng would need to be stored separately in production
-  if (!storeData?.address) throw new AppError('Endereço da loja não configurado', 422)
+  if (!storeData?.latitude || !storeData?.longitude) {
+    throw new AppError('Coordenadas da loja não configuradas', 422)
+  }
 
   const distances = await prisma.deliveryDistance.findMany({
     where: { storeId },
@@ -168,12 +188,12 @@ export async function calculateDeliveryFee(storeId: string, input: CalculateDeli
 
   if (!distances.length) throw new AppError('Nenhuma faixa de distância configurada', 422)
 
-  // We need store lat/lng — use a simple approach: store address field as JSON with lat/lng
-  // For now throw a meaningful error
-  throw new AppError(
-    'Cálculo por distância requer integração de geocodificação. Configure as faixas por bairro ou use a API de integração.',
-    422
-  )
+  const dist = haversine(storeData.latitude, storeData.longitude, input.latitude, input.longitude)
+
+  const range = distances.find((d) => dist >= d.minKm && dist < d.maxKm)
+  if (!range) throw new AppError('Distância fora da área de entrega', 422)
+
+  return { fee: range.fee, mode: 'DISTANCE' as const, distance: Math.round(dist * 100) / 100 }
 }
 
 // ─── Exported haversine for tests ────────────────────────────────────────────

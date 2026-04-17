@@ -7,6 +7,7 @@ import {
   createDistanceSchema,
   createNeighborhoodSchema,
   setDeliveryModeSchema,
+  setStoreCoordinatesSchema,
   updateDistanceSchema,
   updateNeighborhoodSchema,
 } from './delivery.schema'
@@ -20,6 +21,7 @@ import {
   listDistances,
   listNeighborhoods,
   setDeliveryMode,
+  setStoreCoordinates,
   updateDistance,
   updateNeighborhood,
 } from './delivery.service'
@@ -48,6 +50,21 @@ export async function setDeliveryModeController(req: Request, res: Response, nex
     const { userId } = getUser(req)
     const input = setDeliveryModeSchema.parse(req.body)
     const result = await setDeliveryMode(storeId, input, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function setStoreCoordinatesController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const input = setStoreCoordinatesSchema.parse(req.body)
+    const result = await setStoreCoordinates(storeId, input)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

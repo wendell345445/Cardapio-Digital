@@ -32,6 +32,8 @@ model Store {
   pixKey               String?
   pixKeyType           PixKeyType?
   deliveryMode         DeliveryMode?
+  latitude             Float?
+  longitude            Float?
   serviceChargePercent Float?
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)

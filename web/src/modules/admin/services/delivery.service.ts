@@ -19,6 +19,8 @@ export interface DistanceRange {
 
 export interface DeliveryConfig {
   mode: DeliveryMode
+  latitude: number | null
+  longitude: number | null
   neighborhoods: Neighborhood[]
   distances: DistanceRange[]
 }
@@ -82,4 +84,12 @@ export async function updateDistance(
 
 export async function deleteDistance(id: string): Promise<void> {
   await api.delete(`/admin/delivery/distances/${id}`)
+}
+
+export async function setStoreCoordinates(
+  latitude: number,
+  longitude: number
+): Promise<{ id: string; latitude: number; longitude: number }> {
+  const { data } = await api.patch('/admin/delivery/coordinates', { latitude, longitude })
+  return data.data
 }
