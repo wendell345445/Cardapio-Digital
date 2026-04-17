@@ -271,7 +271,7 @@ export function ItemPage() {
       {cartCount > 0 && (
         <button
           onClick={() => setCheckoutOpen(true)}
-          className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 text-white font-semibold px-5 py-3 rounded-full shadow-lg flex items-center gap-2 z-40 transition-colors"
+          className="fixed bottom-20 right-6 bg-green-500 hover:bg-green-600 text-white font-semibold px-5 py-3 rounded-full shadow-lg flex items-center gap-2 z-40 transition-colors"
         >
           <ShoppingCart className="w-5 h-5" />
           Carrinho ({cartCount})

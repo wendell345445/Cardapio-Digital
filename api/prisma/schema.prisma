@@ -547,6 +547,7 @@ enum PaymentMethod {
 enum DeliveryMode {
   NEIGHBORHOOD
   DISTANCE
+  BOTH
 }
 
 enum CouponType {

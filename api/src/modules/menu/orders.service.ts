@@ -266,7 +266,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (isOnDeliveryPmt) {
     const allowed = await getPaymentMethodsForClient(client.id, store.id)
     if (!allowed.cashOnDelivery) {
-      throw new AppError('Pagamento na entrega indisponível para este cliente', 422)
+      throw new AppError('Pagamento na entrega não está disponível. Escolha outra forma de pagamento.', 422)
     }
   }
 

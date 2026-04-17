@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -97,7 +97,8 @@ function extractOrderErrorMessages(err: unknown): string[] {
   return [data.error ?? data.message ?? 'Erro ao criar pedido']
 }
 
-function paymentGroupFor(m: PaymentMethod): PaymentGroup {
+function paymentGroupFor(m: PaymentMethod | undefined): PaymentGroup | null {
+  if (!m) return null
   if (m === 'PIX') return 'PIX'
   if (m === 'CREDIT_CARD') return 'CREDIT_CARD'
   return 'ON_DELIVERY'
@@ -169,6 +170,13 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
   const [deliveryFeeError, setDeliveryFeeError] = useState('')
   const [otpInput, setOtpInput] = useState('')
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (mutation.error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [mutation.error])
   const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
 
   const auth = useCustomerAuth()
@@ -182,6 +190,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const orderType = watch('type')
   const paymentMethod = watch('paymentMethod') as PaymentMethod
   const zipCode = watch('zipCode')
+  const neighborhood = watch('neighborhood')
   const store = menu?.store
 
   const paymentGroup = paymentGroupFor(paymentMethod)
@@ -242,13 +251,24 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     }
   }, [])
 
-  // Reset fee when switching away from DELIVERY
+  // Calcula taxa de entrega quando bairro muda (debounce de 500ms)
   useEffect(() => {
     if (orderType !== 'DELIVERY') {
       setDeliveryFee(0)
       setDeliveryFeeError('')
+      return
     }
-  }, [orderType])
+    const trimmed = (neighborhood ?? '').trim()
+    if (!trimmed) {
+      setDeliveryFee(0)
+      setDeliveryFeeError('')
+      return
+    }
+    const timer = setTimeout(() => {
+      lookupDeliveryFee(trimmed)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [neighborhood, orderType, lookupDeliveryFee])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')
@@ -258,7 +278,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     if (result.street) setValue('street', result.street, { shouldValidate: true })
     if (result.neighborhood) {
       setValue('neighborhood', result.neighborhood, { shouldValidate: true })
-      lookupDeliveryFee(result.neighborhood)
     }
     if (result.city) setValue('city', result.city, { shouldValidate: true })
     if (result.state) setValue('state', ufToStateName(result.state))
@@ -298,7 +317,11 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string; message?: string; details?: Array<{ path?: Array<string | number>; message?: string }> } } }
       const msg = axiosErr?.response?.data?.error || axiosErr?.response?.data?.message || 'Erro ao criar pedido'
-      if (msg.includes('Cupom')) setCouponError(msg)
+      if (msg.includes('Cupom')) {
+        setCouponError(msg)
+      } else {
+        throw err
+      }
     }
   }
 
@@ -360,8 +383,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             </button>
           </div>
 
+        </div>
+
+        {/* Conteúdo rolável: itens + form */}
+        <div className="flex-1 overflow-y-auto">
           {itemsOpen && items.length > 0 && (
-            <ul className="px-5 pb-3 space-y-2 text-sm max-h-[40vh] overflow-y-auto">
+            <ul className="px-4 py-3 space-y-2.5 text-sm bg-gray-50/80 border-b border-gray-100">
               {items.map(item => {
                 const unit = itemUnitPrice(item)
                 const lineTotal = unit * item.quantity
@@ -369,78 +396,78 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                   <li
                     key={item.id}
                     data-testid={`cart-item-${item.id}`}
-                    className="flex items-start gap-3 bg-white rounded-lg border border-gray-100 p-3"
+                    className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
                   >
-                    {item.imageUrl && (
-                      <img
-                        src={item.imageUrl}
-                        alt={item.productName}
-                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
-                      />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-800 truncate">
-                        {item.productName}
-                        {item.variationName && ` — ${item.variationName}`}
-                      </p>
-                      {item.additionals.length > 0 && (
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">
-                          + {item.additionals.map(a => a.name).join(', ')}
+                    <div className="flex items-center gap-3 p-3">
+                      {item.imageUrl && (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.productName}
+                          className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-gray-100"
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 truncate text-[15px]">
+                          {item.productName}
                         </p>
-                      )}
-                      {item.notes && (
-                        <p className="text-xs text-gray-400 italic mt-0.5 truncate">Obs: {item.notes}</p>
-                      )}
-                      <div className="flex items-center justify-between mt-2 gap-2">
-                        <div className="inline-flex items-center border border-gray-200 rounded-full bg-white">
-                          <button
-                            type="button"
-                            aria-label="Diminuir quantidade"
-                            onClick={() => updateQty(item.id, item.quantity - 1)}
-                            className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-l-full"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span
-                            className="w-7 text-center text-sm font-medium"
-                            data-testid={`cart-item-qty-${item.id}`}
-                          >
-                            {item.quantity}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label="Aumentar quantidade"
-                            onClick={() => updateQty(item.id, item.quantity + 1)}
-                            className="w-7 h-7 flex items-center justify-center text-gray-600 hover:bg-gray-50 rounded-r-full"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <span className="text-sm font-semibold text-gray-800 whitespace-nowrap">
-                          {fmt(lineTotal)}
-                        </span>
+                        {item.variationName && (
+                          <p className="text-xs text-gray-500 mt-0.5">{item.variationName}</p>
+                        )}
+                        {item.additionals.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5 truncate">
+                            + {item.additionals.map(a => a.name).join(', ')}
+                          </p>
+                        )}
+                        {item.notes && (
+                          <p className="text-xs text-gray-400 italic mt-0.5 truncate">Obs: {item.notes}</p>
+                        )}
                       </div>
+                      <button
+                        type="button"
+                        aria-label={`Remover ${item.productName}`}
+                        onClick={() => removeItem(item.id)}
+                        className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 flex-shrink-0 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Remover ${item.productName}`}
-                      onClick={() => removeItem(item.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-t border-gray-100">
+                      <div className="inline-flex items-center border border-gray-200 rounded-full bg-white">
+                        <button
+                          type="button"
+                          aria-label="Diminuir quantidade"
+                          onClick={() => updateQty(item.id, item.quantity - 1)}
+                          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-gray-100 rounded-l-full transition-colors"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span
+                          className="w-8 text-center text-sm font-bold text-gray-900"
+                          data-testid={`cart-item-qty-${item.id}`}
+                        >
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Aumentar quantidade"
+                          onClick={() => updateQty(item.id, item.quantity + 1)}
+                          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-green-600 hover:bg-gray-100 rounded-r-full transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <span className="text-sm font-bold text-gray-900">
+                        {fmt(lineTotal)}
+                      </span>
+                    </div>
                   </li>
                 )
               })}
             </ul>
           )}
-        </div>
-
-        {/* Form */}
-        <div className="flex-1 overflow-y-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-5">
-            {/* Tipo de entrega */}
-            {tableNumber ? (
+            {/* Tipo de entrega — só após verificação */}
+            {auth.step !== 'verified' ? null : tableNumber ? (
               <div className="p-3 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 text-sm font-medium text-center">
                 <input type="hidden" value="TABLE" {...register('type')} />
                 🍽️ Pedido para Mesa {tableNumber}
@@ -453,10 +480,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 ].map(t => (
                   <label
                     key={t}
-                    className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer text-sm font-medium transition-colors ${
+                    className={`flex items-center justify-center p-3 rounded-lg border-2 cursor-pointer text-sm font-semibold transition-colors ${
                       orderType === t
                         ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 text-gray-600'
+                        : 'border-gray-300 bg-gray-50 text-gray-800 hover:border-gray-400'
                     }`}
                   >
                     <input type="radio" value={t} {...register('type')} className="sr-only" />
@@ -652,7 +679,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     type="text"
                     placeholder="Bairro"
                     {...register('neighborhood')}
-                    onBlur={(e) => lookupDeliveryFee(e.target.value)}
                     className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
                       deliveryFeeError ? 'border-red-400' : 'border-gray-200'
                     }`}
@@ -702,7 +728,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <button
                   type="button"
                   onClick={() => selectPaymentGroup('PIX')}
-                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-50' : 'border-red-500'}`}
                 >
                   <span className={`w-4 h-4 rounded-full border-2 ${paymentGroup === 'PIX' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
                   <span className="font-medium">💰 Pix (online)</span>
@@ -794,14 +820,16 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <span>{fmt(subtotal())}</span>
               </div>
               {orderType === 'DELIVERY' && (
-                <div className="flex justify-between text-gray-600">
+                <div className={`flex justify-between ${deliveryFeeError ? 'text-red-500' : 'text-gray-600'}`}>
                   <span>Taxa de entrega</span>
                   <span>
                     {deliveryFeeLoading
                       ? 'Calculando…'
-                      : deliveryFee > 0
-                        ? fmt(deliveryFee)
-                        : 'Grátis'}
+                      : deliveryFeeError
+                        ? 'Indisponível'
+                        : deliveryFee > 0
+                          ? fmt(deliveryFee)
+                          : 'Grátis'}
                   </span>
                 </div>
               )}
@@ -816,7 +844,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             </div>
 
             {mutation.error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 space-y-1">
+              <div ref={errorRef} className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 space-y-1">
                 <p className="font-semibold">Não foi possível finalizar o pedido:</p>
                 <ul className="list-disc pl-4 space-y-0.5">
                   {extractOrderErrorMessages(mutation.error).map((m, idx) => (
@@ -831,23 +859,25 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           </form>
         </div>
 
-        {/* Footer */}
-        <div className="p-5 border-t border-gray-100 space-y-2">
-          <button
-            onClick={handleSubmit(onSubmit)}
-            disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || auth.step !== 'verified' || !paymentMethod}
-            className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
-          >
-            {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
-          </button>
-          <button
-            type="button"
-            onClick={() => { clearCart(); onClose() }}
-            className="w-full text-sm text-gray-400 hover:text-gray-600 py-1"
-          >
-            Limpar carrinho
-          </button>
-        </div>
+        {/* Footer — só aparece quando verificado */}
+        {auth.step === 'verified' && (
+          <div className="p-5 border-t border-gray-100 space-y-2">
+            <button
+              onClick={handleSubmit(onSubmit)}
+              disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || !paymentMethod}
+              className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
+            >
+              {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
+            </button>
+            <button
+              type="button"
+              onClick={() => { clearCart(); onClose() }}
+              className="w-full text-sm text-gray-400 hover:text-gray-600 py-1"
+            >
+              Limpar carrinho
+            </button>
+          </div>
+        )}
       </div>
     </>
   )

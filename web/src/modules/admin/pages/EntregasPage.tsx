@@ -3,20 +3,20 @@ import { useState } from 'react'
 import { useMotoboys, useSetMotoboyAvailability } from '../hooks/useMotoboys'
 import { useStore, useUpdatePaymentSettings } from '../hooks/useStore'
 
-import { BairrosPage } from './BairrosPage'
+import { DeliveryPage } from './DeliveryPage'
 
 // ─── A-032 / Entregas: painel operacional da entrega ─────────────────────────
 // Unifica:
 //   - Toggle geral "Aceitando entregas" (Store.allowDelivery)
 //   - Disponibilidade diária dos motoboys (User.availableAt — reset lazy à meia-noite)
-//   - Taxas por bairro (reaproveita BairrosPage)
+//   - Taxas de entrega (bairro ou distância — usa DeliveryPage)
 
-type Tab = 'status' | 'motoboys' | 'bairros'
+type Tab = 'status' | 'motoboys' | 'taxas'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'status', label: 'Status' },
   { id: 'motoboys', label: 'Motoboys' },
-  { id: 'bairros', label: 'Bairros' },
+  { id: 'taxas', label: 'Taxas' },
 ]
 
 function TabStatus() {
@@ -213,7 +213,7 @@ export function EntregasPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Entregas</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Status operacional, disponibilidade dos motoboys e taxas por bairro.
+          Status operacional, disponibilidade dos motoboys e taxas de entrega.
         </p>
       </div>
 
@@ -238,7 +238,7 @@ export function EntregasPage() {
 
       {tab === 'status' && <TabStatus />}
       {tab === 'motoboys' && <TabMotoboys />}
-      {tab === 'bairros' && <BairrosPage />}
+      {tab === 'taxas' && <DeliveryPage />}
     </div>
   )
 }

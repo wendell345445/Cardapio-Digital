@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,6 +16,7 @@ import {
   useUpdateDistance,
   useUpdateNeighborhood,
 } from '../hooks/useDelivery'
+import { useStore } from '../hooks/useStore'
 import type { DeliveryMode, DistanceRange, Neighborhood } from '../services/delivery.service'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -307,21 +309,20 @@ const MODES: { value: DeliveryMode; label: string; description: string }[] = [
     label: 'Por Distância',
     description: 'Define faixas de km com taxas diferentes',
   },
-  {
-    value: null,
-    label: 'Desativado',
-    description: 'Entrega desativada (somente retirada)',
-  },
 ]
 
 // ─── DeliveryPage ─────────────────────────────────────────────────────────────
 
 export function DeliveryPage() {
   const { data: config, isLoading, isError } = useDeliveryConfig()
+  const { data: store } = useStore()
   const setModeMutation = useSetDeliveryMode()
   const setCoordsMutation = useSetStoreCoordinates()
   const deleteNeighborhoodMutation = useDeleteNeighborhood()
   const deleteDistanceMutation = useDeleteDistance()
+
+  const navigate = useNavigate()
+  const isPremium = store?.plan === 'PREMIUM'
 
   // null = closed, 'new' = create form, Neighborhood/DistanceRange = edit form
   const [neighborhoodModal, setNeighborhoodModal] = useState<Neighborhood | 'new' | null>(null)
@@ -368,18 +369,10 @@ export function DeliveryPage() {
     deleteNeighborhoodMutation.isPending || deleteDistanceMutation.isPending
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
       <Toast toast={toast} onClose={() => setToast(null)} />
 
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <h1 className="text-xl font-bold text-gray-900">Configuração de Entrega</h1>
-        <p className="text-xs text-gray-500 mt-0.5">
-          Defina como funcionará a entrega do seu estabelecimento
-        </p>
-      </header>
-
-      <main className="px-6 py-6 space-y-6">
+      <div className="space-y-6">
         {isLoading && (
           <p className="text-center text-sm text-gray-500 py-12">Carregando configurações...</p>
         )}
@@ -392,31 +385,44 @@ export function DeliveryPage() {
 
         {!isLoading && !isError && config && (
           <>
-            {/* Plano 1 info banner */}
-            <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
-              <Info size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-800">
-                <span className="font-semibold">Plano 1:</span> taxa fixa única por bairro. Upgrade
-                para o Plano 2 para habilitar faixas por distância e taxas dinâmicas.
-              </p>
-            </div>
+            {/* Plan info banner */}
+            {!isPremium && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <Info size={18} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-800">
+                    <span className="font-semibold">Plano Professional:</span> taxa fixa por bairro.
+                    Upgrade para o plano <span className="font-semibold">Premium</span> para habilitar
+                    faixas por distância (km).
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate('/admin/configuracoes?tab=assinatura')}
+                  className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+                >
+                  Fazer upgrade
+                </button>
+              </div>
+            )}
 
             {/* Mode selector */}
             <section className="bg-white rounded-xl border border-gray-200 p-5">
               <h2 className="text-base font-semibold text-gray-900 mb-4">Modo de entrega</h2>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {MODES.map((m) => {
-                  const isSelected =
-                    m.value === null ? config.mode === null : config.mode === m.value
+                  const isSelected = config.mode === m.value
+                  const isLocked = m.value === 'DISTANCE' && !isPremium
                   return (
                     <button
                       key={String(m.value)}
-                      onClick={() => handleModeChange(m.value)}
-                      disabled={setModeMutation.isPending}
+                      onClick={() => !isLocked && handleModeChange(m.value)}
+                      disabled={setModeMutation.isPending || isLocked}
                       className={`rounded-xl border-2 p-4 text-left transition-colors ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                          : isLocked
+                            ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                       }`}
                     >
                       <p
@@ -425,6 +431,9 @@ export function DeliveryPage() {
                         }`}
                       >
                         {m.label}
+                        {isLocked && (
+                          <span className="ml-2 text-xs font-normal text-gray-400">Premium</span>
+                        )}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">{m.description}</p>
                     </button>
@@ -648,17 +657,17 @@ export function DeliveryPage() {
               </section>
             )}
 
-            {/* Disabled mode */}
+            {/* No mode selected */}
             {config.mode === null && (
               <div className="rounded-xl border border-gray-200 bg-white px-5 py-8 text-center">
                 <p className="text-sm text-gray-500">
-                  A entrega está desativada. Selecione um modo acima para configurar.
+                  Selecione um modo acima para configurar as taxas de entrega.
                 </p>
               </div>
             )}
           </>
         )}
-      </main>
+      </div>
 
       {/* Neighborhood modal */}
       {neighborhoodModal !== null && (

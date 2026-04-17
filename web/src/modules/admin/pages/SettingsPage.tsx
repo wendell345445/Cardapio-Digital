@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 
 import { useOpenBillingPortal } from '../hooks/useBilling'
@@ -991,7 +992,11 @@ function TabAssinatura() {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('dados')
+  const [searchParams] = useSearchParams()
+  const initialTab = TABS.some((t) => t.id === searchParams.get('tab'))
+    ? (searchParams.get('tab') as Tab)
+    : 'dados'
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab)
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Plus, Trash2, Check } from 'lucide-react'
 
 import {
   useCreateNeighborhood,
@@ -28,8 +28,15 @@ export function BairrosPage() {
   const [newName, setNewName] = useState('')
   const [newFee, setNewFee] = useState('')
   const [editState, setEditState] = useState<EditState | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   const neighborhoods = config?.neighborhoods ?? []
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +47,7 @@ export function BairrosPage() {
         onSuccess: () => {
           setNewName('')
           setNewFee('')
+          setToast('Bairro adicionado com sucesso')
         },
       }
     )
@@ -50,17 +58,35 @@ export function BairrosPage() {
     if (!editState) return
     updateNeighborhood.mutate(
       { id: editState.id, data: { name: editState.name, fee: Number(editState.fee) } },
-      { onSuccess: () => setEditState(null) }
+      {
+        onSuccess: () => {
+          setEditState(null)
+          setToast('Bairro atualizado com sucesso')
+        },
+      }
     )
   }
 
   function handleDelete(n: Neighborhood) {
     if (!window.confirm(`Excluir o bairro "${n.name}"?`)) return
-    deleteNeighborhood.mutate(n.id)
+    deleteNeighborhood.mutate(n.id, {
+      onSuccess: () => setToast(`Bairro "${n.name}" excluído`),
+    })
   }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 space-y-4">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg shadow-lg text-sm animate-in fade-in slide-in-from-top-2">
+          <Check className="w-4 h-4" />
+          <span>{toast}</span>
+          <button onClick={() => setToast(null)} className="ml-2 text-white/80 hover:text-white">
+            &times;
+          </button>
+        </div>
+      )}
+
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Bairros de Entrega</h1>

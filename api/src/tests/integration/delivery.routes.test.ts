@@ -11,6 +11,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     deliveryDistance: {
       findMany: jest.fn(),
@@ -179,6 +180,7 @@ describe('POST /api/v1/admin/delivery/neighborhoods', () => {
   it('retorna 201 ao criar bairro', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
     ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({ ...mockStore, deliveryMode: 'NEIGHBORHOOD' })
 
     const res = await request(app)
       .post('/api/v1/admin/delivery/neighborhoods')
@@ -242,6 +244,7 @@ describe('DELETE /api/v1/admin/delivery/neighborhoods/:id', () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
     ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
     ;(mockPrisma.deliveryNeighborhood.delete as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.deliveryNeighborhood.count as jest.Mock).mockResolvedValue(2)
 
     const res = await request(app)
       .delete(`/api/v1/admin/delivery/neighborhoods/${NB_ID}`)

@@ -10,6 +10,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
       delete: jest.fn(),
+      count: jest.fn(),
     },
     deliveryDistance: {
       findMany: jest.fn(),
@@ -126,6 +127,7 @@ describe('listNeighborhoods', () => {
 describe('createNeighborhood', () => {
   it('cria bairro com nome e taxa', async () => {
     ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
 
     const result = await createNeighborhood(STORE_ID, { name: 'Centro', fee: 5.0 })
 
@@ -133,6 +135,19 @@ describe('createNeighborhood', () => {
       data: { storeId: STORE_ID, name: 'Centro', fee: 5.0 },
     })
     expect(result.name).toBe('Centro')
+  })
+
+  it('auto-ativa deliveryMode NEIGHBORHOOD ao criar primeiro bairro', async () => {
+    ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: null })
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
+
+    await createNeighborhood(STORE_ID, { name: 'Centro', fee: 5.0 })
+
+    expect(mockPrisma.store.update).toHaveBeenCalledWith({
+      where: { id: STORE_ID },
+      data: { deliveryMode: 'NEIGHBORHOOD' },
+    })
   })
 })
 

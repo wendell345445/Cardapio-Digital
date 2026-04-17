@@ -44,7 +44,8 @@ export type UpdateDistanceData = Partial<CreateDistanceData>
 
 export async function getDeliveryConfig(): Promise<DeliveryConfig> {
   const { data } = await api.get('/admin/delivery')
-  return data.data
+  const raw = data.data
+  return { ...raw, mode: raw.deliveryMode ?? null }
 }
 
 export async function setDeliveryMode(mode: DeliveryMode): Promise<DeliveryConfig> {

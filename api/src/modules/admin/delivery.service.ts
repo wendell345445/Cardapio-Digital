@@ -35,9 +35,22 @@ export async function listNeighborhoods(storeId: string) {
 }
 
 export async function createNeighborhood(storeId: string, input: CreateNeighborhoodInput) {
-  return prisma.deliveryNeighborhood.create({
-    data: { storeId, name: input.name, fee: input.fee },
-  })
+  const [neighborhood, store] = await Promise.all([
+    prisma.deliveryNeighborhood.create({
+      data: { storeId, name: input.name, fee: input.fee },
+    }),
+    prisma.store.findUnique({ where: { id: storeId }, select: { deliveryMode: true } }),
+  ])
+
+  // Auto-ativa modo NEIGHBORHOOD ao cadastrar o primeiro bairro
+  if (!store?.deliveryMode) {
+    await prisma.store.update({
+      where: { id: storeId },
+      data: { deliveryMode: 'NEIGHBORHOOD' },
+    })
+  }
+
+  return neighborhood
 }
 
 export async function updateNeighborhood(
@@ -54,6 +67,15 @@ export async function deleteNeighborhood(storeId: string, id: string) {
   const nb = await prisma.deliveryNeighborhood.findUnique({ where: { id } })
   if (!nb || nb.storeId !== storeId) throw new AppError('Bairro não encontrado', 404)
   await prisma.deliveryNeighborhood.delete({ where: { id } })
+
+  // Se deletou o último bairro, desativa o modo NEIGHBORHOOD
+  const remaining = await prisma.deliveryNeighborhood.count({ where: { storeId } })
+  if (remaining === 0) {
+    await prisma.store.update({
+      where: { id: storeId },
+      data: { deliveryMode: null },
+    })
+  }
 }
 
 // ─── Distance ranges ─────────────────────────────────────────────────────────
@@ -154,11 +176,21 @@ export async function calculateDeliveryFee(storeId: string, input: CalculateDeli
   })
   if (!store) throw new AppError('Loja não encontrada', 404)
 
-  if (!store.deliveryMode) {
-    return { fee: 0, mode: null }
+  // Se deliveryMode não está configurado, verifica se há bairros cadastrados
+  // (compatibilidade com lojas que cadastraram bairros antes da auto-ativação)
+  let effectiveMode = store.deliveryMode
+  if (!effectiveMode) {
+    const hasNeighborhoods = await prisma.deliveryNeighborhood.count({ where: { storeId } })
+    if (hasNeighborhoods > 0) {
+      effectiveMode = 'NEIGHBORHOOD'
+    } else if (input.neighborhood) {
+      throw new AppError('Entrega não disponível no momento', 422)
+    } else {
+      return { fee: 0, mode: null }
+    }
   }
 
-  if (store.deliveryMode === 'NEIGHBORHOOD') {
+  if (effectiveMode === 'NEIGHBORHOOD') {
     if (!input.neighborhood) throw new AppError('Bairro é obrigatório', 422)
     const nb = await prisma.deliveryNeighborhood.findFirst({
       where: { storeId, name: { equals: input.neighborhood, mode: 'insensitive' } },
