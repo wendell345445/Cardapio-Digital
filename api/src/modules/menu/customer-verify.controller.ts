@@ -92,6 +92,16 @@ export async function verifyOtpController(
   }
 }
 
+// ─── POST /customer/logout ──────────────────────────────────────────────────
+
+export function customerLogoutController(
+  _req: Request,
+  res: Response,
+): void {
+  res.clearCookie(COOKIE_NAME, { path: '/' })
+  res.json({ success: true })
+}
+
 // ─── GET /customer/me ───────────────────────────────────────────────────────
 
 export async function customerMeController(

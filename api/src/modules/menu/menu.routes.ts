@@ -13,6 +13,7 @@ import {
   requestOtpController,
   verifyOtpController,
   customerMeController,
+  customerLogoutController,
 } from './customer-verify.controller'
 import { getMenuController } from './menu.controller'
 import { createOrderController } from './orders.controller'
@@ -38,6 +39,7 @@ menuRouter.get('/customer/check', checkCustomerController)
 menuRouter.post('/customer/otp/request', requestOtpController)
 menuRouter.post('/customer/otp/verify', verifyOtpController)
 menuRouter.get('/customer/me', customerMeController)
+menuRouter.post('/customer/logout', customerLogoutController)
 
 // POST /menu/coupon/validate
 menuRouter.post(

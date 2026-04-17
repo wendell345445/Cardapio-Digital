@@ -42,3 +42,7 @@ export async function getCustomerMe(): Promise<CustomerMeResult> {
   const { data } = await api.get('/menu/customer/me')
   return data.data
 }
+
+export async function logoutCustomer(): Promise<void> {
+  await api.post('/menu/customer/logout')
+}

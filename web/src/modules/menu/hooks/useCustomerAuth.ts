@@ -5,6 +5,7 @@ import {
   requestOtp,
   verifyOtp,
   getCustomerMe,
+  logoutCustomer,
 } from '../services/customer-verify.service'
 import type { CheckCustomerResult, CustomerMeResult } from '../services/customer-verify.service'
 
@@ -112,6 +113,7 @@ export function useCustomerAuth(): UseCustomerAuthReturn {
   }, [whatsapp])
 
   const reset = useCallback(() => {
+    logoutCustomer().catch(() => {})
     setStep('phone')
     setWhatsapp('')
     setCustomerData(null)
