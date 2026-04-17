@@ -6,6 +6,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     order: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
     customer: {
       findUnique: jest.fn(),
@@ -32,7 +33,7 @@ jest.mock('../../../shared/redis/redis', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { getCustomerDetail, upsertCustomer } from '../customers.service'
+import { getCustomerDetail, getCustomerOrders, upsertCustomer } from '../customers.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -266,6 +267,108 @@ describe('upsertCustomer', () => {
         expect.objectContaining({ isPrimary: true, phone: '5511999990001' }),
         expect.objectContaining({ isPrimary: false, phone: '5511888887777', label: 'Trabalho' }),
       ])
+    )
+  })
+})
+
+// ─── getCustomerOrders ────────────────────────────────────────────────────
+
+describe('getCustomerOrders', () => {
+  const mockOrders = [
+    {
+      id: 'order-1',
+      number: 42,
+      type: 'DELIVERY',
+      status: 'DELIVERED',
+      paymentMethod: 'PIX',
+      subtotal: 80,
+      deliveryFee: 10,
+      discount: 0,
+      total: 90,
+      createdAt: new Date('2026-04-15'),
+      _count: { items: 3 },
+    },
+    {
+      id: 'order-2',
+      number: 38,
+      type: 'PICKUP',
+      status: 'CONFIRMED',
+      paymentMethod: 'CREDIT_CARD',
+      subtotal: 50,
+      deliveryFee: 0,
+      discount: 5,
+      total: 45,
+      createdAt: new Date('2026-04-10'),
+      _count: { items: 2 },
+    },
+  ]
+
+  it('retorna pedidos paginados com total e totalPages', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(mockOrders)
+    ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(15)
+
+    const result = await getCustomerOrders(STORE_ID, WHATSAPP, 1, 10)
+
+    expect(result.orders).toHaveLength(2)
+    expect(result.total).toBe(15)
+    expect(result.page).toBe(1)
+    expect(result.limit).toBe(10)
+    expect(result.totalPages).toBe(2)
+  })
+
+  it('mapeia campos corretamente incluindo itemCount', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([mockOrders[0]])
+    ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(1)
+
+    const result = await getCustomerOrders(STORE_ID, WHATSAPP)
+
+    const order = result.orders[0]
+    expect(order.id).toBe('order-1')
+    expect(order.number).toBe(42)
+    expect(order.type).toBe('DELIVERY')
+    expect(order.status).toBe('DELIVERED')
+    expect(order.total).toBe(90)
+    expect(order.itemCount).toBe(3)
+  })
+
+  it('filtra por storeId e clientWhatsapp', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
+
+    await getCustomerOrders(STORE_ID, WHATSAPP, 2, 5)
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId: STORE_ID, clientWhatsapp: WHATSAPP },
+        skip: 5,
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+      })
+    )
+    expect(mockPrisma.order.count).toHaveBeenCalledWith({
+      where: { storeId: STORE_ID, clientWhatsapp: WHATSAPP },
+    })
+  })
+
+  it('retorna lista vazia quando cliente não tem pedidos', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
+
+    const result = await getCustomerOrders(STORE_ID, WHATSAPP)
+
+    expect(result.orders).toEqual([])
+    expect(result.total).toBe(0)
+    expect(result.totalPages).toBe(0)
+  })
+
+  it('usa defaults page=1 e limit=10 quando não informados', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+    ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(0)
+
+    await getCustomerOrders(STORE_ID, WHATSAPP)
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 0, take: 10 })
     )
   })
 })

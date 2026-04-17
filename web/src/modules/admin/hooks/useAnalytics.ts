@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getClientRanking,
   getCustomerDetail,
+  getCustomerOrders,
   getPeakHours,
   getSales,
   getTopProducts,
@@ -50,6 +51,15 @@ export function useCustomerDetail(whatsapp: string | null) {
   return useQuery({
     queryKey: ['analytics', 'customer-detail', whatsapp],
     queryFn: () => getCustomerDetail(whatsapp!),
+    enabled: !!whatsapp,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCustomerOrders(whatsapp: string | null, page = 1, limit = 10) {
+  return useQuery({
+    queryKey: ['analytics', 'customer-orders', whatsapp, page, limit],
+    queryFn: () => getCustomerOrders(whatsapp!, page, limit),
     enabled: !!whatsapp,
     staleTime: 30 * 1000,
   })

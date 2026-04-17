@@ -1,8 +1,19 @@
 import { useState } from 'react'
-import { Loader2, MapPin, Pencil, Phone, ShoppingBag, TrendingUp, User, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  MapPin,
+  Pencil,
+  Phone,
+  Receipt,
+  ShoppingBag,
+  TrendingUp,
+  User,
+  X,
+} from 'lucide-react'
 
-
-import { useCustomerDetail } from '../hooks/useAnalytics'
+import { useCustomerDetail, useCustomerOrders } from '../hooks/useAnalytics'
 
 import { CustomerEditModal } from './CustomerEditModal'
 
@@ -19,6 +30,36 @@ function formatDate(iso?: string | null) {
   return new Date(iso).toLocaleDateString('pt-BR')
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Pendente',
+  WAITING_PAYMENT_PROOF: 'Aguard. Pagamento',
+  WAITING_CONFIRMATION: 'Aguard. Confirmação',
+  CONFIRMED: 'Confirmado',
+  PREPARING: 'Em Preparo',
+  READY: 'Pronto',
+  DISPATCHED: 'Saiu p/ Entrega',
+  DELIVERED: 'Entregue',
+  CANCELLED: 'Cancelado',
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  PENDING: 'bg-yellow-100 text-yellow-800',
+  WAITING_PAYMENT_PROOF: 'bg-orange-100 text-orange-800',
+  WAITING_CONFIRMATION: 'bg-blue-100 text-blue-800',
+  CONFIRMED: 'bg-blue-200 text-blue-900',
+  PREPARING: 'bg-purple-100 text-purple-800',
+  READY: 'bg-green-100 text-green-800',
+  DISPATCHED: 'bg-indigo-100 text-indigo-800',
+  DELIVERED: 'bg-gray-100 text-gray-700',
+  CANCELLED: 'bg-red-100 text-red-700',
+}
+
+const TYPE_LABELS: Record<string, string> = {
+  DELIVERY: 'Entrega',
+  PICKUP: 'Retirada',
+  TABLE: 'Mesa',
+}
+
 // ─── Props ────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -31,6 +72,8 @@ interface Props {
 export function ClientDetailModal({ whatsapp, onClose }: Props) {
   const { data, isLoading, isError } = useCustomerDetail(whatsapp)
   const [editing, setEditing] = useState(false)
+  const [ordersPage, setOrdersPage] = useState(1)
+  const { data: ordersData, isLoading: ordersLoading } = useCustomerOrders(whatsapp, ordersPage, 5)
 
   return (
     <>
@@ -134,6 +177,88 @@ export function ClientDetailModal({ whatsapp, onClose }: Props) {
                     </ul>
                   </section>
                 )}
+
+                {/* Histórico de pedidos */}
+                <section>
+                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <Receipt className="w-3.5 h-3.5" />
+                    Histórico de pedidos
+                  </h3>
+
+                  {ordersLoading && (
+                    <div className="flex items-center justify-center py-6">
+                      <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
+                    </div>
+                  )}
+
+                  {ordersData && ordersData.orders.length === 0 && (
+                    <p className="text-sm text-gray-400 italic">Nenhum pedido encontrado.</p>
+                  )}
+
+                  {ordersData && ordersData.orders.length > 0 && (
+                    <div className="space-y-2">
+                      {ordersData.orders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="rounded-lg border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-bold text-gray-900">
+                                #{order.number}
+                              </span>
+                              <span
+                                className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}
+                              >
+                                {STATUS_LABELS[order.status] ?? order.status}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {TYPE_LABELS[order.type] ?? order.type}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {formatDate(order.createdAt)} · {order.itemCount}{' '}
+                              {order.itemCount === 1 ? 'item' : 'itens'}
+                            </p>
+                          </div>
+                          <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                            {formatCurrency(order.total)}
+                          </span>
+                        </div>
+                      ))}
+
+                      {/* Paginação */}
+                      {ordersData.totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-2">
+                          <p className="text-xs text-gray-500">
+                            Página {ordersData.page} de {ordersData.totalPages} ({ordersData.total}{' '}
+                            pedidos)
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              disabled={ordersData.page <= 1}
+                              onClick={() => setOrdersPage((p) => p - 1)}
+                              className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                              aria-label="Página anterior"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={ordersData.page >= ordersData.totalPages}
+                              onClick={() => setOrdersPage((p) => p + 1)}
+                              className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                              aria-label="Próxima página"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </section>
 
                 {/* Endereços */}
                 <section>

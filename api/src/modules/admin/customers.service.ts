@@ -157,6 +157,82 @@ export async function getCustomerDetail(
   }
 }
 
+// ─── Histórico de pedidos do cliente ────────────────────────────────────────
+
+export interface CustomerOrderView {
+  id: string
+  number: number
+  type: string
+  status: string
+  paymentMethod: string
+  subtotal: number
+  deliveryFee: number
+  discount: number
+  total: number
+  itemCount: number
+  createdAt: Date
+}
+
+export interface CustomerOrdersResult {
+  orders: CustomerOrderView[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export async function getCustomerOrders(
+  storeId: string,
+  whatsapp: string,
+  page = 1,
+  limit = 10
+): Promise<CustomerOrdersResult> {
+  const where = { storeId, clientWhatsapp: whatsapp }
+
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      select: {
+        id: true,
+        number: true,
+        type: true,
+        status: true,
+        paymentMethod: true,
+        subtotal: true,
+        deliveryFee: true,
+        discount: true,
+        total: true,
+        createdAt: true,
+        _count: { select: { items: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.order.count({ where }),
+  ])
+
+  return {
+    orders: orders.map((o) => ({
+      id: o.id,
+      number: o.number,
+      type: o.type,
+      status: o.status,
+      paymentMethod: o.paymentMethod,
+      subtotal: o.subtotal,
+      deliveryFee: o.deliveryFee,
+      discount: o.discount,
+      total: o.total,
+      itemCount: o._count.items,
+      createdAt: o.createdAt,
+    })),
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  }
+}
+
 // ─── Upsert Customer com endereços + telefones ──────────────────────────────
 // Estratégia: replace-all em transação — apaga endereços/telefones e recria.
 // Simples e idempotente; volume por cliente é pequeno.
