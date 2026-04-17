@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -72,8 +73,14 @@ interface Props {
 export function ClientDetailModal({ whatsapp, onClose }: Props) {
   const { data: raw, isLoading, isError } = useCustomerDetail(whatsapp)
   const [editing, setEditing] = useState(false)
+  const [showOrders, setShowOrders] = useState(false)
   const [ordersPage, setOrdersPage] = useState(1)
-  const { data: ordersData, isLoading: ordersLoading } = useCustomerOrders(whatsapp, ordersPage, 5)
+  const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
+  const { data: ordersData, isLoading: ordersLoading } = useCustomerOrders(
+    showOrders ? whatsapp : null,
+    ordersPage,
+    5
+  )
 
   // Defensive: arrays podem faltar se backend estiver em shape antigo.
   const data = raw
@@ -188,82 +195,136 @@ export function ClientDetailModal({ whatsapp, onClose }: Props) {
                   </section>
                 )}
 
-                {/* Histórico de pedidos */}
+                {/* Histórico de pedidos — colapsável */}
                 <section>
-                  <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5" />
-                    Histórico de pedidos
-                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowOrders((v) => !v)}
+                    className="w-full flex items-center justify-between py-2 group"
+                  >
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5" />
+                      Histórico de pedidos
+                    </h3>
+                    <ChevronDown
+                      className={`w-4 h-4 text-gray-400 transition-transform group-hover:text-gray-600 ${showOrders ? 'rotate-180' : ''}`}
+                    />
+                  </button>
 
-                  {ordersLoading && (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
-                    </div>
-                  )}
-
-                  {ordersData && ordersData.orders.length === 0 && (
-                    <p className="text-sm text-gray-400 italic">Nenhum pedido encontrado.</p>
-                  )}
-
-                  {ordersData && ordersData.orders.length > 0 && (
-                    <div className="space-y-2">
-                      {ordersData.orders.map((order) => (
-                        <div
-                          key={order.id}
-                          className="rounded-lg border border-gray-200 bg-gray-50 p-3 flex items-center justify-between gap-3"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-bold text-gray-900">
-                                #{order.number}
-                              </span>
-                              <span
-                                className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}
-                              >
-                                {STATUS_LABELS[order.status] ?? order.status}
-                              </span>
-                              <span className="text-xs text-gray-500">
-                                {TYPE_LABELS[order.type] ?? order.type}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {formatDate(order.createdAt)} · {order.itemCount}{' '}
-                              {order.itemCount === 1 ? 'item' : 'itens'}
-                            </p>
-                          </div>
-                          <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
-                            {formatCurrency(order.total)}
-                          </span>
+                  {showOrders && (
+                    <div className="mt-2">
+                      {ordersLoading && (
+                        <div className="flex items-center justify-center py-6">
+                          <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
                         </div>
-                      ))}
+                      )}
 
-                      {/* Paginação */}
-                      {ordersData.totalPages > 1 && (
-                        <div className="flex items-center justify-between pt-2">
-                          <p className="text-xs text-gray-500">
-                            Página {ordersData.page} de {ordersData.totalPages} ({ordersData.total}{' '}
-                            pedidos)
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              disabled={ordersData.page <= 1}
-                              onClick={() => setOrdersPage((p) => p - 1)}
-                              className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
-                              aria-label="Página anterior"
-                            >
-                              <ChevronLeft className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={ordersData.page >= ordersData.totalPages}
-                              onClick={() => setOrdersPage((p) => p + 1)}
-                              className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
-                              aria-label="Próxima página"
-                            >
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
-                          </div>
+                      {ordersData && ordersData.orders.length === 0 && (
+                        <p className="text-sm text-gray-400 italic">Nenhum pedido encontrado.</p>
+                      )}
+
+                      {ordersData && ordersData.orders.length > 0 && (
+                        <div className="space-y-2">
+                          {ordersData.orders.map((order) => {
+                            const isExpanded = expandedOrder === order.id
+                            return (
+                              <div
+                                key={order.id}
+                                className="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedOrder(isExpanded ? null : order.id)
+                                  }
+                                  className="w-full p-3 flex items-center justify-between gap-3 text-left hover:bg-gray-100 transition-colors"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-bold text-gray-900">
+                                        #{order.number}
+                                      </span>
+                                      <span
+                                        className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${STATUS_COLORS[order.status] ?? 'bg-gray-100 text-gray-700'}`}
+                                      >
+                                        {STATUS_LABELS[order.status] ?? order.status}
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {TYPE_LABELS[order.type] ?? order.type}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-0.5">
+                                      {formatDate(order.createdAt)} · {order.items.length}{' '}
+                                      {order.items.length === 1 ? 'item' : 'itens'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-gray-900 whitespace-nowrap">
+                                      {formatCurrency(order.total)}
+                                    </span>
+                                    <ChevronDown
+                                      className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                    />
+                                  </div>
+                                </button>
+
+                                {isExpanded && order.items.length > 0 && (
+                                  <div className="border-t border-gray-200 bg-white px-3 py-2 space-y-1">
+                                    {order.items.map((item, idx) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center justify-between text-xs py-1"
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-gray-700 font-medium">
+                                            {item.quantity}x {item.productName}
+                                          </span>
+                                          {item.variationName && (
+                                            <span className="text-gray-400 ml-1">
+                                              ({item.variationName})
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-gray-600 whitespace-nowrap ml-2">
+                                          {formatCurrency(item.totalPrice)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+
+                          {/* Paginação */}
+                          {ordersData.totalPages > 1 && (
+                            <div className="flex items-center justify-between pt-2">
+                              <p className="text-xs text-gray-500">
+                                Página {ordersData.page} de {ordersData.totalPages} (
+                                {ordersData.total} pedidos)
+                              </p>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  disabled={ordersData.page <= 1}
+                                  onClick={() => setOrdersPage((p) => p - 1)}
+                                  className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                                  aria-label="Página anterior"
+                                >
+                                  <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={ordersData.page >= ordersData.totalPages}
+                                  onClick={() => setOrdersPage((p) => p + 1)}
+                                  className="p-1 rounded border border-gray-300 text-gray-500 hover:bg-gray-100 disabled:opacity-40"
+                                  aria-label="Próxima página"
+                                >
+                                  <ChevronRight className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>

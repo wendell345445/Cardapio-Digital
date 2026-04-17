@@ -139,6 +139,14 @@ export interface UpdateCustomerInput {
 
 // ─── Customer order history ─────────────────────────────────────────────────
 
+export interface CustomerOrderProduct {
+  productName: string
+  variationName: string | null
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+}
+
 export interface CustomerOrderItem {
   id: string
   number: number
@@ -149,7 +157,7 @@ export interface CustomerOrderItem {
   deliveryFee: number
   discount: number
   total: number
-  itemCount: number
+  items: CustomerOrderProduct[]
   createdAt: string
 }
 

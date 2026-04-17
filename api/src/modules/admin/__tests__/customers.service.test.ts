@@ -274,6 +274,13 @@ describe('upsertCustomer', () => {
 // ─── getCustomerOrders ────────────────────────────────────────────────────
 
 describe('getCustomerOrders', () => {
+  const mockItems1 = [
+    { productName: 'Pizza Margherita', variationName: null, quantity: 2, unitPrice: 35, totalPrice: 70 },
+    { productName: 'Coca-Cola', variationName: '600ml', quantity: 1, unitPrice: 10, totalPrice: 10 },
+  ]
+  const mockItems2 = [
+    { productName: 'Hambúrguer', variationName: 'Duplo', quantity: 1, unitPrice: 45, totalPrice: 45 },
+  ]
   const mockOrders = [
     {
       id: 'order-1',
@@ -286,7 +293,7 @@ describe('getCustomerOrders', () => {
       discount: 0,
       total: 90,
       createdAt: new Date('2026-04-15'),
-      _count: { items: 3 },
+      items: mockItems1,
     },
     {
       id: 'order-2',
@@ -299,7 +306,7 @@ describe('getCustomerOrders', () => {
       discount: 5,
       total: 45,
       createdAt: new Date('2026-04-10'),
-      _count: { items: 2 },
+      items: mockItems2,
     },
   ]
 
@@ -316,7 +323,7 @@ describe('getCustomerOrders', () => {
     expect(result.totalPages).toBe(2)
   })
 
-  it('mapeia campos corretamente incluindo itemCount', async () => {
+  it('mapeia campos corretamente incluindo items', async () => {
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([mockOrders[0]])
     ;(mockPrisma.order.count as jest.Mock).mockResolvedValue(1)
 
@@ -328,7 +335,15 @@ describe('getCustomerOrders', () => {
     expect(order.type).toBe('DELIVERY')
     expect(order.status).toBe('DELIVERED')
     expect(order.total).toBe(90)
-    expect(order.itemCount).toBe(3)
+    expect(order.items).toHaveLength(2)
+    expect(order.items[0]).toEqual({
+      productName: 'Pizza Margherita',
+      variationName: null,
+      quantity: 2,
+      unitPrice: 35,
+      totalPrice: 70,
+    })
+    expect(order.items[1].variationName).toBe('600ml')
   })
 
   it('filtra por storeId e clientWhatsapp', async () => {
