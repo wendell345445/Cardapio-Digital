@@ -47,3 +47,13 @@ export async function submitOrder(dto: CreateOrderDto): Promise<OrderResult> {
   const { data } = await menuApi.post('/menu/orders', dto)
   return data.data
 }
+
+export interface DeliveryFeeResult {
+  fee: number
+  mode: 'NEIGHBORHOOD' | 'DISTANCE' | null
+}
+
+export async function calculateDeliveryFee(neighborhood: string): Promise<DeliveryFeeResult> {
+  const { data } = await menuApi.post('/menu/delivery/calculate', { neighborhood })
+  return data.data
+}
