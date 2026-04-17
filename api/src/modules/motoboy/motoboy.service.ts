@@ -135,3 +135,65 @@ export async function markDelivered(
 
   return updated
 }
+
+/**
+ * Reports a delivery problem. Motoboy could not complete delivery.
+ * Sets order back to READY, clears motoboyId, stores reason.
+ */
+export async function reportDeliveryProblem(
+  storeId: string,
+  orderId: string,
+  motoboyId: string,
+  reason: string,
+  userId: string,
+  ip?: string
+) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+  })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  if (order.motoboyId !== motoboyId) {
+    throw new AppError('Este pedido não está atribuído a você', 422)
+  }
+
+  if (order.status !== 'DISPATCHED') {
+    throw new AppError('Só é possível reportar problema em pedidos despachados', 422)
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      status: 'READY',
+      motoboyId: null,
+      dispatchedAt: null,
+      deliveryIssueReason: reason,
+    },
+    include: {
+      items: { include: { additionals: true } },
+      client: { select: { id: true, name: true, whatsapp: true } },
+      store: { select: { id: true, name: true, slug: true } },
+    },
+  })
+
+  // Notify admin via socket
+  emit.orderStatus(storeId, { orderId, status: 'READY' })
+
+  // AuditLog
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'order.delivery_problem',
+      entity: 'Order',
+      entityId: orderId,
+      data: { motoboyId, reason, previousStatus: order.status },
+      ip,
+    },
+  })
+
+  return updated
+}

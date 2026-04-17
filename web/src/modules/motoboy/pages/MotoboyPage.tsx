@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { useAuthConfig } from '../../auth/hooks/useAuthConfig'
-import { fetchMotoboyOrders, markDelivered, type MotoboyOrder } from '../services/motoboy.service'
+import { fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
 
 import { api } from '@/shared/lib/api'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
@@ -193,6 +193,105 @@ function formatMoney(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+// ─── Delivery Problem Reasons ─────────────────────────────────────────────────
+
+const DELIVERY_PROBLEM_REASONS = [
+  'Cliente ausente',
+  'Endereço não encontrado',
+  'Cliente recusou o pedido',
+  'Endereço incorreto / incompleto',
+  'Problema no pedido (itens errados)',
+  'Outro motivo',
+]
+
+// ─── Report Problem Modal ─────────────────────────────────────────────────────
+
+function ReportProblemModal({
+  order,
+  onClose,
+  onSuccess,
+}: {
+  order: MotoboyOrder
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [selectedReason, setSelectedReason] = useState<string | null>(null)
+  const [customReason, setCustomReason] = useState('')
+  const qc = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (reason: string) => reportDeliveryProblem(order.id, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['motoboy-orders'] })
+      onSuccess()
+    },
+  })
+
+  const finalReason = selectedReason === 'Outro motivo' ? customReason.trim() : selectedReason
+  const canSubmit = !!finalReason && !mutation.isPending
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm max-h-[85vh] overflow-y-auto shadow-xl">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="text-lg font-bold text-gray-900">Reportar problema</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Pedido #{order.number}</p>
+        </div>
+
+        <div className="px-5 py-4 space-y-2">
+          <p className="text-sm font-medium text-gray-700 mb-3">Qual o motivo?</p>
+          {DELIVERY_PROBLEM_REASONS.map((reason) => (
+            <button
+              key={reason}
+              onClick={() => setSelectedReason(reason)}
+              className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-colors ${
+                selectedReason === reason
+                  ? 'border-red-400 bg-red-50 text-red-700'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {reason}
+            </button>
+          ))}
+
+          {selectedReason === 'Outro motivo' && (
+            <textarea
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder="Descreva o motivo..."
+              rows={3}
+              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+            />
+          )}
+
+          {mutation.isError && (
+            <p className="text-red-600 text-sm text-center">
+              Erro ao reportar problema. Tente novamente.
+            </p>
+          )}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={mutation.isPending}
+            className="flex-1 border border-gray-300 text-gray-700 font-medium rounded-xl py-3 text-sm hover:bg-gray-50 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => finalReason && mutation.mutate(finalReason)}
+            disabled={!canSubmit}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold rounded-xl py-3 text-sm transition-colors"
+          >
+            {mutation.isPending ? 'Enviando...' : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Order Card ───────────────────────────────────────────────────────────────
 
 function OrderCard({
@@ -203,6 +302,7 @@ function OrderCard({
   onDelivered: () => void
 }) {
   const qc = useQueryClient()
+  const [showProblemModal, setShowProblemModal] = useState(false)
 
   const deliverMutation = useMutation({
     mutationFn: () => markDelivered(order.id),
@@ -301,15 +401,24 @@ function OrderCard({
           </span>
         </div>
 
-        {/* Deliver button — only for DISPATCHED in active tab */}
+        {/* Action buttons — only for DISPATCHED in active tab */}
         {order.status === 'DISPATCHED' && (
-          <button
-            onClick={handleDeliver}
-            disabled={deliverMutation.isPending}
-            className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white font-bold rounded-xl py-4 text-base transition-colors mt-2"
-          >
-            {deliverMutation.isPending ? 'Registrando...' : '✅ Marcar como Entregue'}
-          </button>
+          <div className="space-y-2 mt-2">
+            <button
+              onClick={handleDeliver}
+              disabled={deliverMutation.isPending}
+              className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white font-bold rounded-xl py-4 text-base transition-colors"
+            >
+              {deliverMutation.isPending ? 'Registrando...' : 'Marcar como Entregue'}
+            </button>
+            <button
+              onClick={() => setShowProblemModal(true)}
+              disabled={deliverMutation.isPending}
+              className="w-full border-2 border-red-300 text-red-600 hover:bg-red-50 active:bg-red-100 disabled:opacity-60 font-semibold rounded-xl py-3 text-sm transition-colors"
+            >
+              Nao consegui entregar
+            </button>
+          </div>
         )}
 
         {deliverMutation.isError && (
@@ -318,6 +427,14 @@ function OrderCard({
           </p>
         )}
       </div>
+
+      {showProblemModal && (
+        <ReportProblemModal
+          order={order}
+          onClose={() => setShowProblemModal(false)}
+          onSuccess={() => setShowProblemModal(false)}
+        />
+      )}
     </div>
   )
 }
