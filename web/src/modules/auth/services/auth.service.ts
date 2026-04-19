@@ -101,10 +101,10 @@ export async function registerStore(
 
 export function googleLogin(): void {
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-  window.location.href = `${apiUrl}/api/v1/auth/google`
+  window.location.href = `${apiUrl}/api/v1/auth/google?scope=admin`
 }
 
 export function facebookLogin(): void {
   const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-  window.location.href = `${apiUrl}/api/v1/auth/facebook`
+  window.location.href = `${apiUrl}/api/v1/auth/facebook?scope=admin`
 }

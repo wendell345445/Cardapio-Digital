@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 
 import { useAuthConfig } from '../../auth/hooks/useAuthConfig'
 import { fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
@@ -38,6 +38,17 @@ function LoginForm({ onSuccess, slug }: { onSuccess: () => void; slug: string | 
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error')
+    if (oauthError) {
+      setError(oauthError)
+      const next = new URLSearchParams(searchParams)
+      next.delete('error')
+      setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const { data: authConfig, isLoading: isAuthConfigLoading } = useAuthConfig()
   const googleEnabled = !!authConfig?.providers.google
@@ -75,7 +86,8 @@ function LoginForm({ onSuccess, slug }: { onSuccess: () => void; slug: string | 
   function handleGoogleLogin() {
     const returnTo = slug ? `/${slug}/motoboy` : '/motoboy'
     sessionStorage.setItem('oauth_return_to', returnTo)
-    window.location.href = `${API_BASE_URL}/api/v1/auth/google`
+    sessionStorage.setItem('oauth_error_return_to', returnTo)
+    window.location.href = `${API_BASE_URL}/api/v1/auth/google?scope=motoboy`
   }
 
   return (

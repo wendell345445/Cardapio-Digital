@@ -38,6 +38,15 @@ export function useOAuthCallback(): void {
     const token = searchParams.get('token')
     const refresh = searchParams.get('refresh')
     const userParam = searchParams.get('user')
+    const oauthError = searchParams.get('error')
+    const scope = searchParams.get('scope')
+
+    if (oauthError) {
+      const params = new URLSearchParams({ error: oauthError })
+      const target = scope === 'motoboy' ? '/motoboy' : '/login'
+      void navigate(`${target}?${params.toString()}`, { replace: true })
+      return
+    }
 
     if (!token) {
       void navigate('/login', { replace: true })

@@ -49,15 +49,21 @@ authRouter.post('/reauth', authMiddleware, reauthController)
 
 // ─── OAuth Google ─────────────────────────────────────────────────
 // Cast `as any` necessário porque os tipos do passport-google-oauth20 não expõem
-// `callbackURL` em AuthenticateOptions, mas é uma opção válida em runtime para
-// override dinâmico do callback (por host do request).
-authRouter.get('/google', (req, res, next) =>
+// `callbackURL`/`state` em AuthenticateOptions, mas são opções válidas em runtime.
+// O `state` carrega o scope esperado (motoboy|admin) pro callback validar a role.
+function parseScope(raw: unknown): 'motoboy' | 'admin' {
+  return raw === 'motoboy' ? 'motoboy' : 'admin'
+}
+
+authRouter.get('/google', (req, res, next) => {
+  const scope = parseScope(req.query.scope)
   passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false,
     callbackURL: callbackFor(req, 'google'),
+    state: scope,
   } as any)(req, res, next)
-)
+})
 authRouter.get(
   '/google/callback',
   (req, res, next) =>
@@ -70,13 +76,15 @@ authRouter.get(
 )
 
 // ─── OAuth Facebook ───────────────────────────────────────────────
-authRouter.get('/facebook', (req, res, next) =>
+authRouter.get('/facebook', (req, res, next) => {
+  const scope = parseScope(req.query.scope)
   passport.authenticate('facebook', {
     scope: ['email'],
     session: false,
     callbackURL: callbackFor(req, 'facebook'),
+    state: scope,
   } as any)(req, res, next)
-)
+})
 authRouter.get(
   '/facebook/callback',
   (req, res, next) =>

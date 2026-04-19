@@ -1,4 +1,6 @@
 import { useForm } from 'react-hook-form'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
@@ -30,6 +32,18 @@ interface LoginFormProps {
 export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
   const { login, isLoading, error } = useLogin(scope)
   const { data: authConfig, isLoading: isAuthConfigLoading } = useAuthConfig()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [oauthError, setOauthError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const err = searchParams.get('error')
+    if (err) {
+      setOauthError(err)
+      const next = new URLSearchParams(searchParams)
+      next.delete('error')
+      setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const googleEnabled = !!authConfig?.providers.google
   const facebookEnabled = !!authConfig?.providers.facebook
@@ -110,13 +124,13 @@ export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
           )}
         </div>
 
-        {error && (
+        {(error || oauthError) && (
           <div
             role="alert"
             aria-live="assertive"
             className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700 border border-red-200"
           >
-            {error}
+            {oauthError || error}
           </div>
         )}
 
@@ -150,7 +164,7 @@ export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
           <div className="space-y-3">
             {googleEnabled && (
               <a
-                href={`${API_BASE_URL}/api/v1/auth/google`}
+                href={`${API_BASE_URL}/api/v1/auth/google?scope=admin`}
                 role="button"
                 aria-label="Entrar com Google"
                 className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 transition-colors"
@@ -184,7 +198,7 @@ export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
 
             {facebookEnabled && (
               <a
-                href={`${API_BASE_URL}/api/v1/auth/facebook`}
+                href={`${API_BASE_URL}/api/v1/auth/facebook?scope=admin`}
                 role="button"
                 aria-label="Entrar com Facebook"
                 className="flex w-full items-center justify-center gap-3 rounded-md border border-gray-300 bg-[#1877F2] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#166FE5] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1877F2] transition-colors"

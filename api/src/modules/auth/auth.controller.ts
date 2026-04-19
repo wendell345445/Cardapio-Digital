@@ -94,26 +94,48 @@ export async function reauthController(req: Request, res: Response, next: NextFu
   }
 }
 
+// Valida se o scope iniciado (motoboy|admin) bate com a role do usuário.
+// Retorna `null` se ok, ou uma mensagem de erro pra redirecionar pro frontend.
+function validateOAuthScope(scope: unknown, role: string): string | null {
+  const expected = scope === 'motoboy' ? 'motoboy' : 'admin'
+  if (expected === 'motoboy' && role !== 'MOTOBOY') {
+    return 'Esta conta não é de motoboy. Use o login administrativo.'
+  }
+  if (expected === 'admin' && role === 'MOTOBOY') {
+    return 'Esta conta é de motoboy. Use o login do motoboy.'
+  }
+  return null
+}
+
+function buildOAuthRedirect(
+  req: Request,
+  user: { accessToken: string; refreshToken: string; user: { role: string } }
+): string {
+  const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
+  const error = validateOAuthScope(req.query.state, user.user.role)
+  if (error) {
+    const scope = req.query.state === 'motoboy' ? 'motoboy' : 'admin'
+    return `${frontendUrl}/auth/callback?error=${encodeURIComponent(error)}&scope=${scope}`
+  }
+  return `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`
+}
+
 export async function googleCallbackController(req: Request, res: Response) {
   const user = req.user as unknown as {
     accessToken: string
     refreshToken: string
+    user: { role: string }
   }
-  const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
-  res.redirect(
-    `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`
-  )
+  res.redirect(buildOAuthRedirect(req, user))
 }
 
 export async function facebookCallbackController(req: Request, res: Response) {
   const user = req.user as unknown as {
     accessToken: string
     refreshToken: string
+    user: { role: string }
   }
-  const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
-  res.redirect(
-    `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`
-  )
+  res.redirect(buildOAuthRedirect(req, user))
 }
 
 export async function clientTokenController(req: Request, res: Response, next: NextFunction) {
