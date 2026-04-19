@@ -164,13 +164,15 @@ export async function hashPassword(password: string): Promise<string> {
   return hash(password, SALT_ROUNDS)
 }
 
+export type OAuthResult = AuthResult | { notFound: 'motoboy' }
+
 export async function findOrCreateOAuthUser(params: {
   email: string
   name?: string
   provider: 'google' | 'facebook'
   providerId: string
   scope?: 'motoboy' | 'admin'
-}): Promise<AuthResult> {
+}): Promise<OAuthResult> {
   const { email, name, provider, providerId, scope } = params
 
   const providerField = provider === 'google' ? 'googleId' : 'facebookId'
@@ -181,12 +183,6 @@ export async function findOrCreateOAuthUser(params: {
   let user = expectedRole
     ? await prisma.user.findFirst({ where: { email, role: expectedRole } })
     : await prisma.user.findFirst({ where: { email, NOT: { role: 'MOTOBOY' } } })
-
-  // Fallback: nenhum User com role compatível — pega qualquer um pra manter o
-  // comportamento antigo (ex: usuário nunca logou como motoboy ainda e tenta admin).
-  if (!user) {
-    user = await prisma.user.findFirst({ where: { email } })
-  }
 
   if (user) {
     // Link provider ID if not already linked
@@ -201,7 +197,13 @@ export async function findOrCreateOAuthUser(params: {
         data: { lastLoginAt: new Date() },
       })
     }
+  } else if (scope === 'motoboy') {
+    // Login Google no /motoboy exige User MOTOBOY já cadastrado pela loja.
+    // Nunca criar um motoboy via OAuth — precisa do vínculo com storeId.
+    return { notFound: 'motoboy' } as const
   } else {
+    // Scope admin sem user existente → self-register implícito como ADMIN sem loja.
+    // Mantido pra permitir onboarding por login Google (owner cria conta e depois vincula loja).
     user = await prisma.user.create({
       data: {
         email,

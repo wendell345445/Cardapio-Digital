@@ -109,13 +109,24 @@ function validateOAuthScope(scope: unknown, role: string): string | null {
 
 function buildOAuthRedirect(
   req: Request,
-  user: { accessToken: string; refreshToken: string; user?: { role?: string } }
+  user: {
+    accessToken?: string
+    refreshToken?: string
+    user?: { role?: string }
+    notFound?: string
+  }
 ): string {
   const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
+  const scope = req.query.state === 'motoboy' ? 'motoboy' : 'admin'
+
+  if (user.notFound === 'motoboy') {
+    const msg = 'Motoboy não cadastrado. Peça pro restaurante cadastrar seu email.'
+    return `${frontendUrl}/auth/callback?error=${encodeURIComponent(msg)}&scope=${scope}`
+  }
+
   const role = user.user?.role ?? ''
   const error = role ? validateOAuthScope(req.query.state, role) : null
   if (error) {
-    const scope = req.query.state === 'motoboy' ? 'motoboy' : 'admin'
     return `${frontendUrl}/auth/callback?error=${encodeURIComponent(error)}&scope=${scope}`
   }
   return `${frontendUrl}/auth/callback?token=${user.accessToken}&refresh=${user.refreshToken}`

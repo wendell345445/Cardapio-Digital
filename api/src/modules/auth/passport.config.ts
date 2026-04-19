@@ -61,6 +61,10 @@ export function configurePassport() {
               scope,
             })
 
+            if ('notFound' in result) {
+              return done(null, { notFound: result.notFound } as unknown as Express.User)
+            }
+
             done(null, {
               accessToken: result.accessToken,
               refreshToken: result.refreshToken,
@@ -98,6 +102,10 @@ export function configurePassport() {
               providerId: profile.id,
               scope,
             })
+
+            if ('notFound' in result) {
+              return done(null, { notFound: result.notFound } as unknown as Express.User)
+            }
 
             done(null, {
               accessToken: result.accessToken,

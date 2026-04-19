@@ -97,19 +97,24 @@ export async function createMotoboy(
     throw new AppError('Informe email ou WhatsApp', 422)
   }
 
-  // Check uniqueness constraints
+  // Unicidade global de email: o mesmo email não pode ser User em nenhuma outra
+  // role/loja — senão login OAuth fica ambíguo (ver findOrCreateOAuthUser).
   if (data.email) {
-    const existing = await prisma.user.findFirst({
-      where: { email: data.email, storeId },
-    })
+    const existing = await prisma.user.findFirst({ where: { email: data.email } })
     if (existing) {
-      throw new AppError('Já existe um motoboy com esse email nesta loja', 422)
+      throw new AppError('Email já cadastrado no sistema', 422)
     }
   }
 
+  // Whatsapp pode repetir entre lojas (cliente pode pedir em várias), mas não
+  // dentro da mesma loja onde já tem role MOTOBOY/ADMIN.
   if (data.whatsapp) {
     const existing = await prisma.user.findFirst({
-      where: { whatsapp: data.whatsapp, storeId },
+      where: {
+        whatsapp: data.whatsapp,
+        storeId,
+        role: { in: ['MOTOBOY', 'ADMIN'] },
+      },
     })
     if (existing) {
       throw new AppError('Já existe um motoboy com esse WhatsApp nesta loja', 422)

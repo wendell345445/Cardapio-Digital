@@ -65,6 +65,7 @@ describe('validateCredentials / loginWithPassword', () => {
 
     const result = await loginWithPassword('test@example.com', 'correct-password')
 
+    if ('notFound' in result) throw new Error('expected success, got notFound')
     expect(result.accessToken).toBeDefined()
     expect(result.refreshToken).toBeDefined()
     expect(result.user.id).toBe('user-1')
@@ -158,6 +159,7 @@ describe('refreshAccessToken', () => {
     })
 
     const result = await refreshAccessToken(refreshToken)
+    if ('notFound' in result) throw new Error('expected success, got notFound')
     expect(result.accessToken).toBeDefined()
   })
 
@@ -270,6 +272,7 @@ describe('findOrCreateOAuthUser', () => {
         data: expect.objectContaining({ googleId: 'google-123', role: 'ADMIN' }),
       })
     )
+    if ('notFound' in result) throw new Error('expected success, got notFound')
     expect(result.accessToken).toBeDefined()
   })
 
@@ -292,6 +295,7 @@ describe('findOrCreateOAuthUser', () => {
         data: expect.objectContaining({ googleId: 'google-456' }),
       })
     )
+    if ('notFound' in result) throw new Error('expected success, got notFound')
     expect(result.accessToken).toBeDefined()
   })
 
