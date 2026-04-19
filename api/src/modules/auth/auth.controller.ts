@@ -109,10 +109,11 @@ function validateOAuthScope(scope: unknown, role: string): string | null {
 
 function buildOAuthRedirect(
   req: Request,
-  user: { accessToken: string; refreshToken: string; user: { role: string } }
+  user: { accessToken: string; refreshToken: string; user?: { role?: string } }
 ): string {
   const frontendUrl = process.env.WEB_URL || 'http://localhost:5173'
-  const error = validateOAuthScope(req.query.state, user.user.role)
+  const role = user.user?.role ?? ''
+  const error = role ? validateOAuthScope(req.query.state, role) : null
   if (error) {
     const scope = req.query.state === 'motoboy' ? 'motoboy' : 'admin'
     return `${frontendUrl}/auth/callback?error=${encodeURIComponent(error)}&scope=${scope}`

@@ -58,8 +58,12 @@ export function configurePassport() {
               providerId: profile.id,
             })
 
-            // Pass tokens through passport user so controller can redirect
-            done(null, { accessToken: result.accessToken, refreshToken: result.refreshToken } as unknown as Express.User)
+            // Pass tokens + role through passport user so controller can validate scope
+            done(null, {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken,
+              user: { role: result.user.role },
+            } as unknown as Express.User)
           } catch (err) {
             done(err as Error)
           }
@@ -90,7 +94,11 @@ export function configurePassport() {
               providerId: profile.id,
             })
 
-            done(null, { accessToken: result.accessToken, refreshToken: result.refreshToken } as unknown as Express.User)
+            done(null, {
+              accessToken: result.accessToken,
+              refreshToken: result.refreshToken,
+              user: { role: result.user.role },
+            } as unknown as Express.User)
           } catch (err) {
             done(err as Error)
           }
