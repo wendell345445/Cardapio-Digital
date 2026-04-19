@@ -169,14 +169,24 @@ export async function findOrCreateOAuthUser(params: {
   name?: string
   provider: 'google' | 'facebook'
   providerId: string
+  scope?: 'motoboy' | 'admin'
 }): Promise<AuthResult> {
-  const { email, name, provider, providerId } = params
+  const { email, name, provider, providerId, scope } = params
 
   const providerField = provider === 'google' ? 'googleId' : 'facebookId'
 
-  let user = await prisma.user.findFirst({
-    where: { email },
-  })
+  // Mesmo email pode ter múltiplos Users (admin vs motoboy cadastrado pela loja).
+  // Desambigua pelo scope: motoboy busca primeiro um User MOTOBOY; admin exclui motoboys.
+  const expectedRole = scope === 'motoboy' ? 'MOTOBOY' : null
+  let user = expectedRole
+    ? await prisma.user.findFirst({ where: { email, role: expectedRole } })
+    : await prisma.user.findFirst({ where: { email, NOT: { role: 'MOTOBOY' } } })
+
+  // Fallback: nenhum User com role compatível — pega qualquer um pra manter o
+  // comportamento antigo (ex: usuário nunca logou como motoboy ainda e tenta admin).
+  if (!user) {
+    user = await prisma.user.findFirst({ where: { email } })
+  }
 
   if (user) {
     // Link provider ID if not already linked

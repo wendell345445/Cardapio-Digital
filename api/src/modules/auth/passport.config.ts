@@ -43,22 +43,24 @@ export function configurePassport() {
         {
           clientID: process.env.GOOGLE_APP_ID!,
           clientSecret: process.env.GOOGLE_APP_SECRET!,
-          // Placeholder — o callbackURL real é calculado em auth.routes.ts a partir do host do request
           callbackURL: '/api/v1/auth/google/callback',
+          passReqToCallback: true,
         },
-        async (_accessToken, _refreshToken, profile, done) => {
+        async (req, _accessToken, _refreshToken, profile, done) => {
           try {
             const email = profile.emails?.[0]?.value
             if (!email) return done(new Error('Email não encontrado no perfil Google'))
+
+            const scope = (req.query.state as string) === 'motoboy' ? 'motoboy' : 'admin'
 
             const result = await findOrCreateOAuthUser({
               email,
               name: profile.displayName,
               provider: 'google',
               providerId: profile.id,
+              scope,
             })
 
-            // Pass tokens + role through passport user so controller can validate scope
             done(null, {
               accessToken: result.accessToken,
               refreshToken: result.refreshToken,
@@ -78,20 +80,23 @@ export function configurePassport() {
         {
           clientID: process.env.FACEBOOK_APP_ID!,
           clientSecret: process.env.FACEBOOK_APP_SECRET!,
-          // Placeholder — o callbackURL real é calculado em auth.routes.ts a partir do host do request
           callbackURL: '/api/v1/auth/facebook/callback',
           profileFields: ['id', 'emails', 'name', 'displayName'],
+          passReqToCallback: true,
         },
-        async (_accessToken, _refreshToken, profile, done) => {
+        async (req, _accessToken, _refreshToken, profile, done) => {
           try {
             const email = profile.emails?.[0]?.value
             if (!email) return done(new Error('Email não encontrado no perfil Facebook'))
+
+            const scope = (req.query.state as string) === 'motoboy' ? 'motoboy' : 'admin'
 
             const result = await findOrCreateOAuthUser({
               email,
               name: profile.displayName,
               provider: 'facebook',
               providerId: profile.id,
+              scope,
             })
 
             done(null, {
