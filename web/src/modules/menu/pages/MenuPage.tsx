@@ -12,6 +12,7 @@ import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { useCartStore } from '../store/useCartStore'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 export function MenuPage() {
   const slug = useStoreSlug()
@@ -118,7 +119,7 @@ export function MenuPage() {
             <div className="flex-shrink-0">
               {store.logo ? (
                 <img
-                  src={store.logo}
+                  src={resolveImageUrl(store.logo)}
                   alt={store.name}
                   className="w-16 h-16 rounded-xl object-cover border border-gray-100"
                 />

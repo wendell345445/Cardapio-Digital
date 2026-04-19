@@ -14,6 +14,7 @@ import { useCustomerAuth } from '../hooks/useCustomerAuth'
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { maskCep } from '@/shared/lib/masks'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -401,7 +402,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     <div className="flex items-center gap-3 p-3">
                       {item.imageUrl && (
                         <img
-                          src={item.imageUrl}
+                          src={resolveImageUrl(item.imageUrl)}
                           alt={item.productName}
                           className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-gray-100"
                         />

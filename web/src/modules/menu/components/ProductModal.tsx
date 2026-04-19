@@ -4,6 +4,8 @@ import { X, Plus, Minus } from 'lucide-react'
 import { useCartStore } from '../store/useCartStore'
 import type { Product, ProductVariation, ProductAdditional } from '../services/menu.service'
 
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
+
 interface Props {
   product: Product
   onClose: () => void
@@ -74,7 +76,7 @@ export function ProductModal({ product, onClose }: Props) {
 
         {/* Image */}
         {product.imageUrl && (
-          <img src={product.imageUrl} alt={product.name} className="w-full h-48 object-cover" />
+          <img src={resolveImageUrl(product.imageUrl)} alt={product.name} className="w-full h-48 object-cover" />
         )}
 
         <div className="p-4 space-y-5">

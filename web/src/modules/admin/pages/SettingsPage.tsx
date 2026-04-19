@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { X } from 'lucide-react'
 
+
 import { useOpenBillingPortal } from '../hooks/useBilling'
 import { useAddPaymentAccess, useRemovePaymentAccess, useStoreClients } from '../hooks/usePaymentAccess'
 import {
@@ -19,6 +20,8 @@ import {
   useUpdateStoreStatus,
   useUpdateWhatsapp,
 } from '../hooks/useStore'
+
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 // ─── TASK-050/051/052/053/054: Página de Configurações da Loja ───────────────
 // ─── TASK-109/Epic10: Aba "Mensagens WhatsApp" movida para WhatsAppPage ───────
 // ─── Epic 13 hardening: Aba "Assinatura" (Stripe Customer Portal) ─────────────
@@ -168,7 +171,7 @@ function TabDados() {
             />
             {logo && (
               <img
-                src={logo}
+                src={resolveImageUrl(logo)}
                 alt="Logo preview"
                 className="mt-2 h-16 w-16 object-cover rounded-md border border-gray-200"
               />

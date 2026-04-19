@@ -2,6 +2,8 @@ import { Plus } from 'lucide-react'
 
 import { type Product } from '../services/menu.service'
 
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
+
 interface Props {
   product: Product
   slug: string
@@ -9,8 +11,9 @@ interface Props {
 }
 
 function getCloudinaryUrl(url: string): string {
-  if (!url.includes('cloudinary.com')) return url
-  return url.replace('/upload/', '/upload/f_auto,w_auto/')
+  const resolved = resolveImageUrl(url) ?? url
+  if (!resolved.includes('cloudinary.com')) return resolved
+  return resolved.replace('/upload/', '/upload/f_auto,w_auto/')
 }
 
 function fmtBRL(v: number) {

@@ -11,6 +11,7 @@ import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 // Minimum scheduling time: 30 minutes from now
 function minScheduledAt() {
@@ -331,7 +332,7 @@ export function CheckoutPage() {
                 >
                   {item.imageUrl && (
                     <img
-                      src={item.imageUrl}
+                      src={resolveImageUrl(item.imageUrl)}
                       alt={item.productName}
                       className="w-12 h-12 rounded-md object-cover flex-shrink-0"
                     />

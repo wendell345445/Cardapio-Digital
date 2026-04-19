@@ -21,6 +21,7 @@ import { useStore } from '../hooks/useStore'
 import { StoreStatusToggle } from './StoreStatusToggle'
 
 import { api } from '@/shared/lib/api'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 
@@ -85,7 +86,7 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
         <div className="flex items-center gap-3 mb-3">
           {store?.logo ? (
             <img
-              src={store.logo}
+              src={resolveImageUrl(store.logo)}
               alt={store.name}
               className="w-10 h-10 rounded-lg object-cover"
             />

@@ -9,6 +9,7 @@ import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import type { ProductVariation, ProductAdditional } from '../services/menu.service'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -97,7 +98,7 @@ export function ItemPage() {
       <div className="max-w-2xl mx-auto px-4">
         <div className="bg-white rounded-2xl shadow-lg -mt-16 p-4 relative z-10 flex items-center gap-3">
           {store?.logo ? (
-            <img src={store.logo} alt={store.name} className="w-12 h-12 rounded-xl object-cover border border-gray-100" />
+            <img src={resolveImageUrl(store.logo)} alt={store.name} className="w-12 h-12 rounded-xl object-cover border border-gray-100" />
           ) : (
             <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center text-2xl flex-shrink-0">🍔</div>
           )}
@@ -143,7 +144,7 @@ export function ItemPage() {
           {product.imageUrl ? (
             <div className="mt-4 mx-5 rounded-xl overflow-hidden bg-gray-100">
               <img
-                src={product.imageUrl}
+                src={resolveImageUrl(product.imageUrl)}
                 alt={product.name}
                 className="w-full object-cover"
                 style={{ maxHeight: '300px' }}

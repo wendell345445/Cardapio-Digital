@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 
 import { api } from '@/shared/lib/api'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 interface ImageUploadProps {
   value?: string
@@ -38,7 +39,7 @@ export function ImageUpload({ value, onChange, className = '' }: ImageUploadProp
     <div className={`flex flex-col gap-2 ${className}`}>
       {value && (
         <img
-          src={value}
+          src={resolveImageUrl(value)}
           alt="Preview"
           className="w-32 h-32 object-cover rounded-lg border"
         />

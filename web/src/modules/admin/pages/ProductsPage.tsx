@@ -27,6 +27,7 @@ import { ProductPromoModal } from '../components/ProductPromoModal'
 import { SortModal, type SortDirection } from '../components/SortModal'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -170,7 +171,7 @@ function CategorySection({
                     {/* Thumbnail */}
                     {product.imageUrl ? (
                       <img
-                        src={product.imageUrl}
+                        src={resolveImageUrl(product.imageUrl)}
                         alt={product.name}
                         className="w-12 h-12 rounded-lg object-cover border border-gray-100 flex-shrink-0"
                       />
