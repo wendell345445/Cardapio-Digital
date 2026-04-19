@@ -74,8 +74,7 @@ async function uploadToCloudinary(
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: `menupanda/${storeId}/products`,
-        format: 'auto',
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        resource_type: 'image',
       },
       (error, result) => {
         if (error || !result) {
