@@ -2,15 +2,11 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import axios from 'axios'
 import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check } from 'lucide-react'
 
-// Dev: relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
-const baseURL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1'
+import { createPublicApi } from '../../../shared/lib/publicApi'
 
-const menuApi = axios.create({ baseURL })
+const menuApi = createPublicApi()
 
 async function fetchOrderTracking(token: string) {
   const { data } = await menuApi.get(`/menu/pedido/${token}`)

@@ -44,32 +44,44 @@ export async function publicTenantMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
-    const hostname = req.hostname
-    const rootDomains = getRootDomains()
-    const subdomainSuffixes = getSubdomainSuffixes()
-
-    if (rootDomains.includes(hostname)) {
-      throw new AppError('Loja não encontrada', 404)
-    }
-
-    const isSubdomain = subdomainSuffixes.some((suffix) => hostname.endsWith(suffix))
+    // Quando frontend e API moram em domínios diferentes (ex: api.menupanda.com.br
+    // servindo burgermais.menupanda.com.br), o Host da request perde o slug. O cliente
+    // envia então X-Tenant-Slug com o slug derivado do próprio hostname do navegador.
+    const headerSlug = (req.get('x-tenant-slug') || '').trim().toLowerCase()
 
     let store: { id: string; slug: string; name: string } | null = null
 
-    if (isSubdomain) {
-      const slug = hostname.split('.')[0]
-      const found = await prisma.store.findUnique({
-        where: { slug },
-        select: { id: true, slug: true, name: true, customDomain: true },
-      })
-      // Loja com domínio próprio não é acessível via subdomínio
-      if (found?.customDomain) throw new AppError('Loja não encontrada', 404)
-      store = found
-    } else {
+    if (headerSlug) {
       store = await prisma.store.findUnique({
-        where: { customDomain: hostname },
+        where: { slug: headerSlug },
         select: { id: true, slug: true, name: true, customDomain: true },
       })
+    } else {
+      const hostname = req.hostname
+      const rootDomains = getRootDomains()
+      const subdomainSuffixes = getSubdomainSuffixes()
+
+      if (rootDomains.includes(hostname)) {
+        throw new AppError('Loja não encontrada', 404)
+      }
+
+      const isSubdomain = subdomainSuffixes.some((suffix) => hostname.endsWith(suffix))
+
+      if (isSubdomain) {
+        const slug = hostname.split('.')[0]
+        const found = await prisma.store.findUnique({
+          where: { slug },
+          select: { id: true, slug: true, name: true, customDomain: true },
+        })
+        // Loja com domínio próprio não é acessível via subdomínio
+        if (found?.customDomain) throw new AppError('Loja não encontrada', 404)
+        store = found
+      } else {
+        store = await prisma.store.findUnique({
+          where: { customDomain: hostname },
+          select: { id: true, slug: true, name: true, customDomain: true },
+        })
+      }
     }
 
     if (!store) throw new AppError('Loja não encontrada', 404)

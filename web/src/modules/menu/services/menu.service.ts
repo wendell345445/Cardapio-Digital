@@ -1,15 +1,6 @@
-import axios from 'axios'
+import { createPublicApi } from '../../../shared/lib/publicApi'
 
-// ─── TASK-122/124: slug vem do hostname (subdomain routing) ──────────────────
-// A API resolve a loja pelo header Host da requisição (publicTenantMiddleware).
-// A URL não carrega mais o slug — é sempre GET /api/v1/menu
-
-// Dev: relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
-const baseURL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1'
-
-const menuApi = axios.create({ baseURL })
+const menuApi = createPublicApi()
 
 export interface ProductVariation { id: string; name: string; price: number; isActive: boolean }
 export interface ProductAdditional { id: string; name: string; price: number; isActive: boolean }

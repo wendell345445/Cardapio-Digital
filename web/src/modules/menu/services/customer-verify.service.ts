@@ -1,10 +1,6 @@
-import axios from 'axios'
+import { createPublicApi } from '../../../shared/lib/publicApi'
 
-const baseURL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1'
-
-const api = axios.create({ baseURL, withCredentials: true })
+const api = createPublicApi({ withCredentials: true })
 
 export interface CheckCustomerResult {
   exists: boolean

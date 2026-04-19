@@ -1,13 +1,6 @@
-import axios from 'axios'
+import { createPublicApi } from '../../../shared/lib/publicApi'
 
-// ─── TASK-122/124: slug vem do hostname (subdomain routing) ──────────────────
-
-// Dev: relativo (proxy do Vite). Prod: VITE_API_URL absoluto.
-const baseURL = import.meta.env.VITE_API_URL
-  ? `${import.meta.env.VITE_API_URL}/api/v1`
-  : '/api/v1'
-
-const menuApi = axios.create({ baseURL })
+const menuApi = createPublicApi()
 
 export interface OrderAddress {
   zipCode?: string
