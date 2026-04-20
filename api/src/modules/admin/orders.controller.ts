@@ -2,8 +2,8 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { assignMotoboySchema, listOrdersSchema, updateOrderStatusSchema } from './orders.schema'
-import { assignMotoboy, getOrder, listOrders, sendWaitingPaymentNotification, updateOrderStatus } from './orders.service'
+import { assignMotoboySchema, listOrdersSchema, updateOrderAddressSchema, updateOrderStatusSchema } from './orders.schema'
+import { assignMotoboy, getOrder, listOrders, sendWaitingPaymentNotification, updateOrderAddress, updateOrderStatus } from './orders.service'
 
 // ─── TASK-080: Controllers de Pedidos Admin ──────────────────────────────────
 
@@ -60,6 +60,20 @@ export async function sendWaitingPaymentController(req: Request, res: Response, 
     const { userId } = getUser(req)
     const { id } = req.params
     const result = await sendWaitingPaymentNotification(storeId, id, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── A-046: Controller de Atualização de Endereço ───────────────────────────
+
+export async function updateOrderAddressController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { id } = req.params
+    const input = updateOrderAddressSchema.parse(req.body)
+    const result = await updateOrderAddress(storeId, id, input)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

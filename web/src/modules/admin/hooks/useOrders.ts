@@ -5,8 +5,10 @@ import {
   fetchOrder,
   fetchOrders,
   sendWaitingPayment,
+  updateOrderAddress,
   updateOrderStatus,
   type ListOrdersParams,
+  type OrderAddress,
 } from '../services/orders.service'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -45,6 +47,18 @@ export function useAssignMotoboy() {
   return useMutation({
     mutationFn: ({ id, motoboyId }: { id: string; motoboyId: string }) =>
       assignMotoboy(id, motoboyId),
+    onSuccess: (updatedOrder) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
+    },
+  })
+}
+
+export function useUpdateOrderAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, address }: { id: string; address: OrderAddress }) =>
+      updateOrderAddress(id, address),
     onSuccess: (updatedOrder) => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
