@@ -409,7 +409,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                   <span>Subtotal</span>
                   <span>{formatCurrency(order.subtotal)}</span>
                 </div>
-                {order.deliveryFee > 0 && (
+                {order.type === 'DELIVERY' && (
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Taxa de entrega</span>
                     <span>{formatCurrency(order.deliveryFee)}</span>

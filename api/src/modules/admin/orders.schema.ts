@@ -27,14 +27,20 @@ export const listOrdersSchema = z.object({
   limit: z.coerce.number().default(20),
 })
 
+// Helper: transforma string vazia em undefined (o form envia "" quando o campo é opcional)
+const emptyToUndefined = z.literal('').transform(() => undefined)
+
 export const updateOrderAddressSchema = z.object({
-  zipCode: z.string().trim().regex(/^\d{5}-?\d{3}$/, 'CEP inválido').optional(),
+  zipCode: z.union([
+    z.string().trim().regex(/^\d{5}-?\d{3}$/, 'CEP inválido'),
+    emptyToUndefined,
+  ]).optional(),
   street: z.string().trim().min(1, 'Rua obrigatória').max(200),
   number: z.string().trim().min(1, 'Número obrigatório').max(20),
-  complement: z.string().trim().max(200).optional().nullable(),
+  complement: z.union([z.string().trim().max(200), emptyToUndefined]).optional().nullable(),
   neighborhood: z.string().trim().min(1, 'Bairro obrigatório').max(120),
   city: z.string().trim().min(1, 'Cidade obrigatória').max(120),
-  state: z.string().trim().max(2).optional().nullable(),
+  state: z.union([z.string().trim().max(2), emptyToUndefined]).optional().nullable(),
 })
 
 export type UpdateOrderStatusInput = z.infer<typeof updateOrderStatusSchema>
