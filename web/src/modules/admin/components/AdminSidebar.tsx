@@ -121,7 +121,24 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
             <Icon className="w-4 h-4 flex-shrink-0" />
             <span className="flex-1">{label}</span>
             {badge && newOrdersCount > 0 && (
-              <span className="bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  navigate('/admin/pedidos?pendentes=1')
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    navigate('/admin/pedidos?pendentes=1')
+                  }
+                }}
+                title="Ver pedidos pendentes"
+                className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1 cursor-pointer transition-colors"
+              >
                 {newOrdersCount > 99 ? '99+' : newOrdersCount}
               </span>
             )}

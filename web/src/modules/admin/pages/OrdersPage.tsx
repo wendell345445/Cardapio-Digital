@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, Clock, XCircle, CheckCheck } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 
 import { useOrders, useSendWaitingPayment } from '../hooks/useOrders'
 import type { Order } from '../services/orders.service'
@@ -258,19 +259,31 @@ function KanbanColumn({
   onViewDetail,
   onAdvanceStatus,
   advancing,
+  highlight,
 }: {
   col: (typeof ACTIVE_COLUMN_CONFIG)[number]
   orders: Order[]
   onViewDetail: (id: string) => void
   onAdvanceStatus: (id: string, status: string) => void
   advancing: string | null
+  highlight?: boolean
 }) {
   const Icon = col.icon
   const total = orders.reduce((acc, o) => acc + o.total, 0)
   const isFinished = col.id === 'concluidos'
+  const colRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (highlight && colRef.current) {
+      colRef.current.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+    }
+  }, [highlight])
 
   return (
-    <div className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full bg-white`}>
+    <div
+      ref={colRef}
+      className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full bg-white ${highlight ? 'ring-2 ring-red-400 ring-offset-2 animate-pulse' : ''}`}
+    >
       <div className={`px-4 py-3 rounded-t-xl ${col.headerColor} border-b ${col.color}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -361,6 +374,7 @@ type PageTab = 'ativos' | 'cancelados'
 
 export function OrdersPage() {
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('todos')
   const [search, setSearch] = useState('')
@@ -370,6 +384,22 @@ export function OrdersPage() {
   const [printSales, setPrintSales] = useState(false)
   // TASK-126: Tab ativos / cancelados
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
+
+  // Highlight coluna "Novos" quando vem do badge do sidebar (?pendentes=1)
+  const [highlightNovos, setHighlightNovos] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('pendentes') === '1') {
+      setHighlightNovos(true)
+      setPageTab('ativos')
+      // Remove o param da URL sem recarregar
+      searchParams.delete('pendentes')
+      setSearchParams(searchParams, { replace: true })
+      // Remove o highlight após 3 segundos
+      const timer = setTimeout(() => setHighlightNovos(false), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams, setSearchParams])
 
   const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
@@ -576,6 +606,7 @@ export function OrdersPage() {
                 onViewDetail={(id) => setSelectedOrderId(id)}
                 onAdvanceStatus={handleAdvanceStatus}
                 advancing={advancingId}
+                highlight={col.id === 'novos' && highlightNovos}
               />
             ))}
           </div>
