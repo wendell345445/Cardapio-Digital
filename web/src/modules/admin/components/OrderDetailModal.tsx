@@ -181,7 +181,9 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
     if (!order || !addressForm.street.trim() || !addressForm.number.trim() || !addressForm.neighborhood.trim() || !addressForm.city.trim()) return
     updateAddress.mutate(
       { id: order.id, address: addressForm },
-      { onSuccess: () => setEditingAddress(false) }
+      {
+        onSuccess: () => setEditingAddress(false),
+      }
     )
   }
 
@@ -322,6 +324,11 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                           Cancelar
                         </button>
                       </div>
+                      {updateAddress.isError && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {(updateAddress.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao salvar endereço'}
+                        </p>
+                      )}
                     </form>
                   ) : order.address ? (
                     <>

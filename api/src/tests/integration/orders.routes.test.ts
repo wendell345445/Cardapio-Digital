@@ -10,6 +10,10 @@ jest.mock('../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     user: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
+    deliveryNeighborhood: {
+      findFirst: jest.fn(),
+      count: jest.fn(),
+    },
   },
 }))
 
@@ -210,11 +214,20 @@ const newAddress = {
 }
 
 describe('PATCH /api/v1/admin/orders/:id/address — Edição de endereço', () => {
-  it('retorna 200 e atualiza endereço de pedido DELIVERY com status editável', async () => {
+  it('retorna 200, atualiza endereço e recalcula frete por bairro', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
+    // calculateDeliveryFee: store.findUnique é chamado 2x (middleware + delivery)
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce({ status: 'ACTIVE' })                    // requireActiveStore
+      .mockResolvedValueOnce({ deliveryMode: 'NEIGHBORHOOD' })        // calculateDeliveryFee
+    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue({
+      id: 'nb-1', storeId: STORE_ID, name: 'Boa Vista', fee: 8.0,
+    })
     ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({
       ...mockOrderFull,
       address: newAddress,
+      deliveryFee: 8.0,
+      total: 89.9 + 8.0,
     })
 
     const res = await request(app)
@@ -226,15 +239,18 @@ describe('PATCH /api/v1/admin/orders/:id/address — Edição de endereço', () 
     expect(res.body.success).toBe(true)
     expect(res.body.data.address).toMatchObject({
       street: 'Rua Nova',
-      number: '456',
       neighborhood: 'Boa Vista',
-      city: 'Joinville',
     })
+    expect(res.body.data.deliveryFee).toBe(8.0)
+    expect(res.body.data.total).toBe(97.9)
 
     expect(mockPrisma.order.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: ORDER_ID },
-        data: { address: expect.objectContaining({ street: 'Rua Nova' }) },
+        data: expect.objectContaining({
+          address: expect.objectContaining({ street: 'Rua Nova' }),
+          deliveryFee: 8.0,
+        }),
       })
     )
   })

@@ -9,6 +9,7 @@ import {
 } from '../whatsapp/messages.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
+import { calculateDeliveryFee } from './delivery.service'
 import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
@@ -111,9 +112,20 @@ export async function updateOrderAddress(
     throw new AppError('Endereço não pode ser alterado neste status', 422)
   }
 
+  // Recalcula frete com base no novo bairro
+  let deliveryFee = order.deliveryFee
+  try {
+    const result = await calculateDeliveryFee(storeId, { neighborhood: input.neighborhood })
+    deliveryFee = result.fee
+  } catch {
+    // Se não há configuração de entrega, mantém o frete atual
+  }
+
+  const total = order.subtotal - order.discount + deliveryFee
+
   const updated = await prisma.order.update({
     where: { id: orderId },
-    data: { address: input },
+    data: { address: input, deliveryFee, total },
     include: {
       items: { include: { additionals: true } },
       motoboy: { select: { id: true, name: true, whatsapp: true } },
