@@ -178,16 +178,22 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
               </div>
 
               {/* Endereço (DELIVERY) */}
-              {order.type === 'DELIVERY' && order.address && (
+              {order.type === 'DELIVERY' && (
                 <div className="bg-gray-50 rounded-lg p-4 space-y-1">
                   <h3 className="text-sm font-semibold text-gray-800 mb-2">Endereço de entrega</h3>
-                  <p className="text-sm text-gray-700">
-                    {order.address.street}, {order.address.number}
-                    {order.address.complement ? ` — ${order.address.complement}` : ''}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    {order.address.neighborhood} — {order.address.city}
-                  </p>
+                  {order.address ? (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        {order.address.street}, {order.address.number}
+                        {order.address.complement ? ` — ${order.address.complement}` : ''}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {order.address.neighborhood} — {order.address.city}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Não informado</p>
+                  )}
                 </div>
               )}
 
