@@ -381,6 +381,131 @@ describe('updateOrderStatus', () => {
       })
     )
   })
+
+  // ─── A-047: Confirmar pedido Pix (WAITING_PAYMENT_PROOF → CONFIRMED) ───────
+
+  describe('A-047: WAITING_PAYMENT_PROOF → CONFIRMED (Pix)', () => {
+    const pixOrder = {
+      ...mockOrder,
+      status: 'WAITING_PAYMENT_PROOF' as const,
+      paymentMethod: 'PIX',
+    }
+
+    it('permite transição WAITING_PAYMENT_PROOF → CONFIRMED', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CONFIRMED' })
+
+      const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+      expect(result.status).toBe('CONFIRMED')
+    })
+
+    it('persiste confirmedAt timestamp ao confirmar pedido Pix', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CONFIRMED' })
+
+      await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+      expect(mockPrisma.order.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'CONFIRMED', confirmedAt: expect.any(Date) }),
+        })
+      )
+    })
+
+    it('emite socket.io order:status CONFIRMED ao aprovar Pix', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CONFIRMED' })
+
+      await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+      expect(mockEmit.orderStatus).toHaveBeenCalledWith(STORE_ID, { orderId: ORDER_ID, status: 'CONFIRMED' })
+    })
+
+    it('dispara sendStatusUpdateMessage (WhatsApp) ao confirmar Pix', async () => {
+      const { sendStatusUpdateMessage } = await import('../../whatsapp/messages.service')
+      const mockSendStatus = sendStatusUpdateMessage as jest.MockedFunction<typeof sendStatusUpdateMessage>
+      mockSendStatus.mockClear()
+
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX', clientWhatsapp: '5548999990001' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({
+        ...pixOrder,
+        status: 'CONFIRMED',
+        total: 50.0,
+        items: mockOrder.items,
+      })
+
+      await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+      expect(mockSendStatus).toHaveBeenCalledWith(
+        STORE_ID,
+        '5548999990001',
+        mockOrder.number,
+        'CONFIRMED',
+        mockStore.name,
+        mockOrder.type,
+        expect.objectContaining({ total: expect.any(Number), items: expect.any(Array) })
+      )
+    })
+
+    it('dispara autoPrintOrder via setImmediate ao confirmar Pix', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CONFIRMED' })
+      const setImmediateSpy = jest.spyOn(global, 'setImmediate')
+
+      await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+      expect(setImmediateSpy).toHaveBeenCalled()
+      setImmediateSpy.mockRestore()
+    })
+
+    it('registra AuditLog com previousStatus WAITING_PAYMENT_PROOF', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CONFIRMED' })
+
+      await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: 'order.status_update',
+            entity: 'Order',
+            entityId: ORDER_ID,
+            data: expect.objectContaining({
+              previousStatus: 'WAITING_PAYMENT_PROOF',
+              newStatus: 'CONFIRMED',
+            }),
+            ip: IP,
+          }),
+        })
+      )
+    })
+
+    it('rejeita transição inválida WAITING_PAYMENT_PROOF → PREPARING (deve confirmar antes)', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+
+      await expect(
+        updateOrderStatus(STORE_ID, ORDER_ID, { status: 'PREPARING' }, USER_ID)
+      ).rejects.toMatchObject({ status: 422 })
+
+      expect(mockPrisma.order.update).not.toHaveBeenCalled()
+    })
+
+    it('permite cancelar pedido aguardando comprovante (WAITING_PAYMENT_PROOF → CANCELLED)', async () => {
+      setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+      ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pixOrder, status: 'CANCELLED' })
+
+      const result = await updateOrderStatus(
+        STORE_ID,
+        ORDER_ID,
+        { status: 'CANCELLED', cancelReason: 'Comprovante inválido' },
+        USER_ID,
+        IP
+      )
+
+      expect(result.status).toBe('CANCELLED')
+    })
+  })
 })
 
 // ─── assignMotoboy ────────────────────────────────────────────────────────────
