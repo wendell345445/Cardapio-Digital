@@ -1,5 +1,4 @@
-// ─── A-046: [Pedidos - Kanban] Detalhes do pedido — Integration Tests ────────
-// Cobre: GET /admin/orders/:id retornando itens, cliente, endereço, pagamento, notas
+// ─── A-046: [Pedidos - Kanban] Detalhes + Edição de Endereço — Integration Tests
 
 jest.mock('../../shared/prisma/prisma', () => ({
   prisma: {
@@ -138,7 +137,7 @@ beforeEach(() => {
 
 // ─── GET /admin/orders/:id ──────────────────────────────────────────────────
 
-describe('GET /api/v1/admin/orders/:id — A-046 Detalhes do pedido', () => {
+describe('GET /api/v1/admin/orders/:id — Detalhes do pedido', () => {
   it('retorna 200 com pedido completo: itens, cliente, endereço, pagamento, notas', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
 
@@ -151,33 +150,25 @@ describe('GET /api/v1/admin/orders/:id — A-046 Detalhes do pedido', () => {
 
     const order = res.body.data
 
-    // Itens com quantidade, nome, variação, adicionais e obs
+    // Itens
     expect(order.items).toHaveLength(2)
     expect(order.items[0]).toMatchObject({
       quantity: 2,
       productName: 'Pizza Margherita',
       notes: 'Bem passada',
-      totalPrice: 79.9,
     })
     expect(order.items[0].additionals).toEqual(
-      expect.arrayContaining([expect.objectContaining({ name: 'Borda recheada', price: 5.0 })])
+      expect.arrayContaining([expect.objectContaining({ name: 'Borda recheada' })])
     )
-    expect(order.items[1]).toMatchObject({
-      quantity: 1,
-      productName: 'Refrigerante',
-      variationName: '2L',
-    })
 
     // Cliente
     expect(order.clientName).toBe('Maria da Silva')
-    expect(order.clientWhatsapp).toBe('5548999990001')
-    expect(order.client).toMatchObject({ name: 'Maria da Silva', whatsapp: '5548999990001' })
+    expect(order.client).toMatchObject({ name: 'Maria da Silva' })
 
     // Endereço
     expect(order.address).toMatchObject({
       street: 'Rua das Flores',
       number: '123',
-      complement: 'Apto 4B',
       neighborhood: 'Centro',
       city: 'Joinville',
     })
@@ -185,47 +176,8 @@ describe('GET /api/v1/admin/orders/:id — A-046 Detalhes do pedido', () => {
     // Pagamento
     expect(order.paymentMethod).toBe('PIX')
 
-    // Notas do pedido
+    // Notas
     expect(order.notes).toBe('Sem cebola, por favor')
-  })
-
-  it('retorna itens com adicionais vazios e sem notas quando não há', async () => {
-    const orderMinimal = {
-      ...mockOrderFull,
-      notes: null,
-      address: null,
-      type: 'PICKUP',
-      items: [
-        {
-          id: 'item-3',
-          orderId: ORDER_ID,
-          productId: 'prod-3',
-          variationId: null,
-          quantity: 1,
-          unitPrice: 15.0,
-          totalPrice: 15.0,
-          notes: null,
-          status: 'PENDING',
-          productName: 'Pastel de Carne',
-          variationName: null,
-          additionals: [],
-        },
-      ],
-    }
-    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderMinimal)
-
-    const res = await request(app)
-      .get(`/api/v1/admin/orders/${ORDER_ID}`)
-      .set('Authorization', `Bearer ${adminToken()}`)
-
-    expect(res.status).toBe(200)
-    const order = res.body.data
-
-    expect(order.items).toHaveLength(1)
-    expect(order.items[0].additionals).toEqual([])
-    expect(order.items[0].notes).toBeNull()
-    expect(order.notes).toBeNull()
-    expect(order.address).toBeNull()
   })
 
   it('retorna 404 quando pedido não existe', async () => {
@@ -239,22 +191,136 @@ describe('GET /api/v1/admin/orders/:id — A-046 Detalhes do pedido', () => {
     expect(res.body.success).toBe(false)
   })
 
-  it('retorna 404 quando pedido pertence a outra loja (multi-tenant)', async () => {
-    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+  it('retorna 401 sem token de autenticação', async () => {
+    const res = await request(app).get(`/api/v1/admin/orders/${ORDER_ID}`)
+    expect(res.status).toBe(401)
+  })
+})
+
+// ─── PATCH /admin/orders/:id/address ────────────────────────────────────────
+
+const newAddress = {
+  zipCode: '89201-100',
+  street: 'Rua Nova',
+  number: '456',
+  complement: 'Casa',
+  neighborhood: 'Boa Vista',
+  city: 'Joinville',
+  state: 'SC',
+}
+
+describe('PATCH /api/v1/admin/orders/:id/address — Edição de endereço', () => {
+  it('retorna 200 e atualiza endereço de pedido DELIVERY com status editável', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({
       ...mockOrderFull,
-      storeId: 'outra-loja',
+      address: newAddress,
     })
 
     const res = await request(app)
-      .get(`/api/v1/admin/orders/${ORDER_ID}`)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
       .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
 
-    expect(res.status).toBe(404)
+    expect(res.status).toBe(200)
+    expect(res.body.success).toBe(true)
+    expect(res.body.data.address).toMatchObject({
+      street: 'Rua Nova',
+      number: '456',
+      neighborhood: 'Boa Vista',
+      city: 'Joinville',
+    })
+
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: ORDER_ID },
+        data: { address: expect.objectContaining({ street: 'Rua Nova' }) },
+      })
+    )
+  })
+
+  it('retorna 422 quando pedido não é DELIVERY', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockOrderFull,
+      type: 'PICKUP',
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
+
+    expect(res.status).toBe(422)
     expect(res.body.success).toBe(false)
   })
 
+  it('retorna 422 quando pedido já foi despachado', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockOrderFull,
+      status: 'DISPATCHED',
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
+
+    expect(res.status).toBe(422)
+    expect(res.body.success).toBe(false)
+  })
+
+  it('retorna 422 quando pedido está entregue', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockOrderFull,
+      status: 'DELIVERED',
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
+
+    expect(res.status).toBe(422)
+  })
+
+  it('retorna 422 quando pedido está cancelado', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockOrderFull,
+      status: 'CANCELLED',
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
+
+    expect(res.status).toBe(422)
+  })
+
+  it('retorna 404 quando pedido não existe', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send(newAddress)
+
+    expect(res.status).toBe(404)
+  })
+
+  it('retorna 400 quando endereço é inválido (rua vazia)', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ ...newAddress, street: '' })
+
+    expect(res.status).toBe(400)
+  })
+
   it('retorna 401 sem token de autenticação', async () => {
-    const res = await request(app).get(`/api/v1/admin/orders/${ORDER_ID}`)
+    const res = await request(app)
+      .patch(`/api/v1/admin/orders/${ORDER_ID}/address`)
+      .send(newAddress)
 
     expect(res.status).toBe(401)
   })

@@ -9,7 +9,7 @@ import {
 } from '../whatsapp/messages.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
-import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderStatusInput } from './orders.schema'
+import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
 
@@ -86,6 +86,43 @@ export async function getOrder(storeId: string, orderId: string) {
   }
 
   return order
+}
+
+// ─── A-046: Atualização de Endereço do Pedido ───────────────────────────────
+
+const NON_EDITABLE_STATUSES = new Set<string>(['DISPATCHED', 'DELIVERED', 'CANCELLED'])
+
+export async function updateOrderAddress(
+  storeId: string,
+  orderId: string,
+  input: UpdateOrderAddressInput
+) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  if (order.type !== OrderType.DELIVERY) {
+    throw new AppError('Endereço só pode ser editado em pedidos de entrega', 422)
+  }
+
+  if (NON_EDITABLE_STATUSES.has(order.status)) {
+    throw new AppError('Endereço não pode ser alterado neste status', 422)
+  }
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { address: input },
+    include: {
+      items: { include: { additionals: true } },
+      motoboy: { select: { id: true, name: true, whatsapp: true } },
+      client: { select: { id: true, name: true, whatsapp: true } },
+      coupon: { select: { id: true, code: true } },
+    },
+  })
+
+  return updated
 }
 
 // ─── TASK-082: Atualização de Status do Pedido ───────────────────────────────

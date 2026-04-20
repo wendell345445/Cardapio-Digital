@@ -13,6 +13,16 @@ export interface OrderItem {
   additionals: Array<{ id: string; name: string; price: number }>
 }
 
+export interface OrderAddress {
+  zipCode?: string
+  street: string
+  number: string
+  complement?: string | null
+  neighborhood: string
+  city: string
+  state?: string | null
+}
+
 export interface Order {
   id: string
   number: number
@@ -25,13 +35,7 @@ export interface Order {
   deliveryFee: number
   discount: number
   total: number
-  address?: {
-    street: string
-    number: string
-    complement?: string
-    neighborhood: string
-    city: string
-  } | null
+  address?: OrderAddress | null
   notes?: string | null
   tableId?: string | null
   motoboyId?: string | null
@@ -85,6 +89,11 @@ export async function updateOrderStatus(
 
 export async function assignMotoboy(id: string, motoboyId: string): Promise<Order> {
   const { data } = await api.patch(`/admin/orders/${id}/motoboy`, { motoboyId })
+  return data.data
+}
+
+export async function updateOrderAddress(id: string, address: OrderAddress): Promise<Order> {
+  const { data } = await api.patch(`/admin/orders/${id}/address`, address)
   return data.data
 }
 
