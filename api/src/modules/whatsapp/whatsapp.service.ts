@@ -287,6 +287,41 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
   })
 }
 
+/**
+ * Restaura todas as sessões WhatsApp salvas em disco ao iniciar o servidor.
+ * Lê os diretórios em SESSIONS_DIR (cada subpasta = storeId) e chama connectWhatsApp().
+ * Sessões válidas reconectam automaticamente sem precisar escanear QR de novo.
+ */
+export async function restoreAllSessions(): Promise<void> {
+  ensureSessionsDir()
+
+  let dirs: string[]
+  try {
+    dirs = fs.readdirSync(SESSIONS_DIR).filter((entry) => {
+      const fullPath = path.join(SESSIONS_DIR, entry)
+      return fs.statSync(fullPath).isDirectory()
+    })
+  } catch {
+    console.warn('[WhatsApp] Could not read sessions dir, skipping restore')
+    return
+  }
+
+  if (dirs.length === 0) {
+    console.log('[WhatsApp] No saved sessions to restore')
+    return
+  }
+
+  console.log(`[WhatsApp] Restoring ${dirs.length} saved session(s)...`)
+
+  for (const storeId of dirs) {
+    try {
+      await connectWhatsApp(storeId)
+    } catch (err) {
+      console.error(`[WhatsApp] Failed to restore session for storeId=${storeId}:`, err)
+    }
+  }
+}
+
 export async function disconnectWhatsApp(storeId: string): Promise<void> {
   const instance = instances.get(storeId)
   if (!instance) return

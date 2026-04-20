@@ -3,6 +3,7 @@ import { createServer } from 'http'
 
 import { app } from './app'
 import { registerTrialSuspensionJob } from './jobs/trial-suspension.job'
+import { restoreAllSessions } from './modules/whatsapp/whatsapp.service'
 import { logger } from './shared/logger/logger'
 import { connectRedis } from './shared/redis/redis'
 import { initSocket } from './shared/socket/socket'
@@ -21,6 +22,11 @@ async function bootstrap() {
   httpServer.listen(PORT, () => {
     logger.info({ port: PORT }, 'API running')
     logger.info('Socket.io ready')
+
+    // Restaura sessões WhatsApp salvas em disco (fire-and-forget, não bloqueia startup)
+    restoreAllSessions()
+      .then(() => logger.info('WhatsApp sessions restored'))
+      .catch((err) => logger.error({ err }, 'WhatsApp session restore failed'))
   })
 }
 
