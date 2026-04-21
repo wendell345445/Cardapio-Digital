@@ -1,19 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  Bike,
+  Clock,
+  ExternalLink,
   LayoutDashboard,
   LogOut,
   MessageCircle,
-  ShoppingBag,
   Package,
-  Tag,
   PlusCircle,
   QrCode,
-  Clock,
   Settings,
-  ExternalLink,
-  Users,
+  ShieldCheck,
+  ShoppingBag,
+  Tag,
   Truck,
+  Users,
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
@@ -30,8 +32,10 @@ const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | 
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Entregas', to: '/admin/entregas', icon: Truck },
+  { label: 'Motoboys', to: '/admin/motoboys', icon: Bike },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
   { label: 'Clientes', to: '/admin/clientes', icon: Users },
+  { label: 'Controle de Acesso', to: '/admin/controle-de-acesso', icon: ShieldCheck },
   { label: 'Produtos', to: '/admin/produtos', icon: Package },
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },

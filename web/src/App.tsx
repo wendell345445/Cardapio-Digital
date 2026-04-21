@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 
 import { LoginPage } from '@/modules/auth/pages/LoginPage'
 import { OAuthCallbackPage } from '@/modules/auth/pages/OAuthCallbackPage'
@@ -26,6 +26,8 @@ import { AdicionaisPage } from '@/modules/admin/pages/AdicionaisPage'
 import { BairrosPage } from '@/modules/admin/pages/BairrosPage'
 import { EntregasPage } from '@/modules/admin/pages/EntregasPage'
 import { HorariosPage } from '@/modules/admin/pages/HorariosPage'
+import { MotoboysPage } from '@/modules/admin/pages/MotoboysPage'
+import { ControleAcessoPage } from '@/modules/admin/pages/ControleAcessoPage'
 import { CheckoutPage } from '@/modules/menu/pages/CheckoutPage'
 import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
@@ -51,6 +53,14 @@ function RootRoute() {
   const slug = useStoreSlug()
   if (!slug) return <Navigate to="/login" replace />
   return <MenuPage />
+}
+
+function SettingsWithLegacyTabRedirect() {
+  const [params] = useSearchParams()
+  const tab = params.get('tab')
+  if (tab === 'motoboys') return <Navigate to="/admin/motoboys" replace />
+  if (tab === 'acesso') return <Navigate to="/admin/controle-de-acesso" replace />
+  return <SettingsPage />
 }
 
 function DashboardRedirect() {
@@ -218,6 +228,22 @@ export function App() {
             }
           />
           <Route
+            path="/admin/motoboys"
+            element={
+              <AdminLayout>
+                <MotoboysPage />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/controle-de-acesso"
+            element={
+              <AdminLayout>
+                <ControleAcessoPage />
+              </AdminLayout>
+            }
+          />
+          <Route
             path="/admin/qr-code"
             element={
               <AdminLayout>
@@ -229,7 +255,7 @@ export function App() {
             path="/admin/configuracoes"
             element={
               <AdminLayout>
-                <SettingsPage />
+                <SettingsWithLegacyTabRedirect />
               </AdminLayout>
             }
           />
