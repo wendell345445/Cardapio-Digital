@@ -74,12 +74,36 @@ describe('listStoreClients', () => {
 
     expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ role: 'CLIENT' }),
+        where: expect.objectContaining({
+          role: 'CLIENT',
+          OR: [
+            { ordersAsClient: { some: { storeId: STORE_ID } } },
+            { clientAccessLists: { some: { storeId: STORE_ID } } },
+          ],
+        }),
       })
     )
     expect(result).toHaveLength(1)
     expect(result[0].accessType).toBe('BLACKLIST')
     expect(result[0].accessId).toBe('access-1')
+  })
+
+  it('inclui clientes sem histórico que foram adicionados manualmente (ADR-0002)', async () => {
+    ;(mockPrisma.user.findMany as jest.Mock).mockResolvedValue([
+      {
+        id: 'manual-client-1',
+        name: 'Cliente 8888',
+        email: null,
+        whatsapp: '5511999998888',
+        clientAccessLists: [{ id: 'access-manual-1', type: 'WHITELIST' }],
+      },
+    ])
+
+    const result = await listStoreClients(STORE_ID)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].accessType).toBe('WHITELIST')
+    expect(result[0].accessId).toBe('access-manual-1')
   })
 
   it('retorna accessType=null para clientes sem entrada na lista', async () => {
