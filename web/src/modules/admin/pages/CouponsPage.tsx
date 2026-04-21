@@ -22,7 +22,7 @@ const couponSchema = z.object({
 type CouponForm = z.infer<typeof couponSchema>
 
 // Tamanho da página da listagem — client-side pagination.
-const PAGE_SIZE = 2
+const PAGE_SIZE = 8
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
