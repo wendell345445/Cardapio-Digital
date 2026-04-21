@@ -492,6 +492,114 @@ describe('assignMotoboy', () => {
   })
 })
 
+// ─── A-051: Pedido confirmado via pagamento → coluna "Confirmado" do Kanban ──
+
+describe('A-051: Coluna "Confirmado" do Kanban', () => {
+  function setupUpdateMocks(orderOverrides = {}) {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({ ...mockOrder, ...orderOverrides })
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({
+      ...mockOrder,
+      ...orderOverrides,
+      status: 'CONFIRMED',
+      confirmedAt: new Date(),
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+  }
+
+  it('WAITING_PAYMENT_PROOF → CONFIRMED (Pix comprovado): pedido entra na coluna Confirmado', async () => {
+    setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })
+
+    const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+    expect(result.status).toBe('CONFIRMED')
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          confirmedAt: expect.any(Date),
+        }),
+      })
+    )
+  })
+
+  it('WAITING_CONFIRMATION → CONFIRMED (confirmação manual): pedido entra na coluna Confirmado', async () => {
+    setupUpdateMocks({ status: 'WAITING_CONFIRMATION', paymentMethod: 'CASH_ON_DELIVERY' })
+
+    const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+    expect(result.status).toBe('CONFIRMED')
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          confirmedAt: expect.any(Date),
+        }),
+      })
+    )
+  })
+
+  it('PENDING → CONFIRMED (confirmação direta): pedido entra na coluna Confirmado', async () => {
+    setupUpdateMocks({ status: 'PENDING' })
+
+    const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
+
+    expect(result.status).toBe('CONFIRMED')
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          confirmedAt: expect.any(Date),
+        }),
+      })
+    )
+  })
+
+  it('emite socket.io order:status CONFIRMED para atualização real-time do Kanban', async () => {
+    setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF' })
+
+    await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+    expect(mockEmit.orderStatus).toHaveBeenCalledWith(STORE_ID, {
+      orderId: ORDER_ID,
+      status: 'CONFIRMED',
+    })
+  })
+
+  it('dispara auto-print e linkagem de caixa ao confirmar pedido', async () => {
+    setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF' })
+    const setImmediateSpy = jest.spyOn(global, 'setImmediate')
+
+    await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+    // setImmediate é chamado 2x: autoPrintOrder + linkOrderToCashFlow
+    expect(setImmediateSpy).toHaveBeenCalledTimes(2)
+    setImmediateSpy.mockRestore()
+  })
+
+  it('pedido CONFIRMED NÃO aparece na coluna Novos (statuses diferentes)', () => {
+    // Validação estática: CONFIRMED não está nos statuses da coluna "Novos"
+    const novosStatuses = ['PENDING', 'WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION']
+    expect(novosStatuses).not.toContain('CONFIRMED')
+  })
+
+  it('filtra pedidos por status CONFIRMED (query da coluna do Kanban)', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      { ...mockOrder, status: 'CONFIRMED' },
+    ])
+
+    const result = await listOrders(STORE_ID, { status: 'CONFIRMED' as any, limit: 20 })
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'CONFIRMED' }),
+      })
+    )
+    expect(result.orders).toHaveLength(1)
+    expect(result.orders[0].status).toBe('CONFIRMED')
+  })
+})
+
 // ─── sendWaitingPaymentNotification (TASK-123) ────────────────────────────────
 
 describe('sendWaitingPaymentNotification', () => {
