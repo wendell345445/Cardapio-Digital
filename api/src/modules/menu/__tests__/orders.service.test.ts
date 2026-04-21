@@ -828,6 +828,40 @@ describe('createOrder — mesa via QR code (C-002/C-022)', () => {
       data: { isOccupied: true },
     })
   })
+
+  it('aceita paymentMethod=PENDING para TABLE e cria pedido com status WAITING_CONFIRMATION', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue({
+      id: 'table-uuid-1',
+      storeId: STORE_ID,
+      number: 5,
+      isOccupied: false,
+    })
+
+    await createOrder(SLUG, {
+      ...baseOrderInput,
+      type: 'TABLE' as const,
+      paymentMethod: 'PENDING' as const,
+      tableNumber: 5,
+    })
+
+    expect(mockPrisma.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentMethod: 'PENDING',
+          status: 'WAITING_CONFIRMATION',
+        }),
+      })
+    )
+  })
+
+  it('rejeita paymentMethod=PENDING para DELIVERY (422)', async () => {
+    setupDefaultMocks()
+
+    await expect(
+      createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'PENDING' as const })
+    ).rejects.toMatchObject({ status: 422 })
+  })
 })
 
 // ─── C-027: Blacklist bloqueia "Pagar na entrega" ────────────────────────────
