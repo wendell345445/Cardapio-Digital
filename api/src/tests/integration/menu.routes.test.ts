@@ -417,6 +417,37 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
     expect(res.status).toBe(201)
   })
+
+  it('aplica cupom quando couponCode é enviado em lowercase (normaliza para uppercase)', async () => {
+    setupOrderMocks()
+    // Cupom salvo no banco em uppercase — busca precisa normalizar input lowercase.
+    ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue({
+      id: 'coupon-1',
+      storeId: STORE_ID,
+      code: 'APROVEITE25',
+      type: 'PERCENTAGE',
+      value: 25,
+      isActive: true,
+      productId: null,
+      expiresAt: null,
+      maxUses: null,
+      usedCount: 0,
+      minOrder: null,
+    })
+
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({ ...validOrderBody, couponCode: 'aproveite25' })
+
+    expect(res.status).toBe(201)
+    // Confirma que o Prisma foi consultado com o code em uppercase.
+    expect(mockPrisma.coupon.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId_code: { storeId: STORE_ID, code: 'APROVEITE25' } },
+      })
+    )
+  })
 })
 
 // ─── GET /menu/:slug/pedido/:token ────────────────────────────────────────────

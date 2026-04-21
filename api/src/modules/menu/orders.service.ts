@@ -200,9 +200,11 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
 
   if (data.couponCode) {
     const coupon = await prisma.coupon.findUnique({
-      where: { storeId_code: { storeId: store.id, code: data.couponCode } },
+      where: { storeId_code: { storeId: store.id, code: data.couponCode.toUpperCase() } },
     })
-    if (!coupon || !coupon.isActive) throw new AppError('Cupom inválido ou expirado', 422)
+    if (!coupon || !coupon.isActive || coupon.productId) {
+      throw new AppError('Cupom inválido ou expirado', 422)
+    }
     if (coupon.expiresAt && coupon.expiresAt < new Date()) throw new AppError('Cupom expirado', 422)
     if (coupon.maxUses !== null && coupon.usedCount >= coupon.maxUses) {
       throw new AppError('Cupom esgotado', 422)

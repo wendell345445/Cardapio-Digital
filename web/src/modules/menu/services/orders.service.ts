@@ -73,3 +73,13 @@ export async function calculateDeliveryFee(
   const { data } = await menuApi.post('/menu/delivery/calculate', { latitude, longitude })
   return data.data
 }
+
+export interface ValidateCouponResult {
+  discount: number
+  coupon: { id: string; code: string; type: 'PERCENTAGE' | 'FIXED'; value: number }
+}
+
+export async function validateCouponPublic(code: string, subtotal: number): Promise<ValidateCouponResult> {
+  const { data } = await menuApi.post('/menu/coupon/validate', { code, subtotal })
+  return data.data
+}

@@ -11,6 +11,7 @@ import { useCreateOrder } from '../hooks/useOrder'
 import {
   calculateDeliveryFee as fetchDeliveryFee,
   geocodeAddress as fetchGeocode,
+  validateCouponPublic,
 } from '../services/orders.service'
 import { useCustomerAuth } from '../hooks/useCustomerAuth'
 
@@ -169,6 +170,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null)
+  const [couponValidating, setCouponValidating] = useState(false)
   const [itemsOpen, setItemsOpen] = useState(true)
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
@@ -198,6 +201,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const streetNumber = watch('number')
   const neighborhood = watch('neighborhood')
   const city = watch('city')
+  const couponCode = watch('couponCode')
   const stateUf = watch('state')
   const store = menu?.store
 
@@ -235,7 +239,39 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     else setValue('paymentMethod', 'CREDIT_ON_DELIVERY')
   }
 
-  const total = subtotal() + deliveryFee
+  const discount = appliedCoupon?.discount ?? 0
+  const total = Math.max(0, subtotal() + deliveryFee - discount)
+
+  // Valida cupom no backend com debounce conforme o cliente digita; recalcula se
+  // subtotal mudar (itens adicionados/removidos mexem no desconto percentual).
+  const subtotalValue = subtotal()
+  useEffect(() => {
+    const raw = (couponCode ?? '').trim()
+    if (!raw) {
+      setAppliedCoupon(null)
+      setCouponError('')
+      setCouponValidating(false)
+      return
+    }
+    const code = raw.toUpperCase()
+    if (subtotalValue <= 0) return
+
+    setCouponValidating(true)
+    const timer = setTimeout(async () => {
+      try {
+        const result = await validateCouponPublic(code, subtotalValue)
+        setAppliedCoupon({ code, discount: result.discount })
+        setCouponError('')
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: string } } }
+        setAppliedCoupon(null)
+        setCouponError(axiosErr?.response?.data?.error ?? 'Cupom inválido')
+      } finally {
+        setCouponValidating(false)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [couponCode, subtotalValue])
 
   const lookupDeliveryFee = useCallback(
     async (payload: { cep?: string; street: string; number: string; neighborhood?: string; city?: string; state?: string }) => {
@@ -307,7 +343,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         type: form.type,
         paymentMethod: form.paymentMethod,
         notes: form.notes,
-        couponCode: form.couponCode || undefined,
+        couponCode: form.couponCode ? form.couponCode.trim().toUpperCase() || undefined : undefined,
         address: form.type === 'DELIVERY' ? {
           zipCode: form.zipCode,
           street: form.street!,
@@ -825,7 +861,15 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-500"
                 style={{ fontSize: 16 }}
               />
-              {couponError && <p className="text-red-500 text-xs mt-1">{couponError}</p>}
+              {couponValidating && <p className="text-gray-400 text-xs mt-1">Validando cupom…</p>}
+              {!couponValidating && appliedCoupon && (
+                <p className="text-green-600 text-xs mt-1">
+                  Cupom aplicado: desconto de {fmt(appliedCoupon.discount)}
+                </p>
+              )}
+              {!couponValidating && couponError && (
+                <p className="text-red-500 text-xs mt-1">{couponError}</p>
+              )}
             </div>
 
             {/* Resumo financeiro */}
@@ -846,6 +890,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                           ? fmt(deliveryFee)
                           : 'Grátis'}
                   </span>
+                </div>
+              )}
+              {appliedCoupon && discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Desconto ({appliedCoupon.code})</span>
+                  <span>-{fmt(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-500">
