@@ -1,6 +1,7 @@
 // ─── TASK-060/062/065/066/090: Menu Público — Integration Tests ───────────────
 // Cobre: GET /menu/:slug, POST /:slug/orders, GET /:slug/pedido/:token,
-//        POST /:slug/coupon/validate, POST /:slug/delivery/calculate
+//        POST /:slug/coupon/validate, POST /:slug/delivery/geocode,
+//        POST /:slug/delivery/calculate
 
 jest.mock('../../shared/prisma/prisma', () => ({
   prisma: {
@@ -8,7 +9,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     category: { findMany: jest.fn() },
     product: { findUnique: jest.fn() },
     coupon: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    deliveryNeighborhood: { findFirst: jest.fn(), count: jest.fn() },
+    deliveryDistance: { findMany: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     order: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
     customer: { findUnique: jest.fn() },
@@ -148,8 +149,7 @@ function setupOrderMocks() {
   ;(mockCache.get as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
   ;(mockPrisma.product.findUnique as jest.Mock).mockResolvedValue(mockProduct)
-  ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(null)
-  ;(mockPrisma.deliveryNeighborhood.count as jest.Mock).mockResolvedValue(0)
+  ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
   ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(mockClient)
   ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(mockPrisma))
@@ -417,6 +417,37 @@ describe('POST /api/v1/menu/:slug/orders', () => {
 
     expect(res.status).toBe(201)
   })
+
+  it('aplica cupom quando couponCode é enviado em lowercase (normaliza para uppercase)', async () => {
+    setupOrderMocks()
+    // Cupom salvo no banco em uppercase — busca precisa normalizar input lowercase.
+    ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue({
+      id: 'coupon-1',
+      storeId: STORE_ID,
+      code: 'APROVEITE25',
+      type: 'PERCENTAGE',
+      value: 25,
+      isActive: true,
+      productId: null,
+      expiresAt: null,
+      maxUses: null,
+      usedCount: 0,
+      minOrder: null,
+    })
+
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({ ...validOrderBody, couponCode: 'aproveite25' })
+
+    expect(res.status).toBe(201)
+    // Confirma que o Prisma foi consultado com o code em uppercase.
+    expect(mockPrisma.coupon.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { storeId_code: { storeId: STORE_ID, code: 'APROVEITE25' } },
+      })
+    )
+  })
 })
 
 // ─── GET /menu/:slug/pedido/:token ────────────────────────────────────────────
@@ -563,44 +594,89 @@ describe('POST /api/v1/menu/:slug/coupon/validate', () => {
   })
 })
 
-// ─── POST /menu/:slug/delivery/calculate ──────────────────────────────────────
+// ─── POST /menu/delivery/calculate ────────────────────────────────────────────
+// Agora exige lat/lng do cliente. O frontend resolve o endereço em lat/lng
+// primeiro via /menu/delivery/geocode.
 
-describe('POST /api/v1/menu/:slug/delivery/calculate', () => {
-  it('retorna 200 com fee quando bairro encontrado', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ id: STORE_ID })
+describe('POST /api/v1/menu/delivery/calculate', () => {
+  it('retorna 200 com fee quando distância dentro de uma faixa', async () => {
+    // 1ª chamada: publicTenantMiddleware (resolve slug → store)
+    // 2ª chamada: calculateDeliveryFee lookup (lat/lng da loja)
     ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ id: STORE_ID })    // para /delivery/calculate (store lookup)
-    ;(mockPrisma.deliveryNeighborhood as any).findFirst = jest.fn().mockResolvedValue({
-      id: 'nb-1',
-      name: 'Centro',
-      fee: 5.0,
-    })
+      .mockResolvedValueOnce(mockStore)
+      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 10.0 },
+    ])
 
-    // Mocking delivery.service via prisma directly in delivery routes handler
-    // The actual call goes through calculateDeliveryFee service
-    const deliveryServiceMock = jest.requireMock('../../shared/prisma/prisma')
-    deliveryServiceMock.prisma.store.findUnique.mockResolvedValue({
-      id: STORE_ID,
-      deliveryMode: 'NEIGHBORHOOD',
-    })
+    const res = await request(app)
+      .post('/api/v1/menu/delivery/calculate')
+      .set('Host', menuHost())
+      .send({ latitude: -23.5505, longitude: -46.6333 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.fee).toBe(10.0)
+  })
+
+  it('retorna 400 quando payload não tem lat/lng (regressão: campo `neighborhood` não aceito)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
 
     const res = await request(app)
       .post('/api/v1/menu/delivery/calculate')
       .set('Host', menuHost())
       .send({ neighborhood: 'Centro' })
 
-    // 200 or error depending on delivery service internals
-    expect([200, 404, 422]).toContain(res.status)
+    expect(res.status).toBe(400)
   })
 
-  it('retorna 404 quando loja não existe', async () => {
+  it('retorna 404 quando loja do subdomain não existe', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
       .post('/api/v1/menu/delivery/calculate')
-      .set('Host', menuHost())
-      .send({ neighborhood: 'Centro' })
+      .set('Host', menuHost('loja-inexistente'))
+      .send({ latitude: -23.5, longitude: -46.6 })
 
     expect(res.status).toBe(404)
+  })
+})
+
+// ─── POST /menu/delivery/geocode ──────────────────────────────────────────────
+
+describe('POST /api/v1/menu/delivery/geocode', () => {
+  const originalFetch = global.fetch
+
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('retorna 200 com lat/lng a partir do endereço', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ lat: '-23.5505', lon: '-46.6333', display_name: 'Av. Paulista, 1000' }],
+    }) as unknown as typeof fetch
+
+    const res = await request(app)
+      .post('/api/v1/menu/delivery/geocode')
+      .set('Host', menuHost())
+      .send({ cep: '01310-100', street: 'Av. Paulista', number: '1000', city: 'São Paulo' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.latitude).toBe(-23.5505)
+    expect(res.body.data.longitude).toBe(-46.6333)
+  })
+
+  it('retorna 422 quando endereço insuficiente', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    global.fetch = jest.fn() as unknown as typeof fetch
+
+    const res = await request(app)
+      .post('/api/v1/menu/delivery/geocode')
+      .set('Host', menuHost())
+      .send({})
+
+    expect(res.status).toBe(422)
   })
 })

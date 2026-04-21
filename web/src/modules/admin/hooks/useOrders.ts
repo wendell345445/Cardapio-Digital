@@ -3,10 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   assignMotoboy,
   fetchOrder,
+  fetchOrderReceipt,
   fetchOrders,
+  printReceipt,
   sendWaitingPayment,
+  updateOrderAddress,
   updateOrderStatus,
   type ListOrdersParams,
+  type OrderAddress,
 } from '../services/orders.service'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -48,6 +52,28 @@ export function useAssignMotoboy() {
     onSuccess: (updatedOrder) => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
+    },
+  })
+}
+
+export function useUpdateOrderAddress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, address }: { id: string; address: OrderAddress }) =>
+      updateOrderAddress(id, address),
+    onSuccess: (updatedOrder) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
+    },
+  })
+}
+
+// TASK-084/A-050: Impressão manual do pedido
+export function usePrintOrder() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const receipt = await fetchOrderReceipt(id)
+      printReceipt(receipt)
     },
   })
 }

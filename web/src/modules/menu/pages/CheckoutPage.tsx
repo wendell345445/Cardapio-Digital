@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -9,6 +9,7 @@ import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
+import { validateCouponPublic } from '../services/orders.service'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
@@ -76,7 +77,44 @@ export function CheckoutPage() {
   const orderType = watch('type')
   const paymentMethod = watch('paymentMethod')
   const scheduleOrder = watch('scheduleOrder')
+  const couponCode = watch('couponCode')
   const [couponError, setCouponError] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null)
+  const [couponValidating, setCouponValidating] = useState(false)
+
+  const subtotalValue = subtotal()
+  const discount = appliedCoupon?.discount ?? 0
+  const total = Math.max(0, subtotalValue - discount)
+
+  // Valida cupom no backend com debounce conforme o cliente digita; recalcula se
+  // subtotal mudar (itens adicionados/removidos mexem no desconto percentual).
+  useEffect(() => {
+    const raw = (couponCode ?? '').trim()
+    if (!raw) {
+      setAppliedCoupon(null)
+      setCouponError('')
+      setCouponValidating(false)
+      return
+    }
+    const code = raw.toUpperCase()
+    if (subtotalValue <= 0) return
+
+    setCouponValidating(true)
+    const timer = setTimeout(async () => {
+      try {
+        const result = await validateCouponPublic(code, subtotalValue)
+        setAppliedCoupon({ code, discount: result.discount })
+        setCouponError('')
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: string } } }
+        setAppliedCoupon(null)
+        setCouponError(axiosErr?.response?.data?.error ?? 'Cupom inválido')
+      } finally {
+        setCouponValidating(false)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [couponCode, subtotalValue])
 
   const onSubmit = async (form: CheckoutForm) => {
     setCouponError('')
@@ -86,7 +124,7 @@ export function CheckoutPage() {
       type: form.type,
       paymentMethod: form.paymentMethod,
       notes: form.notes,
-      couponCode: form.couponCode || undefined,
+      couponCode: form.couponCode ? form.couponCode.trim().toUpperCase() || undefined : undefined,
       scheduledFor:
         form.scheduleOrder && form.scheduledFor
           ? new Date(form.scheduledFor).toISOString()
@@ -258,7 +296,15 @@ export function CheckoutPage() {
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base uppercase focus:outline-none focus:ring-2 focus:ring-green-500"
             style={{ fontSize: 16 }}
           />
-          {couponError && <p className="text-red-500 text-xs mt-1">{couponError}</p>}
+          {couponValidating && <p className="text-gray-400 text-xs mt-1">Validando cupom…</p>}
+          {!couponValidating && appliedCoupon && (
+            <p className="text-green-600 text-xs mt-1">
+              Cupom aplicado: desconto de {appliedCoupon.discount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </p>
+          )}
+          {!couponValidating && couponError && (
+            <p className="text-red-500 text-xs mt-1">{couponError}</p>
+          )}
         </section>
 
         {/* Observações */}
@@ -389,9 +435,21 @@ export function CheckoutPage() {
               )
             })}
           </ul>
-          <div className="border-t mt-3 pt-3 flex justify-between font-bold text-base">
-            <span>Total</span>
-            <span>{subtotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+          <div className="border-t mt-3 pt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Subtotal</span>
+              <span>{subtotalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+            </div>
+            {appliedCoupon && discount > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Desconto ({appliedCoupon.code})</span>
+                <span>-{discount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-bold text-base pt-1">
+              <span>Total</span>
+              <span>{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+            </div>
           </div>
         </section>
       </form>
@@ -404,7 +462,7 @@ export function CheckoutPage() {
           onClick={handleSubmit(onSubmit)}
           className="w-full bg-green-500 disabled:bg-green-300 text-white py-3 rounded-xl font-bold text-base min-h-[44px]"
         >
-          {mutation.isPending ? 'Enviando...' : `Confirmar pedido • ${subtotal().toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+          {mutation.isPending ? 'Enviando...' : `Confirmar pedido • ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
         </button>
         {mutation.error && (
           <p className="text-red-500 text-xs text-center mt-2">

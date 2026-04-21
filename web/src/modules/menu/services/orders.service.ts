@@ -41,12 +41,45 @@ export async function submitOrder(dto: CreateOrderDto): Promise<OrderResult> {
   return data.data
 }
 
-export interface DeliveryFeeResult {
-  fee: number
-  mode: 'NEIGHBORHOOD' | 'DISTANCE' | null
+export interface GeocodeAddressPayload {
+  cep?: string
+  street?: string
+  number?: string
+  neighborhood?: string
+  city?: string
+  state?: string
 }
 
-export async function calculateDeliveryFee(neighborhood: string): Promise<DeliveryFeeResult> {
-  const { data } = await menuApi.post('/menu/delivery/calculate', { neighborhood })
+export interface GeocodeResult {
+  latitude: number
+  longitude: number
+  displayName?: string
+}
+
+export async function geocodeAddress(payload: GeocodeAddressPayload): Promise<GeocodeResult> {
+  const { data } = await menuApi.post('/menu/delivery/geocode', payload)
+  return data.data
+}
+
+export interface DeliveryFeeResult {
+  fee: number
+  distance?: number
+}
+
+export async function calculateDeliveryFee(
+  latitude: number,
+  longitude: number
+): Promise<DeliveryFeeResult> {
+  const { data } = await menuApi.post('/menu/delivery/calculate', { latitude, longitude })
+  return data.data
+}
+
+export interface ValidateCouponResult {
+  discount: number
+  coupon: { id: string; code: string; type: 'PERCENTAGE' | 'FIXED'; value: number }
+}
+
+export async function validateCouponPublic(code: string, subtotal: number): Promise<ValidateCouponResult> {
+  const { data } = await menuApi.post('/menu/coupon/validate', { code, subtotal })
   return data.data
 }

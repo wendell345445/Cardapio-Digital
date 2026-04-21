@@ -10,6 +10,7 @@ import {
 
 import {
   getClientRankingController,
+  getPaymentBreakdownController,
   getPeakHoursController,
   getSalesController,
   getTopProductsController,
@@ -30,6 +31,7 @@ router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requir
 router.get('/sales', getSalesController)
 router.get('/top-products', getTopProductsController)
 router.get('/peak-hours', getPeakHoursController)
+router.get('/payment-breakdown', getPaymentBreakdownController)
 
 // Ranking de Clientes (TASK-094)
 router.get('/clients/ranking', getClientRankingController)

@@ -7,9 +7,11 @@ import {
   sendMotoboyAssignedMessage,
   sendStatusUpdateMessage,
 } from '../whatsapp/messages.service'
+import { geocodeAddress } from '../menu/geocoding.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
-import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderStatusInput } from './orders.schema'
+import { calculateDeliveryFee } from './delivery.service'
+import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
 
@@ -88,6 +90,66 @@ export async function getOrder(storeId: string, orderId: string) {
   return order
 }
 
+// ─── A-046: Atualização de Endereço do Pedido ───────────────────────────────
+
+const NON_EDITABLE_STATUSES = new Set<string>(['DISPATCHED', 'DELIVERED', 'CANCELLED'])
+
+export async function updateOrderAddress(
+  storeId: string,
+  orderId: string,
+  input: UpdateOrderAddressInput
+) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  if (order.type !== OrderType.DELIVERY) {
+    throw new AppError('Endereço só pode ser editado em pedidos de entrega', 422)
+  }
+
+  if (NON_EDITABLE_STATUSES.has(order.status)) {
+    throw new AppError('Endereço não pode ser alterado neste status', 422)
+  }
+
+  // Recalcula frete: geocodifica o novo endereço e calcula distância contra a loja.
+  // Se geocoding/cálculo falhar (API fora, fora da área, sem faixas), mantém o frete atual.
+  let deliveryFee = order.deliveryFee
+  try {
+    const coords = await geocodeAddress({
+      cep: input.zipCode,
+      street: input.street,
+      number: input.number,
+      neighborhood: input.neighborhood,
+      city: input.city,
+      state: input.state ?? undefined,
+    })
+    const result = await calculateDeliveryFee(storeId, {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    })
+    deliveryFee = result.fee
+  } catch {
+    // mantém frete atual
+  }
+
+  const total = order.subtotal - order.discount + deliveryFee
+
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: { address: input, deliveryFee, total },
+    include: {
+      items: { include: { additionals: true } },
+      motoboy: { select: { id: true, name: true, whatsapp: true } },
+      client: { select: { id: true, name: true, whatsapp: true } },
+      coupon: { select: { id: true, code: true } },
+    },
+  })
+
+  return updated
+}
+
 // ─── TASK-082: Atualização de Status do Pedido ───────────────────────────────
 
 export async function updateOrderStatus(
@@ -161,7 +223,7 @@ export async function updateOrderStatus(
       items: updated.items,
       // C-040: passa motivo do cancelamento pro template {{motivo}}
       cancelReason: newStatus === 'CANCELLED' ? input.cancelReason : undefined,
-    }).catch(() => void 0)
+    }).catch((err) => console.error(`[WhatsApp] Error sending ${newStatus} to client:`, err))
   }
 
   // TASK-084: Auto-print when order is CONFIRMED (fire-and-forget, never breaks flow)
@@ -260,7 +322,7 @@ export async function assignMotoboy(
     include: {
       items: { include: { additionals: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
-      store: { select: { id: true, slug: true } },
+      store: { select: { id: true, slug: true, name: true } },
     },
   })
 
@@ -321,7 +383,18 @@ export async function assignMotoboy(
       total: order.total,
       paymentMethod: order.paymentMethod,
       store: { slug: order.store.slug },
-    }).catch(() => void 0)
+    }).catch((err) => console.error('[WhatsApp] Error sending motoboy message:', err))
+  }
+
+  // Fire-and-forget WhatsApp DISPATCHED notification to customer
+  if (order.clientWhatsapp) {
+    console.log(`[WhatsApp] assignMotoboy → sending DISPATCHED to client ${order.clientWhatsapp} for order #${order.number}`)
+    sendStatusUpdateMessage(storeId, order.clientWhatsapp, order.number, 'DISPATCHED', order.store.name, order.type, {
+      total: updated.total,
+      items: updated.items,
+    }).catch((err) => console.error('[WhatsApp] Error sending DISPATCHED to client:', err))
+  } else {
+    console.warn(`[WhatsApp] assignMotoboy → order #${order.number} has no clientWhatsapp, skipping DISPATCHED notification`)
   }
 
   // AuditLog

@@ -10,6 +10,9 @@ jest.mock('../../shared/prisma/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    order: {
+      aggregate: jest.fn(),
+    },
     store: {
       findUnique: jest.fn(),
     },
@@ -48,7 +51,6 @@ const mockStore = {
   slug: 'minha-loja',
   status: 'ACTIVE',
   plan: 'PREMIUM',
-  deliveryMode: null,
 }
 
 const mockCoupon = {
@@ -66,7 +68,11 @@ const mockCoupon = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Default: economia agregada zerada (A-076). Testes específicos sobrescrevem.
+  ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: null } })
+})
 
 // ─── GET /admin/coupons ───────────────────────────────────────────────────────
 
@@ -83,6 +89,19 @@ describe('GET /api/v1/admin/coupons', () => {
     expect(res.body.success).toBe(true)
     expect(res.body.data).toHaveLength(1)
     expect(res.body.data[0].code).toBe('PROMO10')
+  })
+
+  it('retorna totalSavings agregado por cupom (A-076 rastreio de uso)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.coupon.findMany as jest.Mock).mockResolvedValue([mockCoupon])
+    ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: 87.5 } })
+
+    const res = await request(app)
+      .get('/api/v1/admin/coupons')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data[0].totalSavings).toBe(87.5)
   })
 
   it('retorna 401 sem token', async () => {

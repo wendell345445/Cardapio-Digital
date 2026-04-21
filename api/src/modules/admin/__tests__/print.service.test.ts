@@ -1,5 +1,5 @@
-// ─── TASK-084: Impressão Automática ESC/POS — Unit Tests ──────────────────────
-// Cobre: buildReceiptText, autoPrintOrder (feature flag, fire-and-forget, offline)
+// ─── TASK-084/A-050: Impressão ESC/POS — Unit Tests ───────────────────────────
+// Cobre: buildReceiptText, autoPrintOrder, getOrderReceipt
 
 jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
@@ -10,7 +10,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { buildReceiptText, autoPrintOrder } from '../print.service'
+import { buildReceiptText, autoPrintOrder, getOrderReceipt } from '../print.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -242,5 +242,56 @@ describe('autoPrintOrder', () => {
       expect.any(Error)
     )
     consoleErrorSpy.mockRestore()
+  })
+})
+
+// ─── getOrderReceipt (A-050: impressão manual) ──────────────────────────────
+
+const STORE_ID = 'store-1'
+
+const mockDbOrder = {
+  id: ORDER_ID,
+  storeId: STORE_ID,
+  ...baseOrder,
+  items: baseOrder.items.map((i, idx) => ({ id: `item-${idx}`, ...i })),
+}
+
+describe('getOrderReceipt', () => {
+  it('retorna texto do recibo quando pedido existe e pertence à loja', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockDbOrder)
+
+    const receipt = await getOrderReceipt(STORE_ID, ORDER_ID)
+
+    expect(receipt).toContain('PEDIDO #42')
+    expect(receipt).toContain('Pizza Margherita')
+    expect(receipt).toContain('TOTAL')
+  })
+
+  it('lança erro 404 quando pedido não encontrado', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
+
+    await expect(getOrderReceipt(STORE_ID, ORDER_ID)).rejects.toThrow('Pedido não encontrado')
+  })
+
+  it('lança erro 404 quando pedido pertence a outra loja', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockDbOrder,
+      storeId: 'outra-loja',
+    })
+
+    await expect(getOrderReceipt(STORE_ID, ORDER_ID)).rejects.toThrow('Pedido não encontrado')
+  })
+
+  it('chama prisma.order.findUnique com include de items e additionals', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockDbOrder)
+
+    await getOrderReceipt(STORE_ID, ORDER_ID)
+
+    expect(mockPrisma.order.findUnique).toHaveBeenCalledWith({
+      where: { id: ORDER_ID },
+      include: {
+        items: { include: { additionals: true } },
+      },
+    })
   })
 })

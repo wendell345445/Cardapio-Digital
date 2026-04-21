@@ -3,7 +3,8 @@ import { api } from '@/shared/lib/api'
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type CashFlowStatus = 'OPEN' | 'CLOSED'
-export type AdjustmentType = 'SANGRIA' | 'SUPRIMENTO'
+// Backend (Prisma enum AdjustmentType) usa BLEED/SUPPLY. UI traduz para Sangria/Suprimento.
+export type AdjustmentType = 'BLEED' | 'SUPPLY'
 
 export interface CashFlowAdjustment {
   id: string
@@ -20,24 +21,26 @@ export interface CashFlow {
   openedAt: string
   closedAt?: string | null
   countedAmount?: number | null
-  justification?: string | null
+  closedDifference?: number | null
+  closedJustification?: string | null
   adjustments: CashFlowAdjustment[]
 }
 
 export interface CashFlowSummary {
-  cashFlowId: string
-  status: CashFlowStatus
-  initialAmount: number
-  openedAt: string
-  closedAt?: string | null
   totalOrders: number
-  totalPix: number
   totalCash: number
-  totalSangrias: number
-  totalSuprimentos: number
-  expectedBalance: number
-  countedAmount?: number | null
-  difference?: number | null
+  totalPix: number
+  totalSupply: number
+  totalBleed: number
+  expectedCash: number
+  orderCount: number
+  countedAmount?: number
+  difference?: number
+}
+
+export interface CashFlowSummaryResponse {
+  cashFlow: CashFlow
+  summary: CashFlowSummary
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -70,7 +73,7 @@ export async function openCashFlow(initialAmount: number): Promise<CashFlow> {
   return data.data
 }
 
-export async function getCashFlowSummary(id: string): Promise<CashFlowSummary> {
+export async function getCashFlowSummary(id: string): Promise<CashFlowSummaryResponse> {
   const { data } = await api.get(`/admin/cashflows/${id}/summary`)
   return data.data
 }

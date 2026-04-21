@@ -8,7 +8,11 @@ import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp,
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
-import { calculateDeliveryFee as fetchDeliveryFee } from '../services/orders.service'
+import {
+  calculateDeliveryFee as fetchDeliveryFee,
+  geocodeAddress as fetchGeocode,
+  validateCouponPublic,
+} from '../services/orders.service'
 import { useCustomerAuth } from '../hooks/useCustomerAuth'
 
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
@@ -166,6 +170,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const mutation = useCreateOrder(slug ?? '')
 
   const [couponError, setCouponError] = useState('')
+  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null)
+  const [couponValidating, setCouponValidating] = useState(false)
   const [itemsOpen, setItemsOpen] = useState(true)
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
@@ -191,7 +197,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const orderType = watch('type')
   const paymentMethod = watch('paymentMethod') as PaymentMethod
   const zipCode = watch('zipCode')
+  const street = watch('street')
+  const streetNumber = watch('number')
   const neighborhood = watch('neighborhood')
+  const city = watch('city')
+  const couponCode = watch('couponCode')
+  const stateUf = watch('state')
   const store = menu?.store
 
   const paymentGroup = paymentGroupFor(paymentMethod)
@@ -228,48 +239,87 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     else setValue('paymentMethod', 'CREDIT_ON_DELIVERY')
   }
 
-  const total = subtotal() + deliveryFee
+  const discount = appliedCoupon?.discount ?? 0
+  const total = Math.max(0, subtotal() + deliveryFee - discount)
 
-  const lookupDeliveryFee = useCallback(async (neighborhood: string) => {
-    const trimmed = neighborhood.trim()
-    if (!trimmed) {
-      setDeliveryFee(0)
-      setDeliveryFeeError('')
+  // Valida cupom no backend com debounce conforme o cliente digita; recalcula se
+  // subtotal mudar (itens adicionados/removidos mexem no desconto percentual).
+  const subtotalValue = subtotal()
+  useEffect(() => {
+    const raw = (couponCode ?? '').trim()
+    if (!raw) {
+      setAppliedCoupon(null)
+      setCouponError('')
+      setCouponValidating(false)
       return
     }
-    setDeliveryFeeLoading(true)
-    setDeliveryFeeError('')
-    try {
-      const result = await fetchDeliveryFee(trimmed)
-      setDeliveryFee(result.fee)
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
-      setDeliveryFeeError(msg)
-      setDeliveryFee(0)
-    } finally {
-      setDeliveryFeeLoading(false)
-    }
-  }, [])
+    const code = raw.toUpperCase()
+    if (subtotalValue <= 0) return
 
-  // Calcula taxa de entrega quando bairro muda (debounce de 500ms)
+    setCouponValidating(true)
+    const timer = setTimeout(async () => {
+      try {
+        const result = await validateCouponPublic(code, subtotalValue)
+        setAppliedCoupon({ code, discount: result.discount })
+        setCouponError('')
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: string } } }
+        setAppliedCoupon(null)
+        setCouponError(axiosErr?.response?.data?.error ?? 'Cupom inválido')
+      } finally {
+        setCouponValidating(false)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [couponCode, subtotalValue])
+
+  const lookupDeliveryFee = useCallback(
+    async (payload: { cep?: string; street: string; number: string; neighborhood?: string; city?: string; state?: string }) => {
+      setDeliveryFeeLoading(true)
+      setDeliveryFeeError('')
+      try {
+        const coords = await fetchGeocode(payload)
+        const result = await fetchDeliveryFee(coords.latitude, coords.longitude)
+        setDeliveryFee(result.fee)
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: string } } }
+        const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
+        setDeliveryFeeError(msg)
+        setDeliveryFee(0)
+      } finally {
+        setDeliveryFeeLoading(false)
+      }
+    },
+    []
+  )
+
+  // Calcula taxa quando o endereço essencial está preenchido (debounce 600ms).
+  // Precisa de rua + número pra geocoding resolver bem; cidade/bairro/CEP ajudam.
   useEffect(() => {
     if (orderType !== 'DELIVERY') {
       setDeliveryFee(0)
       setDeliveryFeeError('')
       return
     }
-    const trimmed = (neighborhood ?? '').trim()
-    if (!trimmed) {
+    const streetT = (street ?? '').trim()
+    const numberT = (streetNumber ?? '').trim()
+    if (!streetT || !numberT) {
       setDeliveryFee(0)
       setDeliveryFeeError('')
       return
     }
     const timer = setTimeout(() => {
-      lookupDeliveryFee(trimmed)
-    }, 500)
+      lookupDeliveryFee({
+        cep: (zipCode ?? '').trim() || undefined,
+        street: streetT,
+        number: numberT,
+        neighborhood: (neighborhood ?? '').trim() || undefined,
+        city: (city ?? '').trim() || undefined,
+        state: (stateUf ?? '').trim() || undefined,
+      })
+    }, 600)
     return () => clearTimeout(timer)
-  }, [neighborhood, orderType, lookupDeliveryFee])
+  }, [orderType, zipCode, street, streetNumber, neighborhood, city, stateUf, lookupDeliveryFee])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')
@@ -293,7 +343,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         type: form.type,
         paymentMethod: form.paymentMethod,
         notes: form.notes,
-        couponCode: form.couponCode || undefined,
+        couponCode: form.couponCode ? form.couponCode.trim().toUpperCase() || undefined : undefined,
         address: form.type === 'DELIVERY' ? {
           zipCode: form.zipCode,
           street: form.street!,
@@ -811,7 +861,15 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-red-500"
                 style={{ fontSize: 16 }}
               />
-              {couponError && <p className="text-red-500 text-xs mt-1">{couponError}</p>}
+              {couponValidating && <p className="text-gray-400 text-xs mt-1">Validando cupom…</p>}
+              {!couponValidating && appliedCoupon && (
+                <p className="text-green-600 text-xs mt-1">
+                  Cupom aplicado: desconto de {fmt(appliedCoupon.discount)}
+                </p>
+              )}
+              {!couponValidating && couponError && (
+                <p className="text-red-500 text-xs mt-1">{couponError}</p>
+              )}
             </div>
 
             {/* Resumo financeiro */}
@@ -832,6 +890,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                           ? fmt(deliveryFee)
                           : 'Grátis'}
                   </span>
+                </div>
+              )}
+              {appliedCoupon && discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Desconto ({appliedCoupon.code})</span>
+                  <span>-{fmt(discount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-500">

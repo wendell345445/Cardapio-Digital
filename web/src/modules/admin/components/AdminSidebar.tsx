@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  BarChart2,
   LayoutDashboard,
   LogOut,
   MessageCircle,
   ShoppingBag,
   Package,
   Tag,
+  Ticket,
   PlusCircle,
   QrCode,
   Clock,
@@ -32,9 +34,11 @@ const NAV_ITEMS = [
   { label: 'Entregas', to: '/admin/entregas', icon: Truck },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
   { label: 'Clientes', to: '/admin/clientes', icon: Users },
+  { label: 'Analytics', to: '/admin/analytics', icon: BarChart2 },
   { label: 'Produtos', to: '/admin/produtos', icon: Package },
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },
+  { label: 'Cupons', to: '/admin/cupons', icon: Ticket },
   { label: 'QR Code', to: '/admin/qr-code', icon: QrCode },
   { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle, statusDot: true },
   { label: 'Horários', to: '/admin/horarios', icon: Clock },

@@ -4,8 +4,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, Clock, XCircle, CheckCheck } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 
-import { useOrders, useSendWaitingPayment } from '../hooks/useOrders'
+import { useOrders, usePrintOrder, useSendWaitingPayment } from '../hooks/useOrders'
+import { useNewOrdersCount } from '../hooks/useNewOrdersCount'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -37,6 +49,55 @@ const NEXT_STATUS: Partial<Record<string, string>> = {
   PREPARING: 'READY',
   READY: 'DISPATCHED',
   DISPATCHED: 'DELIVERED',
+}
+
+/** Backend-validated transitions — used to validate drag-and-drop */
+const VALID_TRANSITIONS: Record<string, string[]> = {
+  PENDING: ['CONFIRMED', 'WAITING_CONFIRMATION', 'CANCELLED'],
+  WAITING_PAYMENT_PROOF: ['CONFIRMED', 'CANCELLED'],
+  WAITING_CONFIRMATION: ['CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['READY', 'CANCELLED'],
+  READY: ['DISPATCHED', 'DELIVERED', 'CANCELLED'],
+  DISPATCHED: ['DELIVERED', 'CANCELLED'],
+  DELIVERED: [],
+  CANCELLED: [],
+}
+
+/**
+ * Maps each Kanban column to the target status when an order is dropped there.
+ * For columns that hold multiple statuses (e.g. "novos"), we pick the most common entry point.
+ */
+const COLUMN_DROP_STATUS: Record<string, string> = {
+  novos: 'PENDING',
+  confirmado: 'CONFIRMED',
+  em_preparo: 'PREPARING',
+  prontos: 'READY',
+  concluidos: 'DELIVERED',
+}
+
+function canTransition(fromStatus: string, toStatus: string): boolean {
+  if (fromStatus === toStatus) return false
+  return VALID_TRANSITIONS[fromStatus]?.includes(toStatus) ?? false
+}
+
+/**
+ * Mover de READY → DELIVERED num pedido de entrega sem motoboy atribuído pula
+ * o fluxo esperado (Pronto → atribuir motoboy → Saiu → Entregue). O botão "→"
+ * no card já bloqueia essa transição direta (OrderCard.canAdvanceDirect); o
+ * drag-and-drop precisa pedir confirmação pra evitar conclusão acidental
+ * sem histórico de quem levou.
+ */
+export function requiresMotoboyConfirmation(
+  order: Pick<Order, 'status' | 'type' | 'motoboyId'>,
+  targetStatus: string
+): boolean {
+  return (
+    order.status === 'READY' &&
+    order.type === 'DELIVERY' &&
+    targetStatus === 'DELIVERED' &&
+    !order.motoboyId
+  )
 }
 
 // TASK-125: Kanban v2 — 5 colunas (adicionada "Confirmado")
@@ -138,6 +199,50 @@ function todayInputValue(): string {
   return `${year}-${month}-${day}`
 }
 
+// ─── DraggableOrderCard (wrapper) ─────────────────────────────────────────────
+
+function DraggableOrderCard({
+  order,
+  onViewDetail,
+  onAdvanceStatus,
+  advancing,
+  readonly,
+}: {
+  order: Order
+  onViewDetail: (id: string) => void
+  onAdvanceStatus: (id: string, status: string) => void
+  advancing: boolean
+  readonly?: boolean
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: order.id,
+    data: { order },
+    disabled: readonly,
+  })
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className={isDragging ? 'opacity-30' : ''}
+    >
+      <OrderCard
+        order={order}
+        onViewDetail={onViewDetail}
+        onAdvanceStatus={onAdvanceStatus}
+        advancing={advancing}
+        readonly={readonly}
+      />
+    </div>
+  )
+}
+
 // ─── OrderCard ────────────────────────────────────────────────────────────────
 
 function OrderCard({
@@ -161,6 +266,7 @@ function OrderCard({
     !readonly && order.status === 'PENDING' && order.type === 'DELIVERY'
 
   const sendWaitingPaymentMutation = useSendWaitingPayment()
+  const printOrderMutation = usePrintOrder()
 
   return (
     <div className={`bg-white rounded-lg border p-3 shadow-sm space-y-2 text-sm ${order.deliveryIssueReason ? 'border-red-300 ring-1 ring-red-200' : 'border-gray-200'}`}>
@@ -205,6 +311,14 @@ function OrderCard({
               className="flex-1 rounded-md border border-gray-300 text-gray-700 py-1 text-xs font-medium hover:bg-gray-50 transition-colors"
             >
               Ver detalhes
+            </button>
+            <button
+              onClick={() => printOrderMutation.mutate(order.id)}
+              disabled={printOrderMutation.isPending}
+              title="Imprimir pedido"
+              className="rounded-md border border-gray-300 text-gray-600 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" />
             </button>
             {canAdvanceDirect && nextStatus && (
               <button
@@ -271,12 +385,18 @@ function KanbanColumn({
   onAdvanceStatus: (id: string, status: string) => void
   advancing: string | null
 }) {
+  const { isOver, setNodeRef } = useDroppable({ id: col.id })
   const Icon = col.icon
   const total = orders.reduce((acc, o) => acc + o.total, 0)
   const isFinished = col.id === 'concluidos'
 
   return (
-    <div className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full bg-white`}>
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full transition-colors ${
+        isOver ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
+      }`}
+    >
       <div className={`px-4 py-3 rounded-t-xl ${col.headerColor} border-b ${col.color}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -307,7 +427,7 @@ function KanbanColumn({
           </div>
         )}
         {orders.map((order) => (
-          <OrderCard
+          <DraggableOrderCard
             key={order.id}
             order={order}
             onViewDetail={onViewDetail}
@@ -376,6 +496,17 @@ export function OrdersPage() {
   const [printSales, setPrintSales] = useState(false)
   // TASK-126: Tab ativos / cancelados
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
+  // A-045: Drag-and-drop state
+  const [draggingOrder, setDraggingOrder] = useState<Order | null>(null)
+
+  // dnd-kit sensor: require 8px movement before drag starts (avoids accidental drags on click)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
+
+  // Pedidos pendentes (sem filtro de data) — usado pelo banner "Pedidos Pendentes"
+  const { count: pendingCount, orders: pendingOrders } = useNewOrdersCount()
+  const [showPending, setShowPending] = useState(false)
 
   const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
@@ -441,6 +572,44 @@ export function OrdersPage() {
         })
         .finally(() => setAdvancingId(null))
     })
+  }
+
+  // A-045: Drag-and-drop handlers
+  function handleDragStart(event: DragStartEvent) {
+    const order = event.active.data.current?.order as Order | undefined
+    setDraggingOrder(order ?? null)
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggingOrder(null)
+    const { active, over } = event
+    if (!over) return
+
+    const order = active.data.current?.order as Order | undefined
+    if (!order) return
+
+    const targetColumnId = over.id as string
+    const targetStatus = COLUMN_DROP_STATUS[targetColumnId]
+    if (!targetStatus) return
+
+    // Skip if order is already in that status (or column contains it)
+    const targetCol = ACTIVE_COLUMN_CONFIG.find((c) => c.id === targetColumnId)
+    if (targetCol?.statuses.includes(order.status)) return
+
+    // Validate transition
+    if (!canTransition(order.status, targetStatus)) return
+
+    // Entrega sem motoboy atribuído: pedir confirmação antes de concluir, pra
+    // alinhar com o bloqueio que o botão "→" já faz no card.
+    if (requiresMotoboyConfirmation(order, targetStatus)) {
+      const confirmed = window.confirm(
+        'Este pedido de entrega não tem um motoboy atribuído. ' +
+        'Marcar como Entregue mesmo assim?'
+      )
+      if (!confirmed) return
+    }
+
+    handleAdvanceStatus(order.id, targetStatus)
   }
 
   const TYPE_TABS: { value: TypeFilter; label: string }[] = [
@@ -562,6 +731,41 @@ export function OrdersPage() {
         </div>
       </div>
 
+      {/* Banner pedidos pendentes */}
+      {pendingCount > 0 && (
+        <div className="px-6 pt-2 flex-shrink-0">
+          <button
+            onClick={() => setShowPending((v) => !v)}
+            className="w-full flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 hover:bg-amber-100 transition-colors text-left"
+          >
+            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span className="text-sm font-semibold text-amber-800 flex-1">
+              {pendingCount} {pendingCount === 1 ? 'pedido pendente' : 'pedidos pendentes'}
+            </span>
+            <span className={`text-xs text-amber-600 transition-transform ${showPending ? 'rotate-180' : ''}`}>
+              ▼
+            </span>
+          </button>
+
+          {showPending && (
+            <div className="mt-2 border border-amber-200 rounded-lg bg-white p-3">
+              <div className="flex flex-wrap gap-3">
+                {pendingOrders.map((order) => (
+                  <div key={order.id} className="w-64 flex-shrink-0">
+                    <OrderCard
+                      order={order}
+                      onViewDetail={(id) => setSelectedOrderId(id)}
+                      onAdvanceStatus={handleAdvanceStatus}
+                      advancing={advancingId === order.id}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-x-auto px-6 py-4">
         {isLoading && (
@@ -572,19 +776,39 @@ export function OrdersPage() {
         )}
 
         {!isLoading && !isError && pageTab === 'ativos' && (
-          // TASK-125: Kanban com 5 colunas (inclui "Confirmado")
-          <div className="flex gap-4 min-h-[60vh]" style={{ minWidth: 'max-content' }}>
-            {ACTIVE_COLUMN_CONFIG.map((col) => (
-              <KanbanColumn
-                key={col.id}
-                col={col}
-                orders={byColumn[col.id] ?? []}
-                onViewDetail={(id) => setSelectedOrderId(id)}
-                onAdvanceStatus={handleAdvanceStatus}
-                advancing={advancingId}
-              />
-            ))}
-          </div>
+          // TASK-125 + A-045: Kanban com 5 colunas + drag-and-drop
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-4 min-h-[60vh]" style={{ minWidth: 'max-content' }}>
+              {ACTIVE_COLUMN_CONFIG.map((col) => (
+                <KanbanColumn
+                  key={col.id}
+                  col={col}
+                  orders={byColumn[col.id] ?? []}
+                  onViewDetail={(id) => setSelectedOrderId(id)}
+                  onAdvanceStatus={handleAdvanceStatus}
+                  advancing={advancingId}
+                />
+              ))}
+            </div>
+            <DragOverlay>
+              {draggingOrder && (
+                <div className="w-64 opacity-90 rotate-2 shadow-xl">
+                  <OrderCard
+                    order={draggingOrder}
+                    onViewDetail={() => void 0}
+                    onAdvanceStatus={() => void 0}
+                    advancing={false}
+                    readonly
+                  />
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
         )}
 
         {!isLoading && !isError && pageTab === 'cancelados' && (

@@ -1,8 +1,13 @@
 import { useState } from 'react'
-import { BarChart2, ShoppingBag, TrendingUp, Users } from 'lucide-react'
+import { BarChart2, CreditCard, ShoppingBag, TrendingUp, Users } from 'lucide-react'
 
-import { usePeakHours, useSales, useTopProducts } from '../hooks/useAnalytics'
-import type { Period } from '../services/analytics.service'
+import {
+  usePaymentBreakdown,
+  usePeakHours,
+  useSales,
+  useTopProducts,
+} from '../hooks/useAnalytics'
+import type { PaymentBreakdownItem, Period } from '../services/analytics.service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -236,6 +241,69 @@ function PeakHoursGrid({
   )
 }
 
+// ─── Payment Breakdown ────────────────────────────────────────────────────────
+
+const PAYMENT_LABELS: Record<string, string> = {
+  PIX: 'Pix',
+  CREDIT_CARD: 'Cartão (online)',
+  CASH_ON_DELIVERY: 'Dinheiro na entrega',
+  CREDIT_ON_DELIVERY: 'Crédito na entrega',
+  DEBIT_ON_DELIVERY: 'Débito na entrega',
+  PIX_ON_DELIVERY: 'Pix na entrega',
+}
+
+function PaymentBreakdownChart({
+  items,
+  loading,
+}: {
+  items: PaymentBreakdownItem[]
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-8 w-full" />
+        ))}
+      </div>
+    )
+  }
+
+  if (!items || items.length === 0) {
+    return (
+      <p className="text-sm text-gray-400 text-center py-8">Sem dados para o período</p>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.method} className="flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium text-gray-700 truncate pr-2">
+                {PAYMENT_LABELS[item.method] ?? item.method}
+              </span>
+              <span className="text-sm font-bold text-gray-900 flex-shrink-0">
+                {formatCurrency(item.revenue)}
+                <span className="text-xs text-gray-500 ml-2 font-normal">
+                  ({item.count} {item.count === 1 ? 'pedido' : 'pedidos'} · {item.percentage.toFixed(1)}%)
+                </span>
+              </span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full bg-purple-500 transition-all duration-500"
+                style={{ width: `${Math.min(item.percentage, 100)}%` }}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── AnalyticsPage ────────────────────────────────────────────────────────────
 
 const PERIODS: { value: Period; label: string }[] = [
@@ -250,6 +318,7 @@ export function AnalyticsPage() {
   const { data: sales, isLoading: loadingSales } = useSales(period)
   const { data: topProducts, isLoading: loadingProducts } = useTopProducts(period, 10)
   const { data: peakHours, isLoading: loadingPeakHours } = usePeakHours()
+  const { data: paymentBreakdown, isLoading: loadingPayments } = usePaymentBreakdown(period)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -344,6 +413,15 @@ export function AnalyticsPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Payment Breakdown */}
+        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4 flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-purple-600" />
+            Receita por forma de pagamento
+          </h2>
+          <PaymentBreakdownChart items={paymentBreakdown ?? []} loading={loadingPayments} />
         </div>
       </main>
     </div>

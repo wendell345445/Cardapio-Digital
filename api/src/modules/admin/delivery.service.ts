@@ -1,16 +1,14 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import { reverseGeocode } from '../menu/geocoding.service'
 
 import type {
   CalculateDeliveryInput,
   CreateDistanceInput,
-  CreateNeighborhoodInput,
-  SetDeliveryModeInput,
   UpdateDistanceInput,
-  UpdateNeighborhoodInput,
 } from './delivery.schema'
 
-// ─── TASK-091: Serviço de Área de Entrega ────────────────────────────────────
+// Área de entrega: só por distância (Haversine entre Store.lat/lng e cliente.lat/lng).
 
 // ── Haversine formula (retorna distância em km) ──
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -23,59 +21,6 @@ function haversine(lat1: number, lon1: number, lat2: number, lon2: number): numb
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-// ─── Neighborhoods ────────────────────────────────────────────────────────────
-
-export async function listNeighborhoods(storeId: string) {
-  return prisma.deliveryNeighborhood.findMany({
-    where: { storeId },
-    orderBy: { name: 'asc' },
-  })
-}
-
-export async function createNeighborhood(storeId: string, input: CreateNeighborhoodInput) {
-  const [neighborhood, store] = await Promise.all([
-    prisma.deliveryNeighborhood.create({
-      data: { storeId, name: input.name, fee: input.fee },
-    }),
-    prisma.store.findUnique({ where: { id: storeId }, select: { deliveryMode: true } }),
-  ])
-
-  // Auto-ativa modo NEIGHBORHOOD ao cadastrar o primeiro bairro
-  if (!store?.deliveryMode) {
-    await prisma.store.update({
-      where: { id: storeId },
-      data: { deliveryMode: 'NEIGHBORHOOD' },
-    })
-  }
-
-  return neighborhood
-}
-
-export async function updateNeighborhood(
-  storeId: string,
-  id: string,
-  input: UpdateNeighborhoodInput
-) {
-  const nb = await prisma.deliveryNeighborhood.findUnique({ where: { id } })
-  if (!nb || nb.storeId !== storeId) throw new AppError('Bairro não encontrado', 404)
-  return prisma.deliveryNeighborhood.update({ where: { id }, data: input })
-}
-
-export async function deleteNeighborhood(storeId: string, id: string) {
-  const nb = await prisma.deliveryNeighborhood.findUnique({ where: { id } })
-  if (!nb || nb.storeId !== storeId) throw new AppError('Bairro não encontrado', 404)
-  await prisma.deliveryNeighborhood.delete({ where: { id } })
-
-  // Se deletou o último bairro, desativa o modo NEIGHBORHOOD
-  const remaining = await prisma.deliveryNeighborhood.count({ where: { storeId } })
-  if (remaining === 0) {
-    await prisma.store.update({
-      where: { id: storeId },
-      data: { deliveryMode: null },
-    })
-  }
 }
 
 // ─── Distance ranges ─────────────────────────────────────────────────────────
@@ -107,49 +52,20 @@ export async function deleteDistance(storeId: string, id: string) {
   await prisma.deliveryDistance.delete({ where: { id } })
 }
 
-// ─── Delivery Mode ────────────────────────────────────────────────────────────
-
-export async function setDeliveryMode(
-  storeId: string,
-  input: SetDeliveryModeInput,
-  userId: string,
-  ip?: string
-) {
-  const store = await prisma.store.update({
-    where: { id: storeId },
-    data: { deliveryMode: input.mode },
-    select: { id: true, deliveryMode: true },
-  })
-
-  await prisma.auditLog.create({
-    data: {
-      storeId,
-      userId,
-      action: 'delivery.mode_change',
-      entity: 'Store',
-      entityId: storeId,
-      data: { deliveryMode: input.mode },
-      ip,
-    },
-  })
-
-  return store
-}
+// ─── Config (lat/lng da loja + faixas) ───────────────────────────────────────
 
 export async function getDeliveryConfig(storeId: string) {
-  const [store, neighborhoods, distances] = await Promise.all([
+  const [store, distances] = await Promise.all([
     prisma.store.findUnique({
       where: { id: storeId },
-      select: { deliveryMode: true, latitude: true, longitude: true },
+      select: { latitude: true, longitude: true, addressLabel: true },
     }),
-    prisma.deliveryNeighborhood.findMany({ where: { storeId }, orderBy: { name: 'asc' } }),
     prisma.deliveryDistance.findMany({ where: { storeId }, orderBy: { minKm: 'asc' } }),
   ])
   return {
-    deliveryMode: store?.deliveryMode ?? null,
     latitude: store?.latitude ?? null,
     longitude: store?.longitude ?? null,
-    neighborhoods,
+    addressLabel: store?.addressLabel ?? null,
     distances,
   }
 }
@@ -158,58 +74,47 @@ export async function getDeliveryConfig(storeId: string) {
 
 export async function setStoreCoordinates(
   storeId: string,
-  input: { latitude: number; longitude: number }
+  input: { latitude: number; longitude: number; addressLabel?: string | null }
 ) {
+  // Resolve o addressLabel em 3 cenários:
+  // 1. Cliente mandou string → usa o que veio (fluxo "busca por endereço")
+  // 2. Cliente mandou null → apaga o label (reset explícito)
+  // 3. Cliente não mandou (undefined) → tenta reverse-geocode.
+  //    Garante que coordenadas inseridas manualmente também ganhem endereço legível
+  //    para auditoria/conformidade. Falha silenciosa: se Nominatim estiver fora,
+  //    salva sem label — coords manuais continuam sendo aceitas.
+  let addressLabel: string | null | undefined = input.addressLabel
+  if (addressLabel === undefined) {
+    try {
+      const reverse = await reverseGeocode(input.latitude, input.longitude)
+      addressLabel = reverse.displayName ?? null
+    } catch {
+      addressLabel = null
+    }
+  }
+
   return prisma.store.update({
     where: { id: storeId },
-    data: { latitude: input.latitude, longitude: input.longitude },
-    select: { id: true, latitude: true, longitude: true },
+    data: {
+      latitude: input.latitude,
+      longitude: input.longitude,
+      addressLabel,
+    },
+    select: { id: true, latitude: true, longitude: true, addressLabel: true },
   })
 }
 
 // ─── Calculate delivery fee (public) ─────────────────────────────────────────
+// Requer lat/lng do cliente (resolvido no frontend via /menu/delivery/geocode).
 
 export async function calculateDeliveryFee(storeId: string, input: CalculateDeliveryInput) {
   const store = await prisma.store.findUnique({
     where: { id: storeId },
-    select: { deliveryMode: true },
+    select: { latitude: true, longitude: true },
   })
   if (!store) throw new AppError('Loja não encontrada', 404)
 
-  // Se deliveryMode não está configurado, verifica se há bairros cadastrados
-  // (compatibilidade com lojas que cadastraram bairros antes da auto-ativação)
-  let effectiveMode = store.deliveryMode
-  if (!effectiveMode) {
-    const hasNeighborhoods = await prisma.deliveryNeighborhood.count({ where: { storeId } })
-    if (hasNeighborhoods > 0) {
-      effectiveMode = 'NEIGHBORHOOD'
-    } else if (input.neighborhood) {
-      throw new AppError('Entrega não disponível no momento', 422)
-    } else {
-      return { fee: 0, mode: null }
-    }
-  }
-
-  if (effectiveMode === 'NEIGHBORHOOD') {
-    if (!input.neighborhood) throw new AppError('Bairro é obrigatório', 422)
-    const nb = await prisma.deliveryNeighborhood.findFirst({
-      where: { storeId, name: { equals: input.neighborhood, mode: 'insensitive' } },
-    })
-    if (!nb) throw new AppError('Não entregamos neste bairro', 422)
-    return { fee: nb.fee, mode: 'NEIGHBORHOOD' as const }
-  }
-
-  // DISTANCE mode
-  if (input.latitude === undefined || input.longitude === undefined) {
-    throw new AppError('Coordenadas são obrigatórias para cálculo por distância', 422)
-  }
-
-  const storeData = await prisma.store.findUnique({
-    where: { id: storeId },
-    select: { latitude: true, longitude: true },
-  })
-
-  if (!storeData?.latitude || !storeData?.longitude) {
+  if (!store.latitude || !store.longitude) {
     throw new AppError('Coordenadas da loja não configuradas', 422)
   }
 
@@ -217,15 +122,13 @@ export async function calculateDeliveryFee(storeId: string, input: CalculateDeli
     where: { storeId },
     orderBy: { minKm: 'asc' },
   })
-
   if (!distances.length) throw new AppError('Nenhuma faixa de distância configurada', 422)
 
-  const dist = haversine(storeData.latitude, storeData.longitude, input.latitude, input.longitude)
-
+  const dist = haversine(store.latitude, store.longitude, input.latitude, input.longitude)
   const range = distances.find((d) => dist >= d.minKm && dist < d.maxKm)
   if (!range) throw new AppError('Distância fora da área de entrega', 422)
 
-  return { fee: range.fee, mode: 'DISTANCE' as const, distance: Math.round(dist * 100) / 100 }
+  return { fee: range.fee, distance: Math.round(dist * 100) / 100 }
 }
 
 // ─── Exported haversine for tests ────────────────────────────────────────────

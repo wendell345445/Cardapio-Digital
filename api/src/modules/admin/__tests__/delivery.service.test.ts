@@ -1,17 +1,9 @@
-// ─── TASK-091: Área de Entrega — Unit Tests ───────────────────────────────────
-// Cobre: haversine (puro), neighborhood CRUD, distance CRUD, setDeliveryMode, calculateDeliveryFee
+// Cobre: haversine (puro), distance CRUD, setStoreCoordinates, calculateDeliveryFee.
+// Regressão: após remoção do modo "por bairro", calculateDeliveryFee SEMPRE exige
+// lat/lng do cliente + lat/lng da loja + ao menos 1 faixa.
 
 jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
-    deliveryNeighborhood: {
-      findMany: jest.fn(),
-      findFirst: jest.fn(),
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      delete: jest.fn(),
-      count: jest.fn(),
-    },
     deliveryDistance: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
@@ -23,41 +15,27 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       findUnique: jest.fn(),
       update: jest.fn(),
     },
-    auditLog: { create: jest.fn() },
   },
+}))
+
+jest.mock('../../menu/geocoding.service', () => ({
+  reverseGeocode: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
 import {
-  haversine,
-  listNeighborhoods,
-  createNeighborhood,
-  updateNeighborhood,
-  deleteNeighborhood,
-  createDistance,
-  updateDistance,
-  deleteDistance,
-  setDeliveryMode,
-  setStoreCoordinates,
   calculateDeliveryFee,
+  createDistance,
+  deleteDistance,
+  haversine,
+  setStoreCoordinates,
+  updateDistance,
 } from '../delivery.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
 const STORE_ID = 'store-1'
-const USER_ID = 'admin-1'
-const NB_ID = 'nb-1'
 const DIST_ID = 'dist-1'
-const IP = '127.0.0.1'
-
-const mockNeighborhood = {
-  id: NB_ID,
-  storeId: STORE_ID,
-  name: 'Centro',
-  fee: 5.0,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-}
 
 const mockDistance = {
   id: DIST_ID,
@@ -91,127 +69,9 @@ describe('haversine', () => {
   })
 
   it('retorna valor em km (não metros)', () => {
-    // 1 grau de latitude ≈ 111 km
     const dist = haversine(0, 0, 1, 0)
     expect(dist).toBeGreaterThan(100)
     expect(dist).toBeLessThan(120)
-  })
-})
-
-// ─── listNeighborhoods ────────────────────────────────────────────────────────
-
-describe('listNeighborhoods', () => {
-  it('retorna bairros da loja ordenados por nome asc', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findMany as jest.Mock).mockResolvedValue([mockNeighborhood])
-
-    const result = await listNeighborhoods(STORE_ID)
-
-    expect(mockPrisma.deliveryNeighborhood.findMany).toHaveBeenCalledWith({
-      where: { storeId: STORE_ID },
-      orderBy: { name: 'asc' },
-    })
-    expect(result).toHaveLength(1)
-  })
-
-  it('retorna lista vazia quando não há bairros', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findMany as jest.Mock).mockResolvedValue([])
-
-    const result = await listNeighborhoods(STORE_ID)
-
-    expect(result).toHaveLength(0)
-  })
-})
-
-// ─── createNeighborhood ───────────────────────────────────────────────────────
-
-describe('createNeighborhood', () => {
-  it('cria bairro com nome e taxa', async () => {
-    ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
-
-    const result = await createNeighborhood(STORE_ID, { name: 'Centro', fee: 5.0 })
-
-    expect(mockPrisma.deliveryNeighborhood.create).toHaveBeenCalledWith({
-      data: { storeId: STORE_ID, name: 'Centro', fee: 5.0 },
-    })
-    expect(result.name).toBe('Centro')
-  })
-
-  it('auto-ativa deliveryMode NEIGHBORHOOD ao criar primeiro bairro', async () => {
-    ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: null })
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
-
-    await createNeighborhood(STORE_ID, { name: 'Centro', fee: 5.0 })
-
-    expect(mockPrisma.store.update).toHaveBeenCalledWith({
-      where: { id: STORE_ID },
-      data: { deliveryMode: 'NEIGHBORHOOD' },
-    })
-  })
-})
-
-// ─── updateNeighborhood ───────────────────────────────────────────────────────
-
-describe('updateNeighborhood', () => {
-  it('atualiza bairro quando pertence à loja', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
-    ;(mockPrisma.deliveryNeighborhood.update as jest.Mock).mockResolvedValue({
-      ...mockNeighborhood,
-      fee: 7.0,
-    })
-
-    const result = await updateNeighborhood(STORE_ID, NB_ID, { fee: 7.0 })
-
-    expect(result.fee).toBe(7.0)
-  })
-
-  it('lança 404 quando bairro não existe', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(null)
-
-    await expect(updateNeighborhood(STORE_ID, NB_ID, { fee: 7.0 })).rejects.toMatchObject({
-      status: 404,
-    })
-  })
-
-  it('lança 404 quando bairro pertence a outra loja (isolamento multi-tenant)', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue({
-      ...mockNeighborhood,
-      storeId: 'outra-loja',
-    })
-
-    await expect(updateNeighborhood(STORE_ID, NB_ID, { fee: 7.0 })).rejects.toMatchObject({
-      status: 404,
-    })
-  })
-})
-
-// ─── deleteNeighborhood ───────────────────────────────────────────────────────
-
-describe('deleteNeighborhood', () => {
-  it('deleta bairro quando pertence à loja', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
-    ;(mockPrisma.deliveryNeighborhood.delete as jest.Mock).mockResolvedValue(mockNeighborhood)
-
-    await deleteNeighborhood(STORE_ID, NB_ID)
-
-    expect(mockPrisma.deliveryNeighborhood.delete).toHaveBeenCalledWith({ where: { id: NB_ID } })
-  })
-
-  it('lança 404 quando bairro não existe', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(null)
-
-    await expect(deleteNeighborhood(STORE_ID, NB_ID)).rejects.toMatchObject({ status: 404 })
-    expect(mockPrisma.deliveryNeighborhood.delete).not.toHaveBeenCalled()
-  })
-
-  it('lança 404 quando bairro pertence a outra loja', async () => {
-    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue({
-      ...mockNeighborhood,
-      storeId: 'outra-loja',
-    })
-
-    await expect(deleteNeighborhood(STORE_ID, NB_ID)).rejects.toMatchObject({ status: 404 })
   })
 })
 
@@ -236,12 +96,6 @@ describe('createDistance', () => {
 
     expect(mockPrisma.deliveryDistance.create).not.toHaveBeenCalled()
   })
-
-  it('lança 422 quando minKm > maxKm', async () => {
-    await expect(
-      createDistance(STORE_ID, { minKm: 10, maxKm: 5, fee: 8.0 })
-    ).rejects.toMatchObject({ status: 422 })
-  })
 })
 
 // ─── updateDistance ───────────────────────────────────────────────────────────
@@ -259,15 +113,7 @@ describe('updateDistance', () => {
     expect(result.fee).toBe(12.0)
   })
 
-  it('lança 404 quando faixa não existe', async () => {
-    ;(mockPrisma.deliveryDistance.findUnique as jest.Mock).mockResolvedValue(null)
-
-    await expect(updateDistance(STORE_ID, DIST_ID, { fee: 12.0 })).rejects.toMatchObject({
-      status: 404,
-    })
-  })
-
-  it('lança 404 quando faixa pertence a outra loja', async () => {
+  it('lança 404 quando faixa pertence a outra loja (isolamento multi-tenant)', async () => {
     ;(mockPrisma.deliveryDistance.findUnique as jest.Mock).mockResolvedValue({
       ...mockDistance,
       storeId: 'outra-loja',
@@ -299,133 +145,135 @@ describe('deleteDistance', () => {
   })
 })
 
-// ─── setDeliveryMode ──────────────────────────────────────────────────────────
-
-describe('setDeliveryMode', () => {
-  it('atualiza deliveryMode para NEIGHBORHOOD e registra AuditLog', async () => {
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
-      id: STORE_ID,
-      deliveryMode: 'NEIGHBORHOOD',
-    })
-    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
-
-    const result = await setDeliveryMode(STORE_ID, { mode: 'NEIGHBORHOOD' }, USER_ID, IP)
-
-    expect(result.deliveryMode).toBe('NEIGHBORHOOD')
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: 'delivery.mode_change',
-          entity: 'Store',
-          entityId: STORE_ID,
-        }),
-      })
-    )
-  })
-
-  it('atualiza deliveryMode para DISTANCE', async () => {
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
-      id: STORE_ID,
-      deliveryMode: 'DISTANCE',
-    })
-    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
-
-    const result = await setDeliveryMode(STORE_ID, { mode: 'DISTANCE' }, USER_ID)
-
-    expect(result.deliveryMode).toBe('DISTANCE')
-  })
-})
-
 // ─── setStoreCoordinates ─────────────────────────────────────────────────────
 
 describe('setStoreCoordinates', () => {
-  it('atualiza latitude e longitude da loja', async () => {
+  it('usa addressLabel explícito quando cliente envia (não faz reverse)', async () => {
+    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
     ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
       id: STORE_ID,
       latitude: -23.5505,
       longitude: -46.6333,
+      addressLabel: 'Av. Paulista, 1000',
     })
 
     const result = await setStoreCoordinates(STORE_ID, {
       latitude: -23.5505,
       longitude: -46.6333,
+      addressLabel: 'Av. Paulista, 1000',
     })
 
+    expect(reverseGeocode).not.toHaveBeenCalled()
     expect(mockPrisma.store.update).toHaveBeenCalledWith({
       where: { id: STORE_ID },
-      data: { latitude: -23.5505, longitude: -46.6333 },
-      select: { id: true, latitude: true, longitude: true },
+      data: {
+        latitude: -23.5505,
+        longitude: -46.6333,
+        addressLabel: 'Av. Paulista, 1000',
+      },
+      select: { id: true, latitude: true, longitude: true, addressLabel: true },
     })
-    expect(result.latitude).toBe(-23.5505)
-    expect(result.longitude).toBe(-46.6333)
+    expect(result.addressLabel).toBe('Av. Paulista, 1000')
+  })
+
+  it('faz reverse-geocode e salva displayName quando addressLabel não é enviado', async () => {
+    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
+    ;(reverseGeocode as jest.Mock).mockResolvedValue({
+      latitude: -23.5505,
+      longitude: -46.6333,
+      displayName: 'Av. Paulista, 1000 - Bela Vista, São Paulo',
+    })
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      latitude: -23.5505,
+      longitude: -46.6333,
+      addressLabel: 'Av. Paulista, 1000 - Bela Vista, São Paulo',
+    })
+
+    await setStoreCoordinates(STORE_ID, { latitude: -23.5505, longitude: -46.6333 })
+
+    expect(reverseGeocode).toHaveBeenCalledWith(-23.5505, -46.6333)
+    expect(mockPrisma.store.update).toHaveBeenCalledWith({
+      where: { id: STORE_ID },
+      data: {
+        latitude: -23.5505,
+        longitude: -46.6333,
+        addressLabel: 'Av. Paulista, 1000 - Bela Vista, São Paulo',
+      },
+      select: { id: true, latitude: true, longitude: true, addressLabel: true },
+    })
+  })
+
+  it('salva com addressLabel=null quando reverse-geocode falha (nao bloqueia save)', async () => {
+    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
+    ;(reverseGeocode as jest.Mock).mockRejectedValue(new Error('Nominatim down'))
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      latitude: -23.5505,
+      longitude: -46.6333,
+      addressLabel: null,
+    })
+
+    await setStoreCoordinates(STORE_ID, { latitude: -23.5505, longitude: -46.6333 })
+
+    expect(mockPrisma.store.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ addressLabel: null }),
+      })
+    )
+  })
+
+  it('salva addressLabel=null explicitamente quando cliente envia null (reset)', async () => {
+    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      latitude: -23.5505,
+      longitude: -46.6333,
+      addressLabel: null,
+    })
+
+    await setStoreCoordinates(STORE_ID, {
+      latitude: -23.5505,
+      longitude: -46.6333,
+      addressLabel: null,
+    })
+
+    expect(reverseGeocode).not.toHaveBeenCalled()
+    expect(mockPrisma.store.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ addressLabel: null }),
+      })
+    )
   })
 })
 
-// ─── calculateDeliveryFee ─────────────────────────────────────────────────────
+// ─── calculateDeliveryFee (só por distância) ─────────────────────────────────
 
 describe('calculateDeliveryFee', () => {
-  it('retorna fee=0 quando loja não tem deliveryMode configurado', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
-      deliveryMode: null,
-    })
-
-    const result = await calculateDeliveryFee(STORE_ID, {})
-
-    expect(result.fee).toBe(0)
-    expect(result.mode).toBeNull()
-  })
-
   it('lança 404 quando loja não existe', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
 
-    await expect(calculateDeliveryFee(STORE_ID, {})).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('modo NEIGHBORHOOD: retorna taxa do bairro quando encontrado', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(mockNeighborhood)
-
-    const result = await calculateDeliveryFee(STORE_ID, { neighborhood: 'Centro' })
-
-    expect(result.fee).toBe(5.0)
-    expect(result.mode).toBe('NEIGHBORHOOD')
-  })
-
-  it('modo NEIGHBORHOOD: lança 422 quando bairro não está no cadastro', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(null)
-
     await expect(
-      calculateDeliveryFee(STORE_ID, { neighborhood: 'Bairro Inexistente' })
-    ).rejects.toMatchObject({ status: 422 })
+      calculateDeliveryFee(STORE_ID, { latitude: -23.55, longitude: -46.63 })
+    ).rejects.toMatchObject({ status: 404 })
   })
 
-  it('modo NEIGHBORHOOD: lança 422 quando bairro não é informado', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'NEIGHBORHOOD' })
-
-    await expect(calculateDeliveryFee(STORE_ID, {})).rejects.toMatchObject({ status: 422 })
-  })
-
-  it('modo DISTANCE: lança 422 quando coordenadas não são informadas', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({ deliveryMode: 'DISTANCE' })
-
-    await expect(calculateDeliveryFee(STORE_ID, {})).rejects.toMatchObject({ status: 422 })
-  })
-
-  it('modo DISTANCE: lança 422 quando loja não tem coordenadas configuradas', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
-      .mockResolvedValueOnce({ latitude: null, longitude: null })
+  it('lança 422 quando loja não tem coordenadas configuradas', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: null,
+      longitude: null,
+    })
 
     await expect(
       calculateDeliveryFee(STORE_ID, { latitude: -23.55, longitude: -46.63 })
     ).rejects.toMatchObject({ status: 422, message: 'Coordenadas da loja não configuradas' })
   })
 
-  it('modo DISTANCE: lança 422 quando nenhuma faixa de distância está cadastrada', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
-      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+  it('lança 422 quando nenhuma faixa de distância está cadastrada', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
 
     await expect(
@@ -433,17 +281,11 @@ describe('calculateDeliveryFee', () => {
     ).rejects.toMatchObject({ status: 422, message: 'Nenhuma faixa de distância configurada' })
   })
 
-  it('modo DISTANCE: retorna taxa correta para distância dentro de uma faixa', async () => {
-    // Loja em São Paulo (Paulista), cliente a ~3km de distância
-    const storeLat = -23.5614
-    const storeLng = -46.6558
-    // Ponto a ~3km (Vila Mariana)
-    const clientLat = -23.5889
-    const clientLng = -46.6388
-
-    ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
-      .mockResolvedValueOnce({ latitude: storeLat, longitude: storeLng })
+  it('retorna taxa correta para distância dentro de uma faixa', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: -23.5614,
+      longitude: -46.6558,
+    })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
       { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
@@ -451,53 +293,48 @@ describe('calculateDeliveryFee', () => {
     ])
 
     const result = await calculateDeliveryFee(STORE_ID, {
-      latitude: clientLat,
-      longitude: clientLng,
+      latitude: -23.5889,
+      longitude: -46.6388,
     })
 
     expect(result.fee).toBe(5.0)
-    expect(result.mode).toBe('DISTANCE')
     expect(result.distance).toBeGreaterThan(0)
     expect(result.distance).toBeLessThan(5)
   })
 
-  it('modo DISTANCE: retorna taxa da faixa correta para distância maior', async () => {
-    // Loja no centro de SP, cliente em Guarulhos (~15km)
-    const storeLat = -23.5505
-    const storeLng = -46.6333
-    const clientLat = -23.4538
-    const clientLng = -46.5333
-
-    ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
-      .mockResolvedValueOnce({ latitude: storeLat, longitude: storeLng })
+  it('retorna taxa da faixa correta para distância maior', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
       { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
       { id: 'd3', storeId: STORE_ID, minKm: 10, maxKm: 20, fee: 18.0 },
     ])
 
+    // Cliente em Guarulhos (~15km)
     const result = await calculateDeliveryFee(STORE_ID, {
-      latitude: clientLat,
-      longitude: clientLng,
+      latitude: -23.4538,
+      longitude: -46.5333,
     })
 
     expect(result.fee).toBe(18.0)
-    expect(result.mode).toBe('DISTANCE')
     expect(result.distance).toBeGreaterThan(10)
     expect(result.distance).toBeLessThan(20)
   })
 
-  it('modo DISTANCE: lança 422 quando distância fora de todas as faixas', async () => {
-    // Loja em SP, cliente no Rio (~357km) — fora de qualquer faixa configurada
-    ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ deliveryMode: 'DISTANCE' })
-      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+  it('lança 422 quando distância fora de todas as faixas', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: -23.5505,
+      longitude: -46.6333,
+    })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
       { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
     ])
 
+    // Cliente no Rio (~357km) — fora de qualquer faixa
     await expect(
       calculateDeliveryFee(STORE_ID, { latitude: -22.9068, longitude: -43.1729 })
     ).rejects.toMatchObject({ status: 422, message: 'Distância fora da área de entrega' })

@@ -6,10 +6,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     product: { findUnique: jest.fn() },
     coupon: { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
-    deliveryNeighborhood: {
-      findFirst: jest.fn(),
-      count: jest.fn(),
-    },
+    deliveryDistance: { findMany: jest.fn() },
     user: {
       findFirst: jest.fn(),
       create: jest.fn(),
@@ -25,6 +22,10 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     table: { findUnique: jest.fn(), update: jest.fn() },
     $transaction: jest.fn(),
   },
+}))
+
+jest.mock('../geocoding.service', () => ({
+  geocodeAddress: jest.fn(),
 }))
 
 jest.mock('../../../shared/redis/redis', () => ({
@@ -144,8 +145,12 @@ const baseOrderInput = {
 function setupDefaultMocks() {
   ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
   ;(mockPrisma.product.findUnique as jest.Mock).mockResolvedValue(mockProduct)
-  ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(null)
-  ;(mockPrisma.deliveryNeighborhood.count as jest.Mock).mockResolvedValue(0)
+  ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
+  const { geocodeAddress } = jest.requireMock('../geocoding.service')
+  ;(geocodeAddress as jest.Mock).mockResolvedValue({
+    latitude: -23.5505,
+    longitude: -46.6333,
+  })
   ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(mockClient)
   ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(null) // sem pedidos anteriores
   ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(mockPrisma))
@@ -540,17 +545,25 @@ describe('createOrder — cupom', () => {
   })
 })
 
-// ─── Taxa de entrega ──────────────────────────────────────────────────────────
+// ─── Taxa de entrega (por distância) ──────────────────────────────────────────
 
-describe('createOrder — taxa de entrega por bairro', () => {
-  it('aplica taxa do bairro na configuração', async () => {
+describe('createOrder — taxa de entrega por distância', () => {
+  function mockStoreWithCoords() {
+    // store.findUnique é usado várias vezes. setupDefaultMocks já cobre o 1º uso (loja abre).
+    // Pro calculateDeliveryFee, o service chama novamente e precisa de lat/lng.
+    ;(mockPrisma.store.findUnique as jest.Mock)
+      .mockResolvedValueOnce(mockStore)
+      .mockResolvedValueOnce({ latitude: -23.55, longitude: -46.63 })
+  }
+
+  it('aplica fee baseado na faixa de distância que contém a distância calculada', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue({
-      id: 'nb-1',
-      storeId: STORE_ID,
-      name: 'Centro',
-      fee: 5.0,
-    })
+    mockStoreWithCoords()
+    const { geocodeAddress } = jest.requireMock('../geocoding.service')
+    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 5.0 },
+    ])
 
     await createOrder(SLUG, baseOrderInput)
 
@@ -558,25 +571,30 @@ describe('createOrder — taxa de entrega por bairro', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           deliveryFee: 5.0,
-          total: 45.0, // 40 + 5
+          total: 45.0,
         }),
       })
     )
   })
 
-  it('lança 422 quando bairro não encontrado E loja tem áreas configuradas', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    ;(mockPrisma.product.findUnique as jest.Mock).mockResolvedValue(mockProduct)
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(null)
-    ;(mockPrisma.deliveryNeighborhood.count as jest.Mock).mockResolvedValue(3) // tem bairros configurados
+  it('lança 422 quando cliente fica fora de todas as faixas', async () => {
+    setupDefaultMocks()
+    mockStoreWithCoords()
+    const { geocodeAddress } = jest.requireMock('../geocoding.service')
+    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -22.9, longitude: -43.1 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
+    ])
 
     await expect(createOrder(SLUG, baseOrderInput)).rejects.toMatchObject({ status: 422 })
   })
 
-  it('aplica taxa zero quando loja não tem áreas de bairro configuradas', async () => {
+  it('aplica taxa zero quando loja não tem faixas configuradas', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue(null)
-    ;(mockPrisma.deliveryNeighborhood.count as jest.Mock).mockResolvedValue(0) // sem configuração
+    mockStoreWithCoords()
+    const { geocodeAddress } = jest.requireMock('../geocoding.service')
+    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
 
     await createOrder(SLUG, baseOrderInput)
 
@@ -587,8 +605,10 @@ describe('createOrder — taxa de entrega por bairro', () => {
     )
   })
 
-  it('não calcula entrega para pedido do tipo PICKUP', async () => {
+  it('não geocodifica nem calcula entrega em pedidos PICKUP', async () => {
     setupDefaultMocks()
+    const { geocodeAddress } = jest.requireMock('../geocoding.service')
+    ;(geocodeAddress as jest.Mock).mockClear()
 
     const pickupInput = {
       ...baseOrderInput,
@@ -598,7 +618,7 @@ describe('createOrder — taxa de entrega por bairro', () => {
 
     await createOrder(SLUG, pickupInput)
 
-    expect(mockPrisma.deliveryNeighborhood.findFirst).not.toHaveBeenCalled()
+    expect(geocodeAddress).not.toHaveBeenCalled()
     expect(mockPrisma.order.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ deliveryFee: 0 }),

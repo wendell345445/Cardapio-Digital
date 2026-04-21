@@ -113,6 +113,7 @@
   - [x] `GET /admin/analytics/sales?period=day|week|month` → total vendido, nº pedidos, ticket médio
   - [x] `GET /admin/analytics/top-products?period=...` → produtos mais vendidos (rank)
   - [x] `GET /admin/analytics/peak-hours` → horários de pico (pedidos por hora)
+  - [x] `GET /admin/analytics/payment-breakdown?period=...` → receita/nº pedidos por método (Pix, Dinheiro, etc.) — A-085
   - [x] `GET /admin/analytics/conversion` → visitas ao cardápio vs pedidos criados (requer tracking básico)
 - [x] `npm install chart.js react-chartjs-2`
 - [x] Tela `/admin/analytics` com:
@@ -120,6 +121,7 @@
   - [x] Card: ticket médio, total pedidos, total vendido
   - [x] Bar chart: top 10 produtos
   - [x] Heatmap ou bar chart: horários de pico
+  - [x] Bar chart: receita por forma de pagamento (A-085)
 - [x] Feature flag: `analytics` (todos os planos)
 - [x] Cache Redis para queries analíticas: TTL 10min
 

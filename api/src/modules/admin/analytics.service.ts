@@ -1,7 +1,12 @@
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 
-import type { RankingQuery, SalesQuery, TopProductsQuery } from './analytics.schema'
+import type {
+  PaymentBreakdownQuery,
+  RankingQuery,
+  SalesQuery,
+  TopProductsQuery,
+} from './analytics.schema'
 
 // ─── TASK-093: Serviço de Analytics ──────────────────────────────────────────
 
@@ -23,6 +28,9 @@ export async function invalidateAnalyticsCache(storeId: string): Promise<void> {
     cache.del(`analytics:top-products:${storeId}:week:4`),
     cache.del(`analytics:top-products:${storeId}:month:4`),
     cache.del(`analytics:peak-hours:${storeId}`),
+    cache.del(`analytics:payment-breakdown:${storeId}:day`),
+    cache.del(`analytics:payment-breakdown:${storeId}:week`),
+    cache.del(`analytics:payment-breakdown:${storeId}:month`),
   ])
 }
 
@@ -50,6 +58,13 @@ type TopProductsResult = {
 }[]
 
 type PeakHoursResult = { hour: number; count: number }[]
+
+type PaymentBreakdownResult = {
+  method: string
+  count: number
+  revenue: number
+  percentage: number
+}[]
 
 type ClientRankingResult = {
   clients: {
@@ -199,6 +214,49 @@ export async function getPeakHours(storeId: string): Promise<PeakHoursResult> {
   }
 
   const result: PeakHoursResult = hourCounts.map((count, hour) => ({ hour, count }))
+  await cache.set(cacheKey, result, CACHE_TTL)
+  return result
+}
+
+// A-085: Breakdown de pedidos e receita por método de pagamento
+export async function getPaymentBreakdown(
+  storeId: string,
+  query: PaymentBreakdownQuery
+): Promise<PaymentBreakdownResult> {
+  const cacheKey = `analytics:payment-breakdown:${storeId}:${query.period}`
+  const cached = await cache.get<PaymentBreakdownResult>(cacheKey)
+  if (cached) return cached
+
+  const since = getPeriodStart(query.period)
+
+  const orders = await prisma.order.findMany({
+    where: {
+      storeId,
+      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+      createdAt: { gte: since },
+    },
+    select: { paymentMethod: true, total: true },
+  })
+
+  const map: Record<string, { count: number; revenue: number }> = {}
+  let totalRevenue = 0
+  for (const order of orders) {
+    const key = order.paymentMethod
+    if (!map[key]) map[key] = { count: 0, revenue: 0 }
+    map[key].count += 1
+    map[key].revenue += order.total
+    totalRevenue += order.total
+  }
+
+  const result: PaymentBreakdownResult = Object.entries(map)
+    .map(([method, data]) => ({
+      method,
+      count: data.count,
+      revenue: data.revenue,
+      percentage: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+
   await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }

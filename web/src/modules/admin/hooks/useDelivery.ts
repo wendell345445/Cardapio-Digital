@@ -2,19 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   createDistance,
-  createNeighborhood,
   deleteDistance,
-  deleteNeighborhood,
   getDeliveryConfig,
-  setDeliveryMode,
   setStoreCoordinates,
   updateDistance,
-  updateNeighborhood,
   type CreateDistanceData,
-  type CreateNeighborhoodData,
-  type DeliveryMode,
   type UpdateDistanceData,
-  type UpdateNeighborhoodData,
 } from '../services/delivery.service'
 
 // ─── Query ────────────────────────────────────────────────────────────────────
@@ -28,56 +21,20 @@ export function useDeliveryConfig() {
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
 
-export function useSetDeliveryMode() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (mode: DeliveryMode) => setDeliveryMode(mode),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['delivery-config'] })
-    },
-  })
-}
-
-// Neighborhoods
-
-export function useCreateNeighborhood() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (payload: CreateNeighborhoodData) => createNeighborhood(payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['delivery-config'] })
-    },
-  })
-}
-
-export function useUpdateNeighborhood() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateNeighborhoodData }) =>
-      updateNeighborhood(id, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['delivery-config'] })
-    },
-  })
-}
-
-export function useDeleteNeighborhood() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => deleteNeighborhood(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['delivery-config'] })
-    },
-  })
-}
-
 // Coordinates
 
 export function useSetStoreCoordinates() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ latitude, longitude }: { latitude: number; longitude: number }) =>
-      setStoreCoordinates(latitude, longitude),
+    mutationFn: ({
+      latitude,
+      longitude,
+      addressLabel,
+    }: {
+      latitude: number
+      longitude: number
+      addressLabel?: string | null
+    }) => setStoreCoordinates(latitude, longitude, addressLabel),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['delivery-config'] })
     },

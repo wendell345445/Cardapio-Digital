@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Printer } from 'lucide-react'
 
+import { useViaCep } from '../../auth/hooks/useViaCep'
 import { useMotoboys } from '../hooks/useMotoboys'
-import { useAssignMotoboy, useOrder, useUpdateOrderStatus } from '../hooks/useOrders'
+import { useAssignMotoboy, useOrder, usePrintOrder, useUpdateOrderAddress, useUpdateOrderStatus } from '../hooks/useOrders'
+import type { OrderAddress } from '../services/orders.service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -39,6 +42,15 @@ const PAYMENT_LABELS: Record<string, string> = {
   PIX: 'Pix',
   CASH_ON_DELIVERY: 'Dinheiro na entrega',
 }
+
+const ADDRESS_EDITABLE_STATUSES = new Set([
+  'PENDING',
+  'WAITING_PAYMENT_PROOF',
+  'WAITING_CONFIRMATION',
+  'CONFIRMED',
+  'PREPARING',
+  'READY',
+])
 
 const ACTIVE_STATUSES = new Set([
   'PENDING',
@@ -79,14 +91,44 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
   const { data: order, isLoading, isError } = useOrder(orderId)
   const updateStatus = useUpdateOrderStatus()
   const assignMotoboy = useAssignMotoboy()
+  const updateAddress = useUpdateOrderAddress()
+  const printOrder = usePrintOrder()
   const { data: motoboys } = useMotoboys()
+  const { lookup: lookupCep, isLoading: cepLoading } = useViaCep()
 
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
   const [showMotoboyPicker, setShowMotoboyPicker] = useState(false)
   const [selectedMotoboyId, setSelectedMotoboyId] = useState('')
+  const [editingAddress, setEditingAddress] = useState(false)
+  const [addressForm, setAddressForm] = useState<OrderAddress>({
+    zipCode: '',
+    street: '',
+    number: '',
+    complement: '',
+    neighborhood: '',
+    city: '',
+    state: '',
+  })
+
+  useEffect(() => {
+    if (order?.address) {
+      setAddressForm({
+        zipCode: order.address.zipCode ?? '',
+        street: order.address.street ?? '',
+        number: order.address.number ?? '',
+        complement: order.address.complement ?? '',
+        neighborhood: order.address.neighborhood ?? '',
+        city: order.address.city ?? '',
+        state: order.address.state ?? '',
+      })
+    }
+  }, [order?.address])
 
   if (!isOpen) return null
+
+  const canEditAddress =
+    order?.type === 'DELIVERY' && ADDRESS_EDITABLE_STATUSES.has(order?.status ?? '')
 
   function handleAdvanceStatus(nextStatus: string) {
     if (!order) return
@@ -121,6 +163,32 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
     )
   }
 
+  async function handleCepBlur() {
+    const cep = addressForm.zipCode ?? ''
+    if (cep.replace(/\D/g, '').length !== 8) return
+    const result = await lookupCep(cep)
+    if (result) {
+      setAddressForm((prev) => ({
+        ...prev,
+        street: result.street || prev.street,
+        neighborhood: result.neighborhood || prev.neighborhood,
+        city: result.city || prev.city,
+        state: result.state || prev.state,
+      }))
+    }
+  }
+
+  function handleSaveAddress(e: React.FormEvent) {
+    e.preventDefault()
+    if (!order || !addressForm.street.trim() || !addressForm.number.trim() || !addressForm.neighborhood.trim() || !addressForm.city.trim()) return
+    updateAddress.mutate(
+      { id: order.id, address: addressForm },
+      {
+        onSuccess: () => setEditingAddress(false),
+      }
+    )
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4">
       <div className="bg-white w-full sm:max-w-2xl sm:rounded-xl shadow-2xl max-h-screen sm:max-h-[90vh] flex flex-col">
@@ -129,12 +197,25 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
           <h2 className="text-lg font-bold text-gray-900">
             {order ? `Pedido #${order.number}` : 'Detalhes do Pedido'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
-          >
-            &times;
-          </button>
+          <div className="flex items-center gap-2">
+            {order && (
+              <button
+                onClick={() => printOrder.mutate(orderId)}
+                disabled={printOrder.isPending}
+                title="Imprimir pedido"
+                className="flex items-center gap-1.5 rounded-md border border-gray-300 text-gray-600 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -178,16 +259,105 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
               </div>
 
               {/* Endereço (DELIVERY) */}
-              {order.type === 'DELIVERY' && order.address && (
+              {order.type === 'DELIVERY' && (
                 <div className="bg-gray-50 rounded-lg p-4 space-y-1">
-                  <h3 className="text-sm font-semibold text-gray-800 mb-2">Endereço de entrega</h3>
-                  <p className="text-sm text-gray-700">
-                    {order.address.street}, {order.address.number}
-                    {order.address.complement ? ` — ${order.address.complement}` : ''}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    {order.address.neighborhood} — {order.address.city}
-                  </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-semibold text-gray-800">Endereço de entrega</h3>
+                    {canEditAddress && !editingAddress && (
+                      <button
+                        onClick={() => setEditingAddress(true)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Editar
+                      </button>
+                    )}
+                  </div>
+
+                  {editingAddress ? (
+                    <form onSubmit={handleSaveAddress} className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          value={addressForm.zipCode ?? ''}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, zipCode: e.target.value }))}
+                          onBlur={handleCepBlur}
+                          placeholder="CEP"
+                          className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {cepLoading && <span className="text-xs text-gray-400 self-center">Buscando...</span>}
+                      </div>
+                      <div className="flex gap-2">
+                        <input
+                          value={addressForm.street}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, street: e.target.value }))}
+                          placeholder="Rua *"
+                          required
+                          className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          value={addressForm.number}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, number: e.target.value }))}
+                          placeholder="N.o *"
+                          required
+                          className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <input
+                        value={addressForm.complement ?? ''}
+                        onChange={(e) => setAddressForm((p) => ({ ...p, complement: e.target.value }))}
+                        placeholder="Complemento"
+                        className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex gap-2">
+                        <input
+                          value={addressForm.neighborhood}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, neighborhood: e.target.value }))}
+                          placeholder="Bairro *"
+                          required
+                          className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          value={addressForm.city}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, city: e.target.value }))}
+                          placeholder="Cidade *"
+                          required
+                          className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="submit"
+                          disabled={updateAddress.isPending}
+                          className="flex-1 rounded-lg bg-blue-600 text-white py-1.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                        >
+                          {updateAddress.isPending ? 'Salvando...' : 'Salvar'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingAddress(false)}
+                          className="flex-1 rounded-lg border border-gray-300 text-gray-700 py-1.5 text-sm font-medium hover:bg-gray-50 transition-colors"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                      {updateAddress.isError && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {(updateAddress.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Erro ao salvar endereço'}
+                        </p>
+                      )}
+                    </form>
+                  ) : order.address ? (
+                    <>
+                      <p className="text-sm text-gray-700">
+                        {order.address.street}, {order.address.number}
+                        {order.address.complement ? ` — ${order.address.complement}` : ''}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {order.address.neighborhood} — {order.address.city}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Não informado</p>
+                  )}
                 </div>
               )}
 
@@ -254,7 +424,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                   <span>Subtotal</span>
                   <span>{formatCurrency(order.subtotal)}</span>
                 </div>
-                {order.deliveryFee > 0 && (
+                {order.type === 'DELIVERY' && (
                   <div className="flex justify-between text-sm text-gray-600">
                     <span>Taxa de entrega</span>
                     <span>{formatCurrency(order.deliveryFee)}</span>
