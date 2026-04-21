@@ -10,6 +10,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
       update: jest.fn(),
       delete: jest.fn(),
     },
+    order: {
+      aggregate: jest.fn(),
+    },
     auditLog: { create: jest.fn() },
   },
 }))
@@ -46,7 +49,12 @@ const mockCoupon = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  // Default: nenhum pedido com cupom → economia total = 0.
+  // Testes específicos de totalSavings sobrescrevem isso.
+  ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: null } })
+})
 
 // ─── listCoupons ──────────────────────────────────────────────────────────────
 
@@ -287,6 +295,41 @@ describe('deleteCoupon', () => {
     })
 
     await expect(deleteCoupon(STORE_ID, COUPON_ID, USER_ID)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+// ─── totalSavings (A-076: rastreio de uso — economia total) ──────────────────
+
+describe('totalSavings (rastreio de uso — A-076)', () => {
+  it('listCoupons retorna totalSavings agregado por cupom, ignorando pedidos CANCELLED', async () => {
+    ;(mockPrisma.coupon.findMany as jest.Mock).mockResolvedValue([mockCoupon])
+    ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: 42.5 } })
+
+    const result = await listCoupons(STORE_ID, {})
+
+    expect(result[0].totalSavings).toBe(42.5)
+    expect(mockPrisma.order.aggregate).toHaveBeenCalledWith({
+      _sum: { discount: true },
+      where: { couponId: COUPON_ID, status: { not: 'CANCELLED' } },
+    })
+  })
+
+  it('getCoupon retorna totalSavings=0 quando nenhum pedido usou o cupom', async () => {
+    ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue(mockCoupon)
+    ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: null } })
+
+    const result = await getCoupon(STORE_ID, COUPON_ID)
+
+    expect(result.totalSavings).toBe(0)
+  })
+
+  it('getCoupon retorna totalSavings somado quando há pedidos não-cancelados', async () => {
+    ;(mockPrisma.coupon.findUnique as jest.Mock).mockResolvedValue(mockCoupon)
+    ;(mockPrisma.order.aggregate as jest.Mock).mockResolvedValue({ _sum: { discount: 120 } })
+
+    const result = await getCoupon(STORE_ID, COUPON_ID)
+
+    expect(result.totalSavings).toBe(120)
   })
 })
 

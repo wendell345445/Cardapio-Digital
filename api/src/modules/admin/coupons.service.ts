@@ -10,7 +10,7 @@ import type { CreateCouponInput, ListCouponsInput, UpdateCouponInput } from './c
 // ─── TASK-090: Serviço de Cupons Admin ───────────────────────────────────────
 
 export async function listCoupons(storeId: string, filters: ListCouponsInput) {
-  return prisma.coupon.findMany({
+  const coupons = await prisma.coupon.findMany({
     where: {
       storeId,
       ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
@@ -21,12 +21,25 @@ export async function listCoupons(storeId: string, filters: ListCouponsInput) {
     },
     orderBy: { createdAt: 'desc' },
   })
+
+  return Promise.all(coupons.map(async (c) => ({ ...c, totalSavings: await sumSavings(c.id) })))
 }
 
 export async function getCoupon(storeId: string, couponId: string) {
   const coupon = await prisma.coupon.findUnique({ where: { id: couponId } })
   if (!coupon || coupon.storeId !== storeId) throw new AppError('Cupom não encontrado', 404)
-  return coupon
+  return { ...coupon, totalSavings: await sumSavings(coupon.id) }
+}
+
+// Soma o Order.discount de todos os pedidos que usaram o cupom, ignorando
+// pedidos cancelados (economia não se concretizou). Usa _sum.discount direto
+// do agregado do Prisma — não carrega os pedidos pra memória.
+async function sumSavings(couponId: string): Promise<number> {
+  const agg = await prisma.order.aggregate({
+    _sum: { discount: true },
+    where: { couponId, status: { not: 'CANCELLED' } },
+  })
+  return agg._sum.discount ?? 0
 }
 
 // Gera código único pra promo por produto. Não é usado em checkout, mas o
