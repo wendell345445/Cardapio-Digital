@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, Plus, Star, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
 
 import { useCoupons, useCreateCoupon, useDeleteCoupon, useUpdateCoupon } from '../hooks/useCoupons'
 import type { Coupon } from '../services/coupons.service'
@@ -20,6 +20,9 @@ const couponSchema = z.object({
 })
 
 type CouponForm = z.infer<typeof couponSchema>
+
+// Tamanho da página da listagem — client-side pagination.
+const PAGE_SIZE = 2
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -313,6 +316,11 @@ export function CouponsPage() {
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
   const [deletingCoupon, setDeletingCoupon] = useState<Coupon | null>(null)
   const [toast, setToast] = useState<ToastState>(null)
+  const [page, setPage] = useState(1)
+
+  const totalPages = Math.max(1, Math.ceil(coupons.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pageCoupons = coupons.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   function showToast(message: string, type: 'success' | 'error') {
     setToast({ message, type })
@@ -417,7 +425,7 @@ export function CouponsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {coupons.map((coupon) => (
+                    {pageCoupons.map((coupon) => (
                       <tr key={coupon.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-mono font-semibold text-gray-900">
                           {coupon.code}
@@ -483,6 +491,37 @@ export function CouponsPage() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {!isLoading && !isError && coupons.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">
+              Exibindo {(currentPage - 1) * PAGE_SIZE + 1}–
+              {Math.min(currentPage * PAGE_SIZE, coupons.length)} de {coupons.length}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={14} />
+                Anterior
+              </button>
+              <span className="text-gray-600">
+                Página <span className="font-semibold text-gray-900">{currentPage}</span> de{' '}
+                {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Próxima
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         )}
       </main>
