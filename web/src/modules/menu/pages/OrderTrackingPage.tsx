@@ -18,13 +18,14 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
   WAITING_CONFIRMATION:  { label: 'Aguardando confirmação',     icon: Clock, color: 'text-yellow-500', step: 0 },
   CONFIRMED:             { label: 'Confirmado',                  icon: CheckCircle, color: 'text-blue-500', step: 1 },
   PREPARING:             { label: 'Em preparo',                  icon: ChefHat, color: 'text-orange-500', step: 2 },
+  READY:                 { label: 'Pronto',                      icon: CheckCircle, color: 'text-green-500', step: 3 },
   DISPATCHED:            { label: 'Saiu para entrega',           icon: Bike, color: 'text-purple-500', step: 3 },
   DELIVERED:             { label: 'Entregue',                    icon: Package, color: 'text-green-500', step: 4 },
   CANCELLED:             { label: 'Cancelado',                   icon: Clock, color: 'text-red-500', step: -1 },
-  READY_FOR_PICKUP:      { label: 'Pronto para retirada',        icon: Package, color: 'text-green-500', step: 3 },
 }
 
-const STEPS = ['Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue']
+const DELIVERY_STEPS = ['Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue']
+const PICKUP_STEPS   = ['Confirmado', 'Em preparo', 'Pronto para retirada', 'Entregue']
 
 interface OrderCreatedState {
   pixQrCode?: string
@@ -94,6 +95,7 @@ export function OrderTrackingPage() {
   const statusConfig = STATUS_CONFIG[order.status] ?? { label: order.status, icon: Clock, color: 'text-gray-500', step: 0 }
   const StatusIcon = statusConfig.icon
   const currentStep = statusConfig.step
+  const steps = order.type === 'PICKUP' || order.type === 'TABLE' ? PICKUP_STEPS : DELIVERY_STEPS
 
   return (
     <div className="min-h-screen bg-gray-50 max-w-lg mx-auto">
@@ -119,7 +121,7 @@ export function OrderTrackingPage() {
         {order.status !== 'CANCELLED' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'WAITING_CONFIRMATION' && (
           <section className="bg-white rounded-xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
-              {STEPS.map((step, i) => (
+              {steps.map((step, i) => (
                 <div key={step} className="flex flex-col items-center flex-1">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                     i < currentStep ? 'bg-green-500 text-white' :
@@ -129,7 +131,7 @@ export function OrderTrackingPage() {
                     {i < currentStep ? '✓' : i + 1}
                   </div>
                   <p className="text-xs text-center mt-1 text-gray-500 leading-tight">{step}</p>
-                  {i < STEPS.length - 1 && (
+                  {i < steps.length - 1 && (
                     <div className={`absolute h-0.5 w-full ${i < currentStep - 1 ? 'bg-green-500' : 'bg-gray-200'}`} />
                   )}
                 </div>
