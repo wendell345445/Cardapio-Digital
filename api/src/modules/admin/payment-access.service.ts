@@ -13,9 +13,10 @@ export async function listStoreClients(storeId: string) {
   const clients = await prisma.user.findMany({
     where: {
       role: 'CLIENT',
-      ordersAsClient: {
-        some: { storeId },
-      },
+      OR: [
+        { ordersAsClient: { some: { storeId } } },
+        { clientAccessLists: { some: { storeId } } },
+      ],
     },
     select: {
       id: true,
