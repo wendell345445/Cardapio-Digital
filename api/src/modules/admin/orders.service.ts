@@ -1,4 +1,4 @@
-import { OrderStatus, OrderType } from '@prisma/client'
+import { OrderStatus, OrderType, PaymentMethod } from '@prisma/client'
 
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
@@ -239,9 +239,9 @@ export async function updateOrderStatus(
 // ─── TASK-123: Botão "Aguardando Pix" — Disparo manual ───────────────────────
 
 /**
- * Envia mensagem WhatsApp "Aguardando Pix" manualmente para pedidos de entrega.
- * Não muda o status do pedido (mantém PENDING na coluna "Novos").
- * Somente aplicável a pedidos de entrega (não retirada).
+ * Envia mensagem WhatsApp "Aguardando Pix" e muda status para WAITING_PAYMENT_PROOF.
+ * Somente aplicável a pedidos DELIVERY + PENDING + PIX.
+ * A-053: botão some após clicar (status deixa de ser PENDING).
  */
 export async function sendWaitingPaymentNotification(
   storeId: string,
@@ -251,7 +251,7 @@ export async function sendWaitingPaymentNotification(
 ) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
-    select: { id: true, storeId: true, type: true, status: true, clientWhatsapp: true, number: true },
+    select: { id: true, storeId: true, type: true, status: true, paymentMethod: true, clientWhatsapp: true, number: true },
   })
 
   if (!order || order.storeId !== storeId) {
@@ -266,12 +266,22 @@ export async function sendWaitingPaymentNotification(
     throw new AppError('Mensagem de Aguardando Pix só pode ser enviada para pedidos no status Novo', 400)
   }
 
+  if (order.paymentMethod !== PaymentMethod.PIX) {
+    throw new AppError('Mensagem de Aguardando Pix só se aplica a pedidos com pagamento Pix', 400)
+  }
+
   const store = await prisma.store.findUnique({
     where: { id: storeId },
     select: { name: true },
   })
 
   if (!store) throw new AppError('Loja não encontrada', 404)
+
+  // Atualiza status para WAITING_PAYMENT_PROOF (pedido continua na coluna "Novos")
+  await prisma.order.update({
+    where: { id: orderId },
+    data: { status: OrderStatus.WAITING_PAYMENT_PROOF },
+  })
 
   // Fire-and-forget WhatsApp
   if (order.clientWhatsapp) {
@@ -287,7 +297,7 @@ export async function sendWaitingPaymentNotification(
       action: 'order.send_waiting_payment',
       entity: 'Order',
       entityId: orderId,
-      data: {},
+      data: { previousStatus: 'PENDING', newStatus: 'WAITING_PAYMENT_PROOF' },
       ip,
     },
   })
