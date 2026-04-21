@@ -11,6 +11,10 @@ export const topProductsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(10),
 })
 
+export const paymentBreakdownQuerySchema = z.object({
+  period: z.enum(['day', 'week', 'month']).default('week'),
+})
+
 export const rankingQuerySchema = z.object({
   period: z.enum(['7d', '30d', '90d', 'all']).default('30d'),
   page: z.coerce.number().int().min(1).default(1),
@@ -20,4 +24,5 @@ export const rankingQuerySchema = z.object({
 
 export type SalesQuery = z.infer<typeof salesQuerySchema>
 export type TopProductsQuery = z.infer<typeof topProductsQuerySchema>
+export type PaymentBreakdownQuery = z.infer<typeof paymentBreakdownQuerySchema>
 export type RankingQuery = z.infer<typeof rankingQuerySchema>

@@ -28,6 +28,7 @@ import { prisma } from '../../../shared/prisma/prisma'
 import { cache } from '../../../shared/redis/redis'
 import {
   getClientRanking,
+  getPaymentBreakdown,
   getPeakHours,
   getSalesSummary,
   getTopProducts,
@@ -174,6 +175,76 @@ describe('invalidateAnalyticsCache', () => {
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:week:4`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:month:4`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:day`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:week`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:month`)
+  })
+})
+
+// ─── getPaymentBreakdown (A-085) ──────────────────────────────────────────────
+
+describe('getPaymentBreakdown', () => {
+  it('agrega receita e count por método de pagamento e calcula percentuais', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 100, paymentMethod: 'PIX' }),
+      makeOrder({ total: 50, paymentMethod: 'PIX' }),
+      makeOrder({ total: 50, paymentMethod: 'CASH_ON_DELIVERY' }),
+    ])
+
+    const result = await getPaymentBreakdown(STORE_ID, { period: 'day' })
+
+    expect(result).toHaveLength(2)
+    const pix = result.find((r) => r.method === 'PIX')
+    expect(pix?.count).toBe(2)
+    expect(pix?.revenue).toBe(150)
+    expect(pix?.percentage).toBeCloseTo(75)
+    const cash = result.find((r) => r.method === 'CASH_ON_DELIVERY')
+    expect(cash?.count).toBe(1)
+    expect(cash?.revenue).toBe(50)
+    expect(cash?.percentage).toBeCloseTo(25)
+  })
+
+  it('ordena por receita decrescente', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 30, paymentMethod: 'CASH_ON_DELIVERY' }),
+      makeOrder({ total: 200, paymentMethod: 'PIX' }),
+      makeOrder({ total: 90, paymentMethod: 'CREDIT_CARD' }),
+    ])
+
+    const result = await getPaymentBreakdown(STORE_ID, { period: 'week' })
+
+    expect(result[0].method).toBe('PIX')
+    expect(result[1].method).toBe('CREDIT_CARD')
+    expect(result[2].method).toBe('CASH_ON_DELIVERY')
+  })
+
+  it('retorna lista vazia quando não há pedidos', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    const result = await getPaymentBreakdown(STORE_ID, { period: 'day' })
+
+    expect(result).toHaveLength(0)
+  })
+
+  it('usa cache quando disponível', async () => {
+    const cached = [{ method: 'PIX', count: 10, revenue: 1000, percentage: 100 }]
+    ;(mockCache.get as jest.Mock).mockResolvedValue(cached)
+
+    const result = await getPaymentBreakdown(STORE_ID, { period: 'month' })
+
+    expect(result).toEqual(cached)
+    expect(mockPrisma.order.findMany).not.toHaveBeenCalled()
+  })
+
+  it('ignora pedidos cancelados/pendentes/aguardando comprovante', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await getPaymentBreakdown(STORE_ID, { period: 'day' })
+
+    const call = (mockPrisma.order.findMany as jest.Mock).mock.calls[0][0]
+    expect(call.where.status.notIn).toEqual(
+      expect.arrayContaining(['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'])
+    )
   })
 })
 

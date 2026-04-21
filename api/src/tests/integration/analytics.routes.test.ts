@@ -256,6 +256,50 @@ describe('GET /api/v1/admin/analytics/peak-hours', () => {
   })
 })
 
+// ─── GET /admin/analytics/payment-breakdown (A-085) ──────────────────────────
+
+describe('GET /api/v1/admin/analytics/payment-breakdown', () => {
+  const paymentOrders = [
+    { total: 100, paymentMethod: 'PIX', createdAt: new Date('2026-04-01T12:00:00Z') },
+    { total: 50, paymentMethod: 'PIX', createdAt: new Date('2026-04-02T14:00:00Z') },
+    { total: 50, paymentMethod: 'CASH_ON_DELIVERY', createdAt: new Date('2026-04-02T16:00:00Z') },
+  ]
+
+  it('retorna 200 com breakdown por método ordenado por receita', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue(paymentOrders)
+
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/payment-breakdown?period=week')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toHaveLength(2)
+    expect(res.body.data[0].method).toBe('PIX')
+    expect(res.body.data[0].count).toBe(2)
+    expect(res.body.data[0].revenue).toBe(150)
+    expect(res.body.data[0].percentage).toBeCloseTo(75)
+    expect(res.body.data[1].method).toBe('CASH_ON_DELIVERY')
+  })
+
+  it('usa period=week por padrão', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/payment-breakdown')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual([])
+  })
+
+  it('retorna 401 sem token', async () => {
+    const res = await request(app).get('/api/v1/admin/analytics/payment-breakdown')
+    expect(res.status).toBe(401)
+  })
+})
+
 // ─── GET /admin/analytics/clients/ranking ────────────────────────────────────
 
 describe('GET /api/v1/admin/analytics/clients/ranking', () => {

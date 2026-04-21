@@ -4,6 +4,7 @@ import {
   getClientRanking,
   getCustomerDetail,
   getCustomerOrders,
+  getPaymentBreakdown,
   getPeakHours,
   getSales,
   getTopProducts,
@@ -36,6 +37,14 @@ export function usePeakHours() {
     queryKey: ['analytics', 'peak-hours'],
     queryFn: () => getPeakHours(),
     staleTime: 10 * 60 * 1000,
+  })
+}
+
+export function usePaymentBreakdown(period: Period) {
+  return useQuery({
+    queryKey: ['analytics', 'payment-breakdown', period],
+    queryFn: () => getPaymentBreakdown(period),
+    staleTime: 5 * 60 * 1000,
   })
 }
 

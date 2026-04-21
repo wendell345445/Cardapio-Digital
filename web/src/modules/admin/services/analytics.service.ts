@@ -25,6 +25,13 @@ export interface PeakHour {
   orders: number
 }
 
+export interface PaymentBreakdownItem {
+  method: string
+  count: number
+  revenue: number
+  percentage: number
+}
+
 export interface ClientRankingItem {
   position: number
   clientId: string
@@ -66,6 +73,13 @@ export async function getTopProducts(period: Period, limit?: number): Promise<To
 
 export async function getPeakHours(): Promise<PeakHour[]> {
   const { data } = await api.get('/admin/analytics/peak-hours')
+  return data.data
+}
+
+export async function getPaymentBreakdown(period: Period): Promise<PaymentBreakdownItem[]> {
+  const { data } = await api.get('/admin/analytics/payment-breakdown', {
+    params: { period },
+  })
   return data.data
 }
 
