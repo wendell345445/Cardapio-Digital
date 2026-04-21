@@ -13,7 +13,9 @@ async function fetchOrderTracking(token: string) {
   return data.data
 }
 
-const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; step: number }> = {
+interface StatusEntry { label: string; icon: React.ElementType; color: string; step: number }
+
+const STATUS_CONFIG: Record<string, StatusEntry> = {
   WAITING_PAYMENT_PROOF: { label: 'Aguardando comprovante Pix', icon: Clock, color: 'text-yellow-500', step: 0 },
   WAITING_CONFIRMATION:  { label: 'Aguardando confirmação',     icon: Clock, color: 'text-yellow-500', step: 0 },
   CONFIRMED:             { label: 'Confirmado',                  icon: CheckCircle, color: 'text-blue-500', step: 1 },
@@ -21,7 +23,18 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ElementType; co
   DISPATCHED:            { label: 'Saiu para entrega',           icon: Bike, color: 'text-purple-500', step: 3 },
   DELIVERED:             { label: 'Entregue',                    icon: Package, color: 'text-green-500', step: 4 },
   CANCELLED:             { label: 'Cancelado',                   icon: Clock, color: 'text-red-500', step: -1 },
-  READY_FOR_PICKUP:      { label: 'Pronto para retirada',        icon: Package, color: 'text-green-500', step: 3 },
+}
+
+// READY depende do tipo do pedido: em entrega, a loja ainda vai acionar um
+// motoboy, então mantém "Em preparo" como último checkmark aceso (step 2).
+// Em retirada/mesa, READY é o estado final antes de DELIVERED (step 3).
+export function getStatusConfig(status: string, type: string): StatusEntry {
+  if (status === 'READY') {
+    return type === 'DELIVERY'
+      ? { label: 'Pronto — aguardando motoboy', icon: Package, color: 'text-green-500', step: 2 }
+      : { label: 'Pronto para retirada', icon: Package, color: 'text-green-500', step: 3 }
+  }
+  return STATUS_CONFIG[status] ?? { label: status, icon: Clock, color: 'text-gray-500', step: 0 }
 }
 
 const STEPS = ['Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue']
@@ -91,7 +104,7 @@ export function OrderTrackingPage() {
     )
   }
 
-  const statusConfig = STATUS_CONFIG[order.status] ?? { label: order.status, icon: Clock, color: 'text-gray-500', step: 0 }
+  const statusConfig = getStatusConfig(order.status, order.type)
   const StatusIcon = statusConfig.icon
   const currentStep = statusConfig.step
 
@@ -117,7 +130,7 @@ export function OrderTrackingPage() {
       <div className="px-4 py-6 space-y-5">
         {/* Progress steps */}
         {order.status !== 'CANCELLED' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'WAITING_CONFIRMATION' && (
-          <section className="bg-white rounded-xl p-4 shadow-sm">
+          <section className="bg-white rounded-xl px-2 py-4 shadow-sm">
             <div className="flex items-center justify-between">
               {STEPS.map((step, i) => (
                 <div key={step} className="flex flex-col items-center flex-1">
@@ -128,10 +141,7 @@ export function OrderTrackingPage() {
                   }`}>
                     {i < currentStep ? '✓' : i + 1}
                   </div>
-                  <p className="text-xs text-center mt-1 text-gray-500 leading-tight">{step}</p>
-                  {i < STEPS.length - 1 && (
-                    <div className={`absolute h-0.5 w-full ${i < currentStep - 1 ? 'bg-green-500' : 'bg-gray-200'}`} />
-                  )}
+                  <p className="text-[10px] text-center mt-1 text-gray-500 leading-tight">{step}</p>
                 </div>
               ))}
             </div>

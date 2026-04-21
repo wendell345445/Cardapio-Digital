@@ -81,6 +81,25 @@ function canTransition(fromStatus: string, toStatus: string): boolean {
   return VALID_TRANSITIONS[fromStatus]?.includes(toStatus) ?? false
 }
 
+/**
+ * Mover de READY → DELIVERED num pedido de entrega sem motoboy atribuído pula
+ * o fluxo esperado (Pronto → atribuir motoboy → Saiu → Entregue). O botão "→"
+ * no card já bloqueia essa transição direta (OrderCard.canAdvanceDirect); o
+ * drag-and-drop precisa pedir confirmação pra evitar conclusão acidental
+ * sem histórico de quem levou.
+ */
+export function requiresMotoboyConfirmation(
+  order: Pick<Order, 'status' | 'type' | 'motoboyId'>,
+  targetStatus: string
+): boolean {
+  return (
+    order.status === 'READY' &&
+    order.type === 'DELIVERY' &&
+    targetStatus === 'DELIVERED' &&
+    !order.motoboyId
+  )
+}
+
 // TASK-125: Kanban v2 — 5 colunas (adicionada "Confirmado")
 const ACTIVE_COLUMN_CONFIG = [
   {
@@ -579,6 +598,16 @@ export function OrdersPage() {
 
     // Validate transition
     if (!canTransition(order.status, targetStatus)) return
+
+    // Entrega sem motoboy atribuído: pedir confirmação antes de concluir, pra
+    // alinhar com o bloqueio que o botão "→" já faz no card.
+    if (requiresMotoboyConfirmation(order, targetStatus)) {
+      const confirmed = window.confirm(
+        'Este pedido de entrega não tem um motoboy atribuído. ' +
+        'Marcar como Entregue mesmo assim?'
+      )
+      if (!confirmed) return
+    }
 
     handleAdvanceStatus(order.id, targetStatus)
   }
