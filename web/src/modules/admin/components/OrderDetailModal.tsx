@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import { Printer } from 'lucide-react'
 
 import { useViaCep } from '../../auth/hooks/useViaCep'
 import { useMotoboys } from '../hooks/useMotoboys'
-import { useAssignMotoboy, useOrder, useUpdateOrderAddress, useUpdateOrderStatus } from '../hooks/useOrders'
+import { useAssignMotoboy, useOrder, usePrintOrder, useUpdateOrderAddress, useUpdateOrderStatus } from '../hooks/useOrders'
 import type { OrderAddress } from '../services/orders.service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -91,6 +92,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
   const updateStatus = useUpdateOrderStatus()
   const assignMotoboy = useAssignMotoboy()
   const updateAddress = useUpdateOrderAddress()
+  const printOrder = usePrintOrder()
   const { data: motoboys } = useMotoboys()
   const { lookup: lookupCep, isLoading: cepLoading } = useViaCep()
 
@@ -195,12 +197,25 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
           <h2 className="text-lg font-bold text-gray-900">
             {order ? `Pedido #${order.number}` : 'Detalhes do Pedido'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
-          >
-            &times;
-          </button>
+          <div className="flex items-center gap-2">
+            {order && (
+              <button
+                onClick={() => printOrder.mutate(orderId)}
+                disabled={printOrder.isPending}
+                title="Imprimir pedido"
+                className="flex items-center gap-1.5 rounded-md border border-gray-300 text-gray-600 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
         </div>
 
         {/* Content */}

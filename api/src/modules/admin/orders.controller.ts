@@ -4,6 +4,7 @@ import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
 import { assignMotoboySchema, listOrdersSchema, updateOrderAddressSchema, updateOrderStatusSchema } from './orders.schema'
 import { assignMotoboy, getOrder, listOrders, sendWaitingPaymentNotification, updateOrderAddress, updateOrderStatus } from './orders.service'
+import { getOrderReceipt } from './print.service'
 
 // ─── TASK-080: Controllers de Pedidos Admin ──────────────────────────────────
 
@@ -75,6 +76,19 @@ export async function updateOrderAddressController(req: Request, res: Response, 
     const input = updateOrderAddressSchema.parse(req.body)
     const result = await updateOrderAddress(storeId, id, input)
     res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── TASK-084/A-050: Controller — Recibo para Impressão ─────────────────────
+
+export async function getOrderReceiptController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { id } = req.params
+    const receipt = await getOrderReceipt(storeId, id)
+    res.json({ success: true, data: { receipt } })
   } catch (err) {
     next(err)
   }
