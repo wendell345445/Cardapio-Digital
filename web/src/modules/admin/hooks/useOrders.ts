@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   assignMotoboy,
   fetchOrder,
+  fetchOrderReceipt,
   fetchOrders,
+  printReceipt,
   sendWaitingPayment,
   updateOrderAddress,
   updateOrderStatus,
@@ -62,6 +64,16 @@ export function useUpdateOrderAddress() {
     onSuccess: (updatedOrder) => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
+    },
+  })
+}
+
+// TASK-084/A-050: Impressão manual do pedido
+export function usePrintOrder() {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const receipt = await fetchOrderReceipt(id)
+      printReceipt(receipt)
     },
   })
 }

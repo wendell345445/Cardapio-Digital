@@ -102,3 +102,44 @@ export async function sendWaitingPayment(id: string): Promise<{ success: boolean
   const { data } = await api.patch(`/admin/orders/${id}/send-waiting-payment`)
   return data.data
 }
+
+// TASK-084/A-050: Buscar recibo formatado para impressão
+export async function fetchOrderReceipt(id: string): Promise<string> {
+  const { data } = await api.get(`/admin/orders/${id}/receipt`)
+  return data.data.receipt
+}
+
+/** Abre janela de impressão com o recibo formatado para impressora térmica */
+export function printReceipt(receipt: string) {
+  const printWindow = window.open('', '_blank', 'width=400,height=600')
+  if (!printWindow) return
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Imprimir Pedido</title>
+  <style>
+    @page { margin: 0; size: 80mm auto; }
+    body {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.4;
+      margin: 0;
+      padding: 4mm;
+      width: 72mm;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>${receipt.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+</html>`)
+  printWindow.document.close()
+  printWindow.focus()
+  printWindow.print()
+  printWindow.close()
+}

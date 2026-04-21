@@ -7,6 +7,7 @@
 // Para usar impressora real: npm install escpos escpos-usb
 // Por enquanto, gera o texto formatado ESC/POS e loga (stub pronto para integração)
 
+import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 
 interface PrintOrder {
@@ -130,6 +131,46 @@ export function buildReceiptText(order: PrintOrder): string {
 function hasAutoPrint(features: unknown): boolean {
   if (!features || typeof features !== 'object') return false
   return (features as Record<string, boolean>).auto_print === true
+}
+
+/**
+ * Busca pedido e retorna o texto do recibo formatado.
+ * Usado pelo endpoint GET /admin/orders/:id/receipt para impressão manual.
+ */
+export async function getOrderReceipt(storeId: string, orderId: string): Promise<string> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: { include: { additionals: true } },
+    },
+  })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  return buildReceiptText({
+    number: order.number,
+    createdAt: order.createdAt,
+    clientName: order.clientName,
+    clientWhatsapp: order.clientWhatsapp,
+    type: order.type,
+    paymentMethod: order.paymentMethod,
+    subtotal: order.subtotal,
+    deliveryFee: order.deliveryFee,
+    discount: order.discount,
+    total: order.total,
+    notes: order.notes,
+    address: order.address as Record<string, string> | null,
+    items: order.items.map((i) => ({
+      productName: i.productName,
+      variationName: i.variationName,
+      quantity: i.quantity,
+      totalPrice: i.totalPrice,
+      notes: i.notes,
+      additionals: i.additionals,
+    })),
+  })
 }
 
 /**
