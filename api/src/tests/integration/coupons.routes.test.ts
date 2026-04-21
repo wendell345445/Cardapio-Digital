@@ -51,7 +51,6 @@ const mockStore = {
   slug: 'minha-loja',
   status: 'ACTIVE',
   plan: 'PREMIUM',
-  deliveryMode: null,
 }
 
 const mockCoupon = {

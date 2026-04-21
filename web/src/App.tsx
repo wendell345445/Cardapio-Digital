@@ -23,7 +23,6 @@ import { AnalyticsPage } from '@/modules/admin/pages/AnalyticsPage'
 import { ClientsPage } from '@/modules/admin/pages/ClientsPage'
 import { CashFlowPage } from '@/modules/admin/pages/CashFlowPage'
 import { AdicionaisPage } from '@/modules/admin/pages/AdicionaisPage'
-import { BairrosPage } from '@/modules/admin/pages/BairrosPage'
 import { EntregasPage } from '@/modules/admin/pages/EntregasPage'
 import { HorariosPage } from '@/modules/admin/pages/HorariosPage'
 import { CheckoutPage } from '@/modules/menu/pages/CheckoutPage'
@@ -190,14 +189,6 @@ export function App() {
             element={
               <AdminLayout>
                 <AdicionaisPage />
-              </AdminLayout>
-            }
-          />
-          <Route
-            path="/admin/bairros"
-            element={
-              <AdminLayout>
-                <BairrosPage />
               </AdminLayout>
             }
           />

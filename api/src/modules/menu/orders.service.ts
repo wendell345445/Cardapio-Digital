@@ -6,9 +6,11 @@ import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
+import { calculateDeliveryFee } from '../admin/delivery.service'
 import { sendOrderCreatedMessage } from '../whatsapp/messages.service'
 import { getPaymentMethodsForClient } from '../admin/payment-access.service'
 
+import { geocodeAddress } from './geocoding.service'
 import { generatePix } from './pix.service'
 import type { PixData } from './pix.service'
 import type { CreateOrderInput } from './orders.schema'
@@ -215,22 +217,32 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     couponId = coupon.id
   }
 
-  // 6. Taxa de entrega por bairro
+  // 6. Taxa de entrega: geocodifica o endereço e calcula distância contra a loja.
+  // Se a loja não tiver coordenadas ou faixas configuradas, fee fica 0 (grátis).
+  // Erro de geocoding/fora-de-área é propagado como 422.
   let deliveryFee = 0
   if (data.type === 'DELIVERY' && data.address) {
-    const neighborhood = await prisma.deliveryNeighborhood.findFirst({
-      where: {
-        storeId: store.id,
-        name: { equals: data.address.neighborhood, mode: 'insensitive' },
-      },
+    const coords = await geocodeAddress({
+      cep: data.address.zipCode,
+      street: data.address.street,
+      number: data.address.number,
+      neighborhood: data.address.neighborhood,
+      city: data.address.city,
+      state: data.address.state ?? undefined,
     })
-    if (neighborhood === null) {
-      const hasNeighborhoodConfig = await prisma.deliveryNeighborhood.count({
-        where: { storeId: store.id },
+    try {
+      const result = await calculateDeliveryFee(store.id, {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
       })
-      if (hasNeighborhoodConfig > 0) throw new AppError('Não entregamos neste bairro', 422)
-    } else {
-      deliveryFee = neighborhood.fee
+      deliveryFee = result.fee
+    } catch (err) {
+      // Se loja não tem coords/faixas, fee = 0. Erros de "fora da área" propagam.
+      const message = err instanceof AppError ? err.message : ''
+      const isConfigMissing =
+        message === 'Coordenadas da loja não configuradas' ||
+        message === 'Nenhuma faixa de distância configurada'
+      if (!isConfigMissing) throw err
     }
   }
 
