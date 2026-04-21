@@ -242,9 +242,9 @@ function OrderCard({
   const nextStatus = NEXT_STATUS[order.status]
   const canAdvanceDirect = !readonly && nextStatus && !(order.status === 'READY' && order.type === 'DELIVERY')
 
-  // TASK-124: Botão "Enviar Aguardando Pix" — só DELIVERY + PENDING
+  // TASK-124/A-053: Botão "Enviar Aguardando Pix" — só DELIVERY + PENDING + PIX
   const showWaitingPixButton =
-    !readonly && order.status === 'PENDING' && order.type === 'DELIVERY'
+    !readonly && order.status === 'PENDING' && order.type === 'DELIVERY' && order.paymentMethod === 'PIX'
 
   const sendWaitingPaymentMutation = useSendWaitingPayment()
 

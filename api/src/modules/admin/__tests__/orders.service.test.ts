@@ -617,7 +617,7 @@ describe('assignMotoboy', () => {
   })
 })
 
-// ─── sendWaitingPaymentNotification (TASK-123) ────────────────────────────────
+// ─── sendWaitingPaymentNotification (TASK-123 / A-053) ────────────────────────
 
 describe('sendWaitingPaymentNotification', () => {
   const pendingDeliveryOrder = {
@@ -625,6 +625,7 @@ describe('sendWaitingPaymentNotification', () => {
     storeId: STORE_ID,
     type: 'DELIVERY' as const,
     status: 'PENDING' as const,
+    paymentMethod: 'PIX' as const,
     clientWhatsapp: '5548999990001',
     number: 42,
   }
@@ -632,12 +633,13 @@ describe('sendWaitingPaymentNotification', () => {
   function setupWaitingMocks(orderOverrides = {}) {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({ ...pendingDeliveryOrder, ...orderOverrides })
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pendingDeliveryOrder, status: 'WAITING_PAYMENT_PROOF' })
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
   }
 
   beforeEach(() => jest.clearAllMocks())
 
-  it('retorna { success: true } para pedido DELIVERY + PENDING', async () => {
+  it('retorna { success: true } para pedido DELIVERY + PENDING + PIX', async () => {
     setupWaitingMocks()
 
     const result = await sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID, IP)
@@ -677,6 +679,14 @@ describe('sendWaitingPaymentNotification', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
+  it('lança 400 quando paymentMethod não é PIX (A-053)', async () => {
+    setupWaitingMocks({ paymentMethod: 'CASH_ON_DELIVERY' })
+
+    await expect(
+      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
   it('registra AuditLog com action order.send_waiting_payment', async () => {
     setupWaitingMocks()
 
@@ -694,12 +704,14 @@ describe('sendWaitingPaymentNotification', () => {
     )
   })
 
-  it('NÃO muda o status do pedido (mantém PENDING na coluna Novos)', async () => {
+  it('muda status para WAITING_PAYMENT_PROOF (A-053)', async () => {
     setupWaitingMocks()
 
     await sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
 
-    // order.update não deve ser chamado — status não muda
-    expect(mockPrisma.order.update).not.toHaveBeenCalled()
+    expect(mockPrisma.order.update).toHaveBeenCalledWith({
+      where: { id: ORDER_ID },
+      data: { status: 'WAITING_PAYMENT_PROOF' },
+    })
   })
 })
