@@ -362,12 +362,15 @@ model Coupon {
 // ─── CASH FLOW ────────────────────────────────────────────────────
 
 model CashFlow {
-  id            String         @id @default(uuid())
-  storeId       String
-  openedAt      DateTime
-  closedAt      DateTime?
-  initialAmount Float          @default(0)
-  status        CashFlowStatus @default(OPEN)
+  id                   String         @id @default(uuid())
+  storeId              String
+  openedAt             DateTime
+  closedAt             DateTime?
+  initialAmount        Float          @default(0)
+  countedAmount        Float?
+  closedDifference     Float?
+  closedJustification  String?
+  status               CashFlowStatus @default(OPEN)
 
   store       Store                @relation(fields: [storeId], references: [id])
   items       CashFlowItem[]
