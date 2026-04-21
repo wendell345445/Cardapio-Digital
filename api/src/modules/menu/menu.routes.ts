@@ -19,6 +19,7 @@ import {
 import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
 import { createOrderController } from './orders.controller'
+import { getCustomerComandaController, requestCheckController } from './comanda.controller'
 import { getOrderTrackingController } from './tracking.controller'
 
 // ─── TASK-060: Menu Público ───────────────────────────────────────────────────
@@ -42,6 +43,10 @@ menuRouter.post('/customer/otp/request', requestOtpController)
 menuRouter.post('/customer/otp/verify', verifyOtpController)
 menuRouter.get('/customer/me', customerMeController)
 menuRouter.post('/customer/logout', customerLogoutController)
+
+// ─── A-056: Comanda pública do cliente ──────────────────────────────────────
+menuRouter.get('/comanda', getCustomerComandaController)
+menuRouter.post('/comanda/check', requestCheckController)
 
 // POST /menu/coupon/validate
 menuRouter.post(
