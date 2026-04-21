@@ -9,6 +9,7 @@ import {
 } from '../../shared/middleware/auth.middleware'
 
 import {
+  addPaymentAccessByWhatsappController,
   addPaymentAccessController,
   listStoreClientsController,
   removePaymentAccessController,
@@ -22,6 +23,7 @@ router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requir
 
 router.get('/clients', listStoreClientsController)
 router.post('/payment-access', addPaymentAccessController)
+router.post('/payment-access/by-whatsapp', addPaymentAccessByWhatsappController)
 router.delete('/payment-access/:clientId', removePaymentAccessController)
 
 export default router

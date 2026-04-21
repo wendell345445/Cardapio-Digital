@@ -1,7 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 
-import type { AddPaymentAccessInput } from './payment-access.schema'
+import type { AddPaymentAccessByWhatsappInput, AddPaymentAccessInput } from './payment-access.schema'
 
 // ─── TASK-054: Blacklist e Whitelist de Clientes ─────────────────────────────
 
@@ -122,6 +122,65 @@ export async function removePaymentAccess(
       ip,
     },
   })
+}
+
+/**
+ * ADR-0002: adiciona cliente à blacklist/whitelist informando WhatsApp.
+ * Cria um User CLIENT se não existir (storeId + whatsapp). Não exige histórico de pedido.
+ */
+export async function addPaymentAccessByWhatsapp(
+  storeId: string,
+  data: AddPaymentAccessByWhatsappInput,
+  userId: string,
+  ip?: string
+) {
+  const { whatsapp, name, type } = data
+
+  let client = await prisma.user.findFirst({
+    where: { whatsapp, storeId, role: 'CLIENT' },
+  })
+
+  const createdNewUser = !client
+
+  if (!client) {
+    const fallbackName = name?.trim() || `Cliente ${whatsapp.slice(-4)}`
+    client = await prisma.user.create({
+      data: {
+        whatsapp,
+        storeId,
+        role: 'CLIENT',
+        name: fallbackName,
+        isActive: true,
+      },
+    })
+  } else if (name?.trim() && !client.name) {
+    client = await prisma.user.update({
+      where: { id: client.id },
+      data: { name: name.trim() },
+    })
+  }
+
+  await prisma.clientPaymentAccess.deleteMany({
+    where: { storeId, clientId: client.id },
+  })
+
+  const access = await prisma.clientPaymentAccess.create({
+    data: { storeId, clientId: client.id, type },
+  })
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'store.payment-access.add-by-whatsapp',
+      entity: 'ClientPaymentAccess',
+      entityId: access.id,
+      data: { whatsapp, name: name ?? null, type, clientId: client.id, createdNewUser },
+      ip,
+    },
+  })
+
+  return { clientId: client.id, accessId: access.id, type, createdNewUser }
 }
 
 /**

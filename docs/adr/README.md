@@ -16,3 +16,4 @@ Um ADR documenta uma decisão técnica com peso — por que foi tomada, quais al
 | # | Título | Status | Data |
 |---|--------|--------|------|
 | [0001](0001-motoboys-e-blacklist-whitelist-como-itens-standalone-na-sidebar.md) | Motoboys e Blacklist/Whitelist como itens standalone na sidebar | Proposto | 2026-04-21 |
+| [0002](0002-controle-de-acesso-permitir-adicionar-cliente-por-whatsapp.md) | Controle de Acesso — permitir adicionar cliente por WhatsApp (sem histórico prévio) | Proposto | 2026-04-21 |
