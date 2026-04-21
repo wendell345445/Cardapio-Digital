@@ -1,8 +1,14 @@
 import { NextFunction, Request, Response } from 'express'
 
-import { rankingQuerySchema, salesQuerySchema, topProductsQuerySchema } from './analytics.schema'
+import {
+  paymentBreakdownQuerySchema,
+  rankingQuerySchema,
+  salesQuerySchema,
+  topProductsQuerySchema,
+} from './analytics.schema'
 import {
   getClientRanking,
+  getPaymentBreakdown,
   getPeakHours,
   getSalesSummary,
   getTopProducts,
@@ -62,6 +68,21 @@ export async function getPeakHoursController(req: Request, res: Response, next: 
   try {
     const storeId = req.tenant!.storeId
     const data = await getPeakHours(storeId)
+    res.json({ success: true, data })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getPaymentBreakdownController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const query = paymentBreakdownQuerySchema.parse(req.query)
+    const data = await getPaymentBreakdown(storeId, query)
     res.json({ success: true, data })
   } catch (err) {
     next(err)
