@@ -56,7 +56,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-implied-eval
     baileys = await (new Function('m', 'return import(m)'))('@whiskeysockets/baileys')
   } catch {
-    console.warn('[WhatsApp] Baileys not installed. Install @whiskeysockets/baileys to enable WhatsApp.')
+    console.log('[WhatsApp] Baileys not installed. Install @whiskeysockets/baileys to enable WhatsApp.')
     connecting.delete(storeId)
     return
   }
@@ -84,7 +84,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
     })
     console.log('[WhatsApp] makeWASocket ok')
   } catch (err) {
-    console.error('[WhatsApp] makeWASocket threw:', err)
+    console.log(`[WhatsApp] makeWASocket threw: ${err}`)
     connecting.delete(storeId)
     return
   }
@@ -106,7 +106,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
       instance.isConnected = true
       instance.qrCode = null
       emitter.emit(`connected:${storeId}`)
-      console.log(`[WhatsApp] Store ${storeId} connected`)
+      console.log(`[WhatsApp] Store ${storeId} CONNECTED ✓`)
     }
 
     if (connection === 'close') {
@@ -114,7 +114,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
       const statusCode = error?.output?.statusCode
       const isLoggedOut = statusCode === DisconnectReason.loggedOut
       const isBadSession = statusCode === DisconnectReason.badSession
-      console.log(`[WhatsApp] connection close storeId=${storeId} statusCode=${statusCode} error="${error?.message}"`)
+      console.log(`[WhatsApp] connection CLOSE storeId=${storeId} statusCode=${statusCode} error="${error?.message}"`)
 
       instance.isConnected = false
       instance.qrCode = null
@@ -302,7 +302,7 @@ export async function restoreAllSessions(): Promise<void> {
       return fs.statSync(fullPath).isDirectory()
     })
   } catch {
-    console.warn('[WhatsApp] Could not read sessions dir, skipping restore')
+    console.log('[WhatsApp] Could not read sessions dir, skipping restore')
     return
   }
 
@@ -317,7 +317,7 @@ export async function restoreAllSessions(): Promise<void> {
     try {
       await connectWhatsApp(storeId)
     } catch (err) {
-      console.error(`[WhatsApp] Failed to restore session for storeId=${storeId}:`, err)
+      console.log(`[WhatsApp] Failed to restore session for storeId=${storeId}: ${err}`)
     }
   }
 }
@@ -384,26 +384,33 @@ async function resolveJid(sock: any, storeId: string, phone: string): Promise<st
       select: { waJid: true },
     })
     if (conversation?.waJid) {
-      console.log(`[WhatsApp] Usando waJid salvo: ${conversation.waJid}`)
       return conversation.waJid
     }
   } catch {
     // não bloqueia se banco não responder
   }
 
-  // 2. Tentar resolver PN → LID via signalRepository
+  // 2. Resolver via onWhatsApp (consulta o backend do WhatsApp — mais confiável)
+  try {
+    const [result] = await sock.onWhatsApp(normalized)
+    if (result?.exists && result.jid) {
+      return result.jid
+    }
+  } catch {
+    // onWhatsApp pode falhar por timeout de rede
+  }
+
+  // 3. Tentar resolver PN → LID via signalRepository
   try {
     const lidJid = await sock.signalRepository.lidMapping.getLIDForPN(pnJid)
     if (lidJid) {
-      console.log(`[WhatsApp] Resolvido PN→LID: ${pnJid} → ${lidJid}`)
       return lidJid
     }
   } catch {
     // signalRepository pode não estar disponível ou não ter o mapeamento
   }
 
-  // 3. Fallback para JID de telefone normalizado
-  console.log(`[WhatsApp] Usando PN JID (fallback): ${pnJid}`)
+  // 4. Fallback para JID de telefone normalizado
   return pnJid
 }
 

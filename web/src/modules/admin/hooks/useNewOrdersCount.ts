@@ -38,5 +38,5 @@ export function useNewOrdersCount() {
     }
   }, [socket, qc])
 
-  return { count: query.data?.orders.length ?? 0 }
+  return { count: query.data?.orders.length ?? 0, orders: query.data?.orders ?? [] }
 }

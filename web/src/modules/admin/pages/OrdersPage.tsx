@@ -15,9 +15,9 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
-import { useSearchParams } from 'react-router-dom'
 
 import { useOrders, useSendWaitingPayment } from '../hooks/useOrders'
+import { useNewOrdersCount } from '../hooks/useNewOrdersCount'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -350,39 +350,24 @@ function KanbanColumn({
   onViewDetail,
   onAdvanceStatus,
   advancing,
-  highlight,
 }: {
   col: (typeof ACTIVE_COLUMN_CONFIG)[number]
   orders: Order[]
   onViewDetail: (id: string) => void
   onAdvanceStatus: (id: string, status: string) => void
   advancing: string | null
-  highlight?: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: col.id })
   const Icon = col.icon
   const total = orders.reduce((acc, o) => acc + o.total, 0)
   const isFinished = col.id === 'concluidos'
-  const colRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    if (highlight && colRef.current) {
-      colRef.current.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
-    }
-  }, [highlight])
-
-  const combinedRef = (node: HTMLDivElement | null) => {
-    colRef.current = node
-    setNodeRef(node)
-  }
-
-  const highlightClass = highlight ? 'ring-2 ring-red-400 ring-offset-2 animate-pulse' : ''
-  const dropClass = isOver ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
 
   return (
     <div
-      ref={combinedRef}
-      className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full transition-colors ${dropClass} ${highlightClass}`}
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full transition-colors ${
+        isOver ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
+      }`}
     >
       <div className={`px-4 py-3 rounded-t-xl ${col.headerColor} border-b ${col.color}`}>
         <div className="flex items-center justify-between">
@@ -474,7 +459,6 @@ type PageTab = 'ativos' | 'cancelados'
 
 export function OrdersPage() {
   const queryClient = useQueryClient()
-  const [searchParams, setSearchParams] = useSearchParams()
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('todos')
   const [search, setSearch] = useState('')
@@ -492,21 +476,9 @@ export function OrdersPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  // Highlight coluna "Novos" quando vem do badge do sidebar (?pendentes=1)
-  const [highlightNovos, setHighlightNovos] = useState(false)
-
-  useEffect(() => {
-    if (searchParams.get('pendentes') === '1') {
-      setHighlightNovos(true)
-      setPageTab('ativos')
-      // Remove o param da URL sem recarregar
-      searchParams.delete('pendentes')
-      setSearchParams(searchParams, { replace: true })
-      // Remove o highlight após 3 segundos
-      const timer = setTimeout(() => setHighlightNovos(false), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [searchParams, setSearchParams])
+  // Pedidos pendentes (sem filtro de data) — usado pelo banner "Pedidos Pendentes"
+  const { count: pendingCount, orders: pendingOrders } = useNewOrdersCount()
+  const [showPending, setShowPending] = useState(false)
 
   const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
@@ -721,6 +693,41 @@ export function OrdersPage() {
         </div>
       </div>
 
+      {/* Banner pedidos pendentes */}
+      {pendingCount > 0 && (
+        <div className="px-6 pt-2 flex-shrink-0">
+          <button
+            onClick={() => setShowPending((v) => !v)}
+            className="w-full flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 hover:bg-amber-100 transition-colors text-left"
+          >
+            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span className="text-sm font-semibold text-amber-800 flex-1">
+              {pendingCount} {pendingCount === 1 ? 'pedido pendente' : 'pedidos pendentes'}
+            </span>
+            <span className={`text-xs text-amber-600 transition-transform ${showPending ? 'rotate-180' : ''}`}>
+              ▼
+            </span>
+          </button>
+
+          {showPending && (
+            <div className="mt-2 border border-amber-200 rounded-lg bg-white p-3">
+              <div className="flex flex-wrap gap-3">
+                {pendingOrders.map((order) => (
+                  <div key={order.id} className="w-64 flex-shrink-0">
+                    <OrderCard
+                      order={order}
+                      onViewDetail={(id) => setSelectedOrderId(id)}
+                      onAdvanceStatus={handleAdvanceStatus}
+                      advancing={advancingId === order.id}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-x-auto px-6 py-4">
         {isLoading && (
@@ -747,7 +754,6 @@ export function OrdersPage() {
                   onViewDetail={(id) => setSelectedOrderId(id)}
                   onAdvanceStatus={handleAdvanceStatus}
                   advancing={advancingId}
-                  highlight={col.id === 'novos' && highlightNovos}
                 />
               ))}
             </div>

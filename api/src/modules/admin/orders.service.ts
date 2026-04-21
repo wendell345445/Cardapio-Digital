@@ -210,7 +210,7 @@ export async function updateOrderStatus(
       items: updated.items,
       // C-040: passa motivo do cancelamento pro template {{motivo}}
       cancelReason: newStatus === 'CANCELLED' ? input.cancelReason : undefined,
-    }).catch(() => void 0)
+    }).catch((err) => console.error(`[WhatsApp] Error sending ${newStatus} to client:`, err))
   }
 
   // TASK-084: Auto-print when order is CONFIRMED (fire-and-forget, never breaks flow)
@@ -309,7 +309,7 @@ export async function assignMotoboy(
     include: {
       items: { include: { additionals: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
-      store: { select: { id: true, slug: true } },
+      store: { select: { id: true, slug: true, name: true } },
     },
   })
 
@@ -370,7 +370,18 @@ export async function assignMotoboy(
       total: order.total,
       paymentMethod: order.paymentMethod,
       store: { slug: order.store.slug },
-    }).catch(() => void 0)
+    }).catch((err) => console.error('[WhatsApp] Error sending motoboy message:', err))
+  }
+
+  // Fire-and-forget WhatsApp DISPATCHED notification to customer
+  if (order.clientWhatsapp) {
+    console.log(`[WhatsApp] assignMotoboy → sending DISPATCHED to client ${order.clientWhatsapp} for order #${order.number}`)
+    sendStatusUpdateMessage(storeId, order.clientWhatsapp, order.number, 'DISPATCHED', order.store.name, order.type, {
+      total: updated.total,
+      items: updated.items,
+    }).catch((err) => console.error('[WhatsApp] Error sending DISPATCHED to client:', err))
+  } else {
+    console.warn(`[WhatsApp] assignMotoboy → order #${order.number} has no clientWhatsapp, skipping DISPATCHED notification`)
   }
 
   // AuditLog

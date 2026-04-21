@@ -59,36 +59,19 @@ function formatItems(items: OrderData['items']): string {
 
 export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
   const store = order.store
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
-  const trackingUrl = `https://${store.slug}.${rootDomain}/${store.slug}/pedido/TOKEN`
 
-  let paymentInfo = ''
-  if (order.paymentMethod === 'PIX' && store.pixKey) {
-    paymentInfo = `\n💰 *Pix (${store.pixKeyType}):* \`${store.pixKey}\`\nEnvie o comprovante via WhatsApp para confirmar.`
-  } else {
-    paymentInfo = '\n💵 Pagamento na entrega'
-  }
+  const itemsStr = formatItems(order.items)
+  const totalStr = formatMoney(order.total)
 
-  let deliveryInfo = ''
-  if (order.type === 'DELIVERY' && order.address) {
-    deliveryInfo = `\n📍 *Entrega em:* ${formatAddress(order.address as Record<string, string>)}`
-  } else if (order.type === 'PICKUP') {
-    deliveryInfo = '\n🏪 *Retirada na loja*'
-  }
-
-  const message = [
-    `✅ *Pedido #${order.number} recebido — ${store.name}*`,
-    '',
-    formatItems(order.items),
-    '',
-    order.discount > 0 ? `Desconto: -${formatMoney(order.discount)}` : '',
-    order.deliveryFee > 0 ? `Taxa de entrega: ${formatMoney(order.deliveryFee)}` : '',
-    `*Total: ${formatMoney(order.total)}*`,
-    deliveryInfo,
-    paymentInfo,
-    '',
-    `🔗 Acompanhe seu pedido: ${trackingUrl}`,
-  ].filter(Boolean).join('\n')
+  const templateText = await getTemplate(store.id, 'ORDER_CREATED')
+  const message = templateText
+    .replace(/\{\{numero\}\}/g, String(order.number))
+    .replace(/\{\{loja\}\}/g, store.name)
+    .replace(/\{\{itens\}\}/g, itemsStr)
+    .replace(/\{\{total\}\}/g, totalStr)
+    .replace(/\{\{status\}\}/g, order.status)
+    .replace(/\{\{motivo\}\}/g, '')
+    .replace(/\{\{horario\}\}/g, '')
 
   await sendMessage(store.id, order.clientWhatsapp, message)
 }
@@ -187,18 +170,28 @@ export async function sendMotoboyAssignedMessage(
     ? `https://waze.com/ul?q=${encodeURIComponent(formatAddress(order.address as Record<string, string>))}`
     : ''
 
-  const message = [
-    `🛵 *Novo pedido para entrega — #${order.number}*`,
-    '',
-    `👤 *Cliente:* ${order.clientName ?? 'N/A'} | ${order.clientWhatsapp}`,
-    `📍 *Endereço:* ${addressStr}`,
+  const enderecoStr = [
+    addressStr,
     mapsUrl ? `🗺️ Maps: ${mapsUrl}` : '',
     wazeUrl ? `🧭 Waze: ${wazeUrl}` : '',
-    '',
-    formatItems(order.items),
-    '',
-    `💰 *Total:* ${formatMoney(order.total)} (${order.paymentMethod === 'PIX' ? 'Pix — já pago' : 'Cobrar na entrega'})`,
   ].filter(Boolean).join('\n')
+
+  const clienteStr = `${order.clientName ?? 'N/A'} | ${order.clientWhatsapp}`
+  const itemsStr = formatItems(order.items)
+  const paymentLabel = order.paymentMethod === 'PIX' ? 'Pix — já pago' : 'Cobrar na entrega'
+  const totalStr = `${formatMoney(order.total)} (${paymentLabel})`
+
+  const templateText = await getTemplate(storeId, 'MOTOBOY_ASSIGNED')
+  const message = templateText
+    .replace(/\{\{numero\}\}/g, String(order.number))
+    .replace(/\{\{cliente\}\}/g, clienteStr)
+    .replace(/\{\{endereco\}\}/g, enderecoStr)
+    .replace(/\{\{itens\}\}/g, itemsStr)
+    .replace(/\{\{total\}\}/g, totalStr)
+    .replace(/\{\{loja\}\}/g, '')
+    .replace(/\{\{status\}\}/g, '')
+    .replace(/\{\{motivo\}\}/g, '')
+    .replace(/\{\{horario\}\}/g, '')
 
   await sendMessage(storeId, motoboyPhone, message)
 }
