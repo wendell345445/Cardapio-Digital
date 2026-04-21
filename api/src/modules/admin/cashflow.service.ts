@@ -202,6 +202,9 @@ export async function closeCashFlow(
     data: {
       status: 'CLOSED',
       closedAt: new Date(),
+      countedAmount: input.countedAmount,
+      closedDifference: difference,
+      closedJustification: input.justification ?? null,
     },
     include: { adjustments: true, items: true },
   })

@@ -7,6 +7,7 @@ import {
   sendMotoboyAssignedMessage,
   sendStatusUpdateMessage,
 } from '../whatsapp/messages.service'
+import { geocodeAddress } from '../menu/geocoding.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
 import { calculateDeliveryFee } from './delivery.service'
@@ -112,13 +113,25 @@ export async function updateOrderAddress(
     throw new AppError('Endereço não pode ser alterado neste status', 422)
   }
 
-  // Recalcula frete com base no novo bairro
+  // Recalcula frete: geocodifica o novo endereço e calcula distância contra a loja.
+  // Se geocoding/cálculo falhar (API fora, fora da área, sem faixas), mantém o frete atual.
   let deliveryFee = order.deliveryFee
   try {
-    const result = await calculateDeliveryFee(storeId, { neighborhood: input.neighborhood })
+    const coords = await geocodeAddress({
+      cep: input.zipCode,
+      street: input.street,
+      number: input.number,
+      neighborhood: input.neighborhood,
+      city: input.city,
+      state: input.state ?? undefined,
+    })
+    const result = await calculateDeliveryFee(storeId, {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    })
     deliveryFee = result.fee
   } catch {
-    // Se não há configuração de entrega, mantém o frete atual
+    // mantém frete atual
   }
 
   const total = order.subtotal - order.discount + deliveryFee

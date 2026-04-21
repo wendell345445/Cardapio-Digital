@@ -10,32 +10,21 @@ import {
 
 import {
   createDistanceController,
-  createNeighborhoodController,
   deleteDistanceController,
-  deleteNeighborhoodController,
+  geocodeAddressController,
   getDeliveryConfigController,
   listDistancesController,
-  listNeighborhoodsController,
-  setDeliveryModeController,
   setStoreCoordinatesController,
   updateDistanceController,
-  updateNeighborhoodController,
 } from './delivery.controller'
-
-// ─── TASK-091: Rotas de Área de Entrega Admin ────────────────────────────────
 
 const router = Router()
 
 router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requireStore, requireActiveStore)
 
 router.get('/', getDeliveryConfigController)
-router.patch('/mode', setDeliveryModeController)
 router.patch('/coordinates', setStoreCoordinatesController)
-
-router.get('/neighborhoods', listNeighborhoodsController)
-router.post('/neighborhoods', createNeighborhoodController)
-router.patch('/neighborhoods/:id', updateNeighborhoodController)
-router.delete('/neighborhoods/:id', deleteNeighborhoodController)
+router.post('/geocode', geocodeAddressController)
 
 router.get('/distances', listDistancesController)
 router.post('/distances', createDistanceController)

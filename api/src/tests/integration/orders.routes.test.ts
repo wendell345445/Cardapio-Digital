@@ -10,11 +10,14 @@ jest.mock('../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     user: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
-    deliveryNeighborhood: {
-      findFirst: jest.fn(),
-      count: jest.fn(),
+    deliveryDistance: {
+      findMany: jest.fn(),
     },
   },
+}))
+
+jest.mock('../../modules/menu/geocoding.service', () => ({
+  geocodeAddress: jest.fn(),
 }))
 
 jest.mock('../../shared/redis/redis', () => ({
@@ -214,14 +217,19 @@ const newAddress = {
 }
 
 describe('PATCH /api/v1/admin/orders/:id/address — Edição de endereço', () => {
-  it('retorna 200, atualiza endereço e recalcula frete por bairro', async () => {
+  it('retorna 200, atualiza endereço e recalcula frete por distância (geocode)', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockOrderFull)
-    // calculateDeliveryFee: store.findUnique é chamado 2x (middleware + delivery)
+    // store.findUnique é chamado 2x (requireActiveStore + calculateDeliveryFee lat/lng)
     ;(mockPrisma.store.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ status: 'ACTIVE' })                    // requireActiveStore
-      .mockResolvedValueOnce({ deliveryMode: 'NEIGHBORHOOD' })        // calculateDeliveryFee
-    ;(mockPrisma.deliveryNeighborhood.findFirst as jest.Mock).mockResolvedValue({
-      id: 'nb-1', storeId: STORE_ID, name: 'Boa Vista', fee: 8.0,
+      .mockResolvedValueOnce({ status: 'ACTIVE' })
+      .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 8.0 },
+    ])
+    const { geocodeAddress } = jest.requireMock('../../modules/menu/geocoding.service')
+    ;(geocodeAddress as jest.Mock).mockResolvedValue({
+      latitude: -23.5505,
+      longitude: -46.6333,
     })
     ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({
       ...mockOrderFull,

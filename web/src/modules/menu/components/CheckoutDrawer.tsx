@@ -8,7 +8,10 @@ import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp,
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
-import { calculateDeliveryFee as fetchDeliveryFee } from '../services/orders.service'
+import {
+  calculateDeliveryFee as fetchDeliveryFee,
+  geocodeAddress as fetchGeocode,
+} from '../services/orders.service'
 import { useCustomerAuth } from '../hooks/useCustomerAuth'
 
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
@@ -191,7 +194,11 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const orderType = watch('type')
   const paymentMethod = watch('paymentMethod') as PaymentMethod
   const zipCode = watch('zipCode')
+  const street = watch('street')
+  const streetNumber = watch('number')
   const neighborhood = watch('neighborhood')
+  const city = watch('city')
+  const stateUf = watch('state')
   const store = menu?.store
 
   const paymentGroup = paymentGroupFor(paymentMethod)
@@ -230,46 +237,53 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const total = subtotal() + deliveryFee
 
-  const lookupDeliveryFee = useCallback(async (neighborhood: string) => {
-    const trimmed = neighborhood.trim()
-    if (!trimmed) {
-      setDeliveryFee(0)
+  const lookupDeliveryFee = useCallback(
+    async (payload: { cep?: string; street: string; number: string; neighborhood?: string; city?: string; state?: string }) => {
+      setDeliveryFeeLoading(true)
       setDeliveryFeeError('')
-      return
-    }
-    setDeliveryFeeLoading(true)
-    setDeliveryFeeError('')
-    try {
-      const result = await fetchDeliveryFee(trimmed)
-      setDeliveryFee(result.fee)
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
-      setDeliveryFeeError(msg)
-      setDeliveryFee(0)
-    } finally {
-      setDeliveryFeeLoading(false)
-    }
-  }, [])
+      try {
+        const coords = await fetchGeocode(payload)
+        const result = await fetchDeliveryFee(coords.latitude, coords.longitude)
+        setDeliveryFee(result.fee)
+      } catch (err: unknown) {
+        const axiosErr = err as { response?: { data?: { error?: string } } }
+        const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
+        setDeliveryFeeError(msg)
+        setDeliveryFee(0)
+      } finally {
+        setDeliveryFeeLoading(false)
+      }
+    },
+    []
+  )
 
-  // Calcula taxa de entrega quando bairro muda (debounce de 500ms)
+  // Calcula taxa quando o endereço essencial está preenchido (debounce 600ms).
+  // Precisa de rua + número pra geocoding resolver bem; cidade/bairro/CEP ajudam.
   useEffect(() => {
     if (orderType !== 'DELIVERY') {
       setDeliveryFee(0)
       setDeliveryFeeError('')
       return
     }
-    const trimmed = (neighborhood ?? '').trim()
-    if (!trimmed) {
+    const streetT = (street ?? '').trim()
+    const numberT = (streetNumber ?? '').trim()
+    if (!streetT || !numberT) {
       setDeliveryFee(0)
       setDeliveryFeeError('')
       return
     }
     const timer = setTimeout(() => {
-      lookupDeliveryFee(trimmed)
-    }, 500)
+      lookupDeliveryFee({
+        cep: (zipCode ?? '').trim() || undefined,
+        street: streetT,
+        number: numberT,
+        neighborhood: (neighborhood ?? '').trim() || undefined,
+        city: (city ?? '').trim() || undefined,
+        state: (stateUf ?? '').trim() || undefined,
+      })
+    }, 600)
     return () => clearTimeout(timer)
-  }, [neighborhood, orderType, lookupDeliveryFee])
+  }, [orderType, zipCode, street, streetNumber, neighborhood, city, stateUf, lookupDeliveryFee])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')

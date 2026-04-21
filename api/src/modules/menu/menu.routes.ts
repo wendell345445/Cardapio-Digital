@@ -6,6 +6,7 @@ import { AppError } from '../../shared/middleware/error.middleware'
 import { publicTenantMiddleware } from '../../shared/middleware/tenant.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { validateCoupon } from '../admin/coupons.service'
+import { calculateDeliverySchema, geocodeAddressSchema } from '../admin/delivery.schema'
 import { calculateDeliveryFee } from '../admin/delivery.service'
 
 import {
@@ -15,6 +16,7 @@ import {
   customerMeController,
   customerLogoutController,
 } from './customer-verify.controller'
+import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
 import { createOrderController } from './orders.controller'
 import { getOrderTrackingController } from './tracking.controller'
@@ -62,13 +64,28 @@ menuRouter.post(
   }
 )
 
+// POST /menu/delivery/geocode
+menuRouter.post(
+  '/delivery/geocode',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const input = geocodeAddressSchema.parse(req.body)
+      const result = await geocodeAddress(input)
+      res.json({ success: true, data: result })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
 // POST /menu/delivery/calculate
 menuRouter.post(
   '/delivery/calculate',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const storeId = req.store!.id
-      const result = await calculateDeliveryFee(storeId, req.body)
+      const input = calculateDeliverySchema.parse(req.body)
+      const result = await calculateDeliveryFee(storeId, input)
       res.json({ success: true, data: result })
     } catch (err) {
       next(err)

@@ -352,7 +352,7 @@ describe('closeCashFlow', () => {
     items: [{ order: { paymentMethod: 'CASH_ON_DELIVERY', total: 80 }, amount: 80 }],
   })
 
-  it('fecha caixa sem diferença sem exigir justificativa', async () => {
+  it('fecha caixa sem diferença sem exigir justificativa e persiste relatório', async () => {
     ;(mockPrisma.cashFlow.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockOpenCashFlow) // requireOpenCashFlow
       .mockResolvedValueOnce(cfWithItems)       // getCashFlowSummary
@@ -375,6 +375,16 @@ describe('closeCashFlow', () => {
 
     expect(result.cashFlow.status).toBe('CLOSED')
     expect(result.summary.difference).toBe(0)
+    expect(mockPrisma.cashFlow.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CLOSED',
+          countedAmount: 180,
+          closedDifference: 0,
+          closedJustification: null,
+        }),
+      })
+    )
     expect(mockEmit.cashFlowUpdated).toHaveBeenCalledWith(STORE_ID, expect.objectContaining({ type: 'closed' }))
   })
 
@@ -412,6 +422,15 @@ describe('closeCashFlow', () => {
 
     expect(result.cashFlow.status).toBe('CLOSED')
     expect(result.summary.difference).toBe(-30) // 150 - 180
+    expect(mockPrisma.cashFlow.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          countedAmount: 150,
+          closedDifference: -30,
+          closedJustification: 'Cliente pagou errado',
+        }),
+      })
+    )
   })
 
   it('registra diferença positiva (sobra) no AuditLog', async () => {

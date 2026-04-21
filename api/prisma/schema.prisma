@@ -31,9 +31,9 @@ model Store {
   features             Json
   pixKey               String?
   pixKeyType           PixKeyType?
-  deliveryMode         DeliveryMode?
   latitude             Float?
   longitude            Float?
+  addressLabel         String?
   serviceChargePercent Float?
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)
@@ -54,7 +54,6 @@ model Store {
   tables                Table[]
   coupons               Coupon[]
   cashFlows             CashFlow[]
-  deliveryNeighborhoods DeliveryNeighborhood[]
   deliveryDistances     DeliveryDistance[]
   businessHours         BusinessHour[]
   clientPaymentAccesses ClientPaymentAccess[]
@@ -362,12 +361,15 @@ model Coupon {
 // ─── CASH FLOW ────────────────────────────────────────────────────
 
 model CashFlow {
-  id            String         @id @default(uuid())
-  storeId       String
-  openedAt      DateTime
-  closedAt      DateTime?
-  initialAmount Float          @default(0)
-  status        CashFlowStatus @default(OPEN)
+  id                   String         @id @default(uuid())
+  storeId              String
+  openedAt             DateTime
+  closedAt             DateTime?
+  initialAmount        Float          @default(0)
+  countedAmount        Float?
+  closedDifference     Float?
+  closedJustification  String?
+  status               CashFlowStatus @default(OPEN)
 
   store       Store                @relation(fields: [storeId], references: [id])
   items       CashFlowItem[]
@@ -414,17 +416,6 @@ model BusinessHour {
   store Store @relation(fields: [storeId], references: [id])
 
   @@unique([storeId, dayOfWeek])
-  @@index([storeId])
-}
-
-model DeliveryNeighborhood {
-  id      String @id @default(uuid())
-  storeId String
-  name    String
-  fee     Float
-
-  store Store @relation(fields: [storeId], references: [id])
-
   @@index([storeId])
 }
 
@@ -543,12 +534,6 @@ enum PaymentMethod {
   CREDIT_ON_DELIVERY
   DEBIT_ON_DELIVERY
   PIX_ON_DELIVERY
-}
-
-enum DeliveryMode {
-  NEIGHBORHOOD
-  DISTANCE
-  BOTH
 }
 
 enum CouponType {
