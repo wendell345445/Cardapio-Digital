@@ -16,6 +16,7 @@ import {
   ExternalLink,
   Users,
   Truck,
+  Wallet,
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
@@ -42,6 +43,7 @@ const NAV_ITEMS = [
   { label: 'QR Code', to: '/admin/qr-code', icon: QrCode },
   { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle, statusDot: true },
   { label: 'Horários', to: '/admin/horarios', icon: Clock },
+  { label: 'Caixa', to: '/admin/caixa', icon: Wallet },
   { label: 'Configurações', to: '/admin/configuracoes', icon: Settings },
 ]
 
