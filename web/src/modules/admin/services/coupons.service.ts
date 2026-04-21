@@ -19,6 +19,7 @@ export interface Coupon {
   productId?: string | null
   promoPrice?: number | null
   product?: { id: string; name: string; imageUrl: string | null; basePrice: number | null } | null
+  totalSavings?: number
 }
 
 export interface CreateCouponData {

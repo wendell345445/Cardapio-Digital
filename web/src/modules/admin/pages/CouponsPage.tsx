@@ -411,6 +411,7 @@ export function CouponsPage() {
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Mín. Pedido</th>
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Limite</th>
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Usados</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Economia</th>
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Validade</th>
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Status</th>
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Ações</th>
@@ -445,6 +446,9 @@ export function CouponsPage() {
                           {coupon.maxUses ?? '—'}
                         </td>
                         <td className="px-4 py-3 text-gray-600">{coupon.usedCount}</td>
+                        <td className="px-4 py-3 font-medium text-emerald-600">
+                          {formatCurrency(coupon.totalSavings ?? 0)}
+                        </td>
                         <td className="px-4 py-3 text-gray-600">
                           {formatDate(coupon.expiresAt)}
                         </td>
