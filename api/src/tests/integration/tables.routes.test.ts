@@ -209,6 +209,19 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
     expect(res.body.data.tableNumber).toBe(5)
   })
 
+  it('returns full URL as https://{slug}.{domain}?mesa={N} (A-054)', async () => {
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const res = await request(app)
+      .get(`/api/v1/admin/tables/${TABLE_ID}/qrcode`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+    expect(res.status).toBe(200)
+    expect(res.body.data.url).toBe(`https://minha-loja.${rootDomain}?mesa=5`)
+  })
+
   it('returns 404 when table not found', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
 
@@ -217,6 +230,41 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
 
     expect(res.status).toBe(404)
+  })
+})
+
+// ─── A-054: Fluxo completo criar mesa → gerar QR → URL com ?mesa=N ──────────
+
+describe('A-054: create table then generate QR code', () => {
+  it('creates a table and generates QR with correct menu URL', async () => {
+    const newTable = { id: 'new-table-id', storeId: STORE_ID, number: 3, isOccupied: false, createdAt: new Date() }
+
+    // Step 1: Create table
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.table.create as jest.Mock).mockResolvedValue(newTable)
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const createRes = await request(app)
+      .post('/api/v1/admin/tables')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ number: 3 })
+
+    expect(createRes.status).toBe(201)
+    expect(createRes.body.data.number).toBe(3)
+
+    // Step 2: Generate QR for the newly created table
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(newTable)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const qrRes = await request(app)
+      .get(`/api/v1/admin/tables/${newTable.id}/qrcode`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(qrRes.status).toBe(200)
+    expect(qrRes.body.data.qrDataUrl).toContain('data:image/png')
+    expect(qrRes.body.data.tableNumber).toBe(3)
+    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+    expect(qrRes.body.data.url).toBe(`https://minha-loja.${rootDomain}?mesa=3`)
   })
 })
 

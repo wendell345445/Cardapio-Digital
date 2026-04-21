@@ -126,6 +126,34 @@ describe('generateQRCode', () => {
     expect(result.url).toContain('mesa=5')
   })
 
+  it('builds full URL as https://{slug}.{rootDomain}?mesa={N} (A-054)', async () => {
+    const originalDomain = process.env.PUBLIC_ROOT_DOMAIN
+    delete process.env.PUBLIC_ROOT_DOMAIN
+
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const result = await generateQRCode(STORE_ID, TABLE_ID)
+
+    expect(result.url).toBe('https://minha-loja.menupanda.com.br?mesa=5')
+
+    process.env.PUBLIC_ROOT_DOMAIN = originalDomain
+  })
+
+  it('uses custom PUBLIC_ROOT_DOMAIN when set', async () => {
+    const originalDomain = process.env.PUBLIC_ROOT_DOMAIN
+    process.env.PUBLIC_ROOT_DOMAIN = 'custom.domain.com'
+
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const result = await generateQRCode(STORE_ID, TABLE_ID)
+
+    expect(result.url).toBe('https://minha-loja.custom.domain.com?mesa=5')
+
+    process.env.PUBLIC_ROOT_DOMAIN = originalDomain
+  })
+
   it('throws 404 when table not found', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
 

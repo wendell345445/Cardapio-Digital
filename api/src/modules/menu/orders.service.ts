@@ -94,6 +94,9 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.paymentMethod === 'CREDIT_CARD' && !store.allowCreditCard) {
     throw new AppError('Pagamento em cartão de crédito não permitido nesta loja', 422)
   }
+  if (data.paymentMethod === 'PENDING' && data.type !== 'TABLE') {
+    throw new AppError('Pagamento pendente só é permitido para pedidos de mesa', 422)
+  }
 
   // 3a. C-002/C-022: TABLE — resolve tableNumber → tableId quando QR code da mesa
   let resolvedTableId: string | undefined = data.tableId
@@ -292,8 +295,11 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   const orderNumber = (lastOrder?.number ?? 0) + 1
 
   // 9. Status baseado no método de pagamento
+  // TABLE+PENDING pula a etapa de pagamento — pedido vai direto pra confirmação/cozinha
   const status =
-    data.paymentMethod === 'PIX' ? 'WAITING_PAYMENT_PROOF' : 'WAITING_CONFIRMATION'
+    data.paymentMethod === 'PENDING' ? 'WAITING_CONFIRMATION'
+      : data.paymentMethod === 'PIX' ? 'WAITING_PAYMENT_PROOF'
+        : 'WAITING_CONFIRMATION'
 
   // 10. Cria pedido em transação
   const order = await prisma.$transaction(async (tx) => {

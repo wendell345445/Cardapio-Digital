@@ -37,7 +37,12 @@ const TYPE_COLORS: Record<string, string> = {
 
 const PAYMENT_LABELS: Record<string, string> = {
   PIX: 'Pix',
+  CREDIT_CARD: 'Cartão crédito',
   CASH_ON_DELIVERY: 'Dinheiro',
+  CREDIT_ON_DELIVERY: 'Crédito na entrega',
+  DEBIT_ON_DELIVERY: 'Débito na entrega',
+  PIX_ON_DELIVERY: 'Pix na entrega',
+  PENDING: 'Na comanda',
 }
 
 const NEXT_STATUS: Partial<Record<string, string>> = {
@@ -259,11 +264,19 @@ function OrderCard({
   readonly?: boolean
 }) {
   const nextStatus = NEXT_STATUS[order.status]
-  const canAdvanceDirect = !readonly && nextStatus && !(order.status === 'READY' && order.type === 'DELIVERY')
+  // A-053: bloqueios do fluxo PIX:
+  // - PENDING + PIX: deve usar "Enviar Aguardando Pix" (não pode pular para CONFIRMED)
+  // - DISPATCHED + PIX: deve usar "Pix Pago" (não pode ir para DELIVERED sem confirmar pgto)
+  const isPixPending = order.status === 'PENDING' && order.paymentMethod === 'PIX'
+  const isPixDispatched = order.status === 'DISPATCHED' && order.paymentMethod === 'PIX'
+  const canAdvanceDirect = !readonly && nextStatus
+    && !(order.status === 'READY' && order.type === 'DELIVERY')
+    && !isPixPending && !isPixDispatched
 
-  // TASK-124: Botão "Enviar Aguardando Pix" — só DELIVERY + PENDING
-  const showWaitingPixButton =
-    !readonly && order.status === 'PENDING' && order.type === 'DELIVERY'
+  // TASK-124/A-053: Botão "Enviar Aguardando Pix" — só DELIVERY + PENDING + PIX
+  const showWaitingPixButton = !readonly && isPixPending && order.type === 'DELIVERY'
+  // A-053: Botão "Pix Pago" — só DISPATCHED + PIX (motoboy retornou)
+  const showPixPagoButton = !readonly && isPixDispatched
 
   const sendWaitingPaymentMutation = useSendWaitingPayment()
   const printOrderMutation = usePrintOrder()
@@ -290,6 +303,26 @@ function OrderCard({
         <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600">
           {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
         </span>
+        {order.status === 'WAITING_PAYMENT_PROOF' && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700">
+            Aguard. Pix
+          </span>
+        )}
+        {order.paymentMethod === 'PENDING' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700">
+            Pagar na comanda
+          </span>
+        )}
+        {order.paymentMethod !== 'PIX' && order.paymentMethod !== 'PENDING' && order.paymentMethod !== 'CREDIT_CARD' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700">
+            Pagar na entrega
+          </span>
+        )}
+        {order.status === 'DELIVERED' && (
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
+            Pago
+          </span>
+        )}
       </div>
 
       <div className="text-xs text-gray-600 truncate">
@@ -313,10 +346,10 @@ function OrderCard({
               Ver detalhes
             </button>
             <button
-              onClick={() => printOrderMutation.mutate(order.id)}
+              onClick={() => printOrderMutation.mutate({ id: order.id, orderNumber: order.number })}
               disabled={printOrderMutation.isPending}
               title="Imprimir pedido"
-              className="rounded-md border border-gray-300 text-gray-600 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              className="rounded-md border border-blue-300 text-blue-600 px-2 py-1 text-xs hover:bg-blue-50 disabled:opacity-50 transition-colors"
             >
               <Printer className="w-3.5 h-3.5" />
             </button>
@@ -351,6 +384,18 @@ function OrderCard({
             >
               <Clock className="w-3 h-3" />
               {sendWaitingPaymentMutation.isPending ? 'Enviando...' : 'Enviar Aguardando Pix'}
+            </button>
+          )}
+          {/* A-053: Botão "Pix Pago" — motoboy retornou, confirmar pagamento */}
+          {showPixPagoButton && (
+            <button
+              onClick={() => onAdvanceStatus(order.id, 'DELIVERED')}
+              disabled={advancing}
+              className="w-full flex items-center justify-center gap-1 rounded-md border border-indigo-500 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 py-1 text-xs font-semibold transition-colors disabled:opacity-50"
+              title="Motoboy retornou — confirmar que o Pix foi recebido"
+            >
+              <CheckCircle className="w-3 h-3" />
+              {advancing ? 'Confirmando...' : 'Confirmar Pix recebido'}
             </button>
           )}
         </div>
@@ -599,8 +644,14 @@ export function OrdersPage() {
     // Validate transition
     if (!canTransition(order.status, targetStatus)) return
 
-    // Entrega sem motoboy atribuído: pedir confirmação antes de concluir, pra
-    // alinhar com o bloqueio que o botão "→" já faz no card.
+    // A-053: bloqueios PIX via drag-and-drop
+    // - PENDING + PIX não pode pular para CONFIRMED (deve usar "Enviar Aguardando Pix")
+    // - DISPATCHED + PIX não pode ir para DELIVERED (deve usar "Pix Pago")
+    if (order.paymentMethod === 'PIX' && (
+      (order.status === 'PENDING' && targetStatus === 'CONFIRMED') ||
+      (order.status === 'DISPATCHED' && targetStatus === 'DELIVERED')
+    )) return
+
     if (requiresMotoboyConfirmation(order, targetStatus)) {
       const confirmed = window.confirm(
         'Este pedido de entrega não tem um motoboy atribuído. ' +

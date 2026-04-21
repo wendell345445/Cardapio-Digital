@@ -200,10 +200,10 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
           <div className="flex items-center gap-2">
             {order && (
               <button
-                onClick={() => printOrder.mutate(orderId)}
+                onClick={() => printOrder.mutate({ id: orderId, orderNumber: order.number })}
                 disabled={printOrder.isPending}
                 title="Imprimir pedido"
-                className="flex items-center gap-1.5 rounded-md border border-gray-300 text-gray-600 px-3 py-1.5 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 rounded-md border border-blue-300 text-blue-600 px-3 py-1.5 text-sm font-medium hover:bg-blue-50 disabled:opacity-50 transition-colors"
               >
                 <Printer className="w-4 h-4" />
                 Imprimir

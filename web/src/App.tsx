@@ -28,6 +28,7 @@ import { HorariosPage } from '@/modules/admin/pages/HorariosPage'
 import { MotoboysPage } from '@/modules/admin/pages/MotoboysPage'
 import { ControleAcessoPage } from '@/modules/admin/pages/ControleAcessoPage'
 import { CheckoutPage } from '@/modules/menu/pages/CheckoutPage'
+import { ComandaPage } from '@/modules/menu/pages/ComandaPage'
 import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
 import { OrderTrackingPage } from '@/modules/menu/pages/OrderTrackingPage'
@@ -124,6 +125,7 @@ export function App() {
           <Route path="/produto/:productId" element={<ItemPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/pedido/:token" element={<OrderTrackingPage />} />
+          <Route path="/comanda" element={<ComandaPage />} />
 
           {/* Admin — login e redirect base */}
           <Route path="/admin/login" element={<LoginPage />} />

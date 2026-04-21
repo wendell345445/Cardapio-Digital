@@ -20,6 +20,7 @@ const STATUS_CONFIG: Record<string, StatusEntry> = {
   WAITING_CONFIRMATION:  { label: 'Aguardando confirmação',     icon: Clock, color: 'text-yellow-500', step: 0 },
   CONFIRMED:             { label: 'Confirmado',                  icon: CheckCircle, color: 'text-blue-500', step: 1 },
   PREPARING:             { label: 'Em preparo',                  icon: ChefHat, color: 'text-orange-500', step: 2 },
+  READY:                 { label: 'Pronto',                      icon: CheckCircle, color: 'text-green-500', step: 3 },
   DISPATCHED:            { label: 'Saiu para entrega',           icon: Bike, color: 'text-purple-500', step: 3 },
   DELIVERED:             { label: 'Entregue',                    icon: Package, color: 'text-green-500', step: 4 },
   CANCELLED:             { label: 'Cancelado',                   icon: Clock, color: 'text-red-500', step: -1 },
@@ -37,7 +38,8 @@ export function getStatusConfig(status: string, type: string): StatusEntry {
   return STATUS_CONFIG[status] ?? { label: status, icon: Clock, color: 'text-gray-500', step: 0 }
 }
 
-const STEPS = ['Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue']
+const DELIVERY_STEPS = ['Confirmado', 'Em preparo', 'Saiu para entrega', 'Entregue']
+const PICKUP_STEPS   = ['Confirmado', 'Em preparo', 'Pronto para retirada', 'Entregue']
 
 interface OrderCreatedState {
   pixQrCode?: string
@@ -107,6 +109,7 @@ export function OrderTrackingPage() {
   const statusConfig = getStatusConfig(order.status, order.type)
   const StatusIcon = statusConfig.icon
   const currentStep = statusConfig.step
+  const steps = order.type === 'PICKUP' || order.type === 'TABLE' ? PICKUP_STEPS : DELIVERY_STEPS
 
   return (
     <div className="min-h-screen bg-gray-50 max-w-lg mx-auto">
@@ -125,6 +128,9 @@ export function OrderTrackingPage() {
         {order.type === 'PICKUP' && (
           <p className="text-sm mt-2 opacity-80">Retirada na loja</p>
         )}
+        {order.type === 'TABLE' && (
+          <p className="text-sm mt-2 opacity-80">Mesa {order.table?.number ?? ''}</p>
+        )}
       </header>
 
       <div className="px-4 py-6 space-y-5">
@@ -132,7 +138,7 @@ export function OrderTrackingPage() {
         {order.status !== 'CANCELLED' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'WAITING_CONFIRMATION' && (
           <section className="bg-white rounded-xl px-2 py-4 shadow-sm">
             <div className="flex items-center justify-between">
-              {STEPS.map((step, i) => (
+              {steps.map((step, i) => (
                 <div key={step} className="flex flex-col items-center flex-1">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                     i < currentStep ? 'bg-green-500 text-white' :
@@ -234,6 +240,24 @@ export function OrderTrackingPage() {
             </div>
           </div>
         </section>
+
+        {/* TABLE: navegação para comanda e menu */}
+        {order.type === 'TABLE' && (
+          <section className="space-y-2">
+            <a
+              href="/comanda"
+              className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
+            >
+              Ver comanda completa da mesa
+            </a>
+            <a
+              href={`/?mesa=${order.table?.number ?? ''}`}
+              className="block w-full text-center border-2 border-green-500 text-green-600 font-bold py-3.5 rounded-xl text-sm transition-colors hover:bg-green-50"
+            >
+              Voltar ao cardapio e pedir mais
+            </a>
+          </section>
+        )}
       </div>
     </div>
   )

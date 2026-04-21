@@ -33,22 +33,55 @@ interface PrintOrder {
   }>
 }
 
+const COL = 42 // largura padrão impressora térmica 80mm
+
 function formatMoney(value: number): string {
   return `R$ ${value.toFixed(2).replace('.', ',')}`
 }
 
-function padLine(left: string, right: string, width = 42): string {
-  const space = width - left.length - right.length
-  return left + ' '.repeat(Math.max(1, space)) + right
+/**
+ * Alinha left...right na mesma linha se couber.
+ * Se não couber, coloca o preço na linha seguinte alinhado à direita.
+ */
+function padLine(left: string, right: string): string {
+  if (left.length + 1 + right.length <= COL) {
+    const space = COL - left.length - right.length
+    return left + ' '.repeat(space) + right
+  }
+  return left + '\n' + right.padStart(COL)
 }
 
-function center(text: string, width = 42): string {
-  const pad = Math.max(0, Math.floor((width - text.length) / 2))
+function center(text: string): string {
+  const pad = Math.max(0, Math.floor((COL - text.length) / 2))
   return ' '.repeat(pad) + text
 }
 
-function separator(char = '-', width = 42): string {
-  return char.repeat(width)
+function separator(char = '-'): string {
+  return char.repeat(COL)
+}
+
+/** Quebra texto longo em múltiplas linhas de no máximo COL colunas */
+function wrapText(text: string, indent = 0): string[] {
+  const maxLen = COL - indent
+  if (text.length <= maxLen) return [' '.repeat(indent) + text]
+
+  const prefix = ' '.repeat(indent)
+  const result: string[] = []
+  let remaining = text
+
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      result.push(prefix + remaining)
+      break
+    }
+    // quebra na última palavra que cabe
+    let breakAt = remaining.lastIndexOf(' ', maxLen)
+    if (breakAt <= 0) breakAt = maxLen // sem espaço — corta forçado
+    result.push(prefix + remaining.slice(0, breakAt))
+    remaining = remaining.slice(breakAt).trimStart()
+  }
+
+  return result
 }
 
 /** Gera o texto formatado para impressão ESC/POS */
@@ -85,7 +118,7 @@ export function buildReceiptText(order: PrintOrder): string {
     const addrStr = [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city]
       .filter(Boolean)
       .join(', ')
-    lines.push(`Endereço: ${addrStr}`)
+    lines.push(...wrapText(`Endereço: ${addrStr}`))
   }
 
   lines.push(separator('-'))
@@ -98,10 +131,10 @@ export function buildReceiptText(order: PrintOrder): string {
     lines.push(padLine(`${item.quantity}x ${itemName}`, formatMoney(item.totalPrice)))
 
     if (item.additionals.length > 0) {
-      lines.push(`  + ${item.additionals.map((a) => a.name).join(', ')}`)
+      lines.push(...wrapText(`+ ${item.additionals.map((a) => a.name).join(', ')}`, 2))
     }
     if (item.notes) {
-      lines.push(`  Obs: ${item.notes}`)
+      lines.push(...wrapText(`Obs: ${item.notes}`, 2))
     }
   }
 
@@ -117,7 +150,7 @@ export function buildReceiptText(order: PrintOrder): string {
 
   if (order.notes) {
     lines.push(separator('-'))
-    lines.push(`Obs do pedido: ${order.notes}`)
+    lines.push(...wrapText(`Obs pedido: ${order.notes}`))
   }
 
   lines.push(separator('='))

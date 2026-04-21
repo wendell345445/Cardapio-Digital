@@ -30,6 +30,7 @@ const PAYMENT_METHODS = [
   'CREDIT_ON_DELIVERY',
   'DEBIT_ON_DELIVERY',
   'PIX_ON_DELIVERY',
+  'PENDING',
 ] as const
 type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 type PaymentGroup = 'PIX' | 'CREDIT_CARD' | 'ON_DELIVERY'
@@ -190,8 +191,11 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(schema),
-    // C-022: se entrou via QR de mesa, força type=TABLE
-    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY' },
+    // C-022: se entrou via QR de mesa, força type=TABLE e pula pagamento
+    defaultValues: {
+      type: tableNumber ? 'TABLE' : 'DELIVERY',
+      ...(tableNumber ? { paymentMethod: 'PENDING' as const } : {}),
+    },
   })
 
   const orderType = watch('type')
@@ -209,8 +213,11 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   // "Pagar na entrega" só existe quando o pedido é entrega — se trocar pra retirada
   // enquanto um método on-delivery está selecionado, volta pro PIX como default.
+  // TABLE usa PENDING (pagamento na comanda).
   useEffect(() => {
-    if (orderType === 'PICKUP' && ON_DELIVERY_METHODS.includes(paymentMethod)) {
+    if (orderType === 'TABLE') {
+      setValue('paymentMethod', 'PENDING')
+    } else if (orderType === 'PICKUP' && ON_DELIVERY_METHODS.includes(paymentMethod)) {
       setValue('paymentMethod', 'PIX')
     }
   }, [orderType, paymentMethod, setValue])
@@ -769,7 +776,13 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
             )}
 
-            {/* Pagamento — sempre mostra as 3 opções principais */}
+            {/* Pagamento — esconde para TABLE (pagamento é na comanda) */}
+            {tableNumber ? (
+              <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-blue-700">
+                <input type="hidden" value="PENDING" {...register('paymentMethod')} />
+                Pagamento será realizado ao fechar a comanda.
+              </div>
+            ) : (
             <div className="space-y-2">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Pagamento
@@ -851,6 +864,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               )}
             </div>
+            )}
 
             {/* Cupom */}
             <div>
@@ -932,7 +946,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || !paymentMethod}
               className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
             >
-              {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
+              {mutation.isPending ? 'Enviando...' : tableNumber ? `Enviar pedido › ${fmt(total)}` : `Finalizar pedido › ${fmt(total)}`}
             </button>
             <button
               type="button"

@@ -107,6 +107,26 @@ describe('buildReceiptText', () => {
     expect(text).not.toContain('Rua A')
   })
 
+  it('quebra endereço longo em múltiplas linhas (max 42 colunas)', () => {
+    const longAddr = {
+      ...baseOrder,
+      address: {
+        street: 'Rua Senador Souza Naves',
+        number: '1100',
+        complement: '',
+        neighborhood: 'Centro',
+        city: 'Londrina',
+      },
+    }
+    const text = buildReceiptText(longAddr)
+    const receiptLines = text.split('\n')
+    for (const line of receiptLines) {
+      expect(line.length).toBeLessThanOrEqual(42)
+    }
+    expect(text).toContain('Rua Senador Souza Naves')
+    expect(text).toContain('Londrina')
+  })
+
   it('inclui itens com quantidade e preço', () => {
     const text = buildReceiptText(baseOrder)
     expect(text).toContain('2x Pizza Margherita (Grande)')
