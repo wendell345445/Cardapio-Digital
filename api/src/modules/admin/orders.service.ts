@@ -280,7 +280,7 @@ export async function sendWaitingPaymentNotification(
   }
 
   if (order.paymentMethod !== PaymentMethod.PIX) {
-    throw new AppError('Mensagem de Aguardando Pix só se aplica a pedidos com pagamento Pix', 400)
+    throw new AppError('Mensagem de Aguardando Pix só se aplica a pedidos com pagamento Pix adiantado', 400)
   }
 
   const store = await prisma.store.findUnique({

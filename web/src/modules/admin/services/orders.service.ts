@@ -110,29 +110,29 @@ export async function fetchOrderReceipt(id: string): Promise<string> {
 }
 
 /** Abre janela de impressão com o recibo formatado para impressora térmica */
-export function printReceipt(receipt: string) {
-  const printWindow = window.open('', '_blank', 'width=400,height=600')
+export function printReceipt(receipt: string, orderNumber?: number) {
+  const title = orderNumber ? `Pedido #${orderNumber}` : 'Imprimir Pedido'
+  const printWindow = window.open('', '_blank', 'width=500,height=700')
   if (!printWindow) return
 
   printWindow.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Imprimir Pedido</title>
+  <title>${title}</title>
   <style>
     @page { margin: 0; size: 80mm auto; }
     body {
-      font-family: 'Courier New', monospace;
+      font-family: 'Courier New', Courier, monospace;
       font-size: 12px;
-      line-height: 1.4;
+      line-height: 1.3;
       margin: 0;
-      padding: 4mm;
-      width: 72mm;
-      white-space: pre-wrap;
-      word-break: break-word;
+      padding: 8mm;
+      white-space: pre;
+      overflow-x: auto;
     }
     @media print {
-      body { padding: 0; }
+      body { padding: 2mm; }
     }
   </style>
 </head>

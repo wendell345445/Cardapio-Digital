@@ -787,6 +787,14 @@ describe('sendWaitingPaymentNotification', () => {
     ).rejects.toMatchObject({ status: 400 })
   })
 
+  it('lança 400 para PIX_ON_DELIVERY — pagamento na entrega, fluxo diferente (A-053)', async () => {
+    setupWaitingMocks({ paymentMethod: 'PIX_ON_DELIVERY' })
+
+    await expect(
+      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
   it('lança 400 quando paymentMethod não é PIX (A-053)', async () => {
     setupWaitingMocks({ paymentMethod: 'CASH_ON_DELIVERY' })
 

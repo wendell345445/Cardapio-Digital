@@ -896,7 +896,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || !paymentMethod}
               className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
             >
-              {mutation.isPending ? 'Enviando...' : `Finalizar pedido › ${fmt(total)}`}
+              {mutation.isPending ? 'Enviando...' : tableNumber ? `Enviar pedido › ${fmt(total)}` : `Finalizar pedido › ${fmt(total)}`}
             </button>
             <button
               type="button"

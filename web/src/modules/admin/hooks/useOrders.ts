@@ -71,9 +71,9 @@ export function useUpdateOrderAddress() {
 // TASK-084/A-050: Impressão manual do pedido
 export function usePrintOrder() {
   return useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async ({ id, orderNumber }: { id: string; orderNumber?: number }) => {
       const receipt = await fetchOrderReceipt(id)
-      printReceipt(receipt)
+      printReceipt(receipt, orderNumber)
     },
   })
 }
