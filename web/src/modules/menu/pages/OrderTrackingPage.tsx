@@ -114,6 +114,9 @@ export function OrderTrackingPage() {
         {order.type === 'PICKUP' && (
           <p className="text-sm mt-2 opacity-80">Retirada na loja</p>
         )}
+        {order.type === 'TABLE' && (
+          <p className="text-sm mt-2 opacity-80">Mesa {order.table?.number ?? ''}</p>
+        )}
       </header>
 
       <div className="px-4 py-6 space-y-5">
@@ -226,6 +229,24 @@ export function OrderTrackingPage() {
             </div>
           </div>
         </section>
+
+        {/* TABLE: navegação para comanda e menu */}
+        {order.type === 'TABLE' && (
+          <section className="space-y-2">
+            <a
+              href="/comanda"
+              className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
+            >
+              Ver comanda completa da mesa
+            </a>
+            <a
+              href={`/?mesa=${order.table?.number ?? ''}`}
+              className="block w-full text-center border-2 border-green-500 text-green-600 font-bold py-3.5 rounded-xl text-sm transition-colors hover:bg-green-50"
+            >
+              Voltar ao cardapio e pedir mais
+            </a>
+          </section>
+        )}
       </div>
     </div>
   )

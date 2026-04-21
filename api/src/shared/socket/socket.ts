@@ -79,6 +79,11 @@ export const emit = {
     io?.to(`table:${storeId}:${tableId}`).emit('item:status', data)
   },
 
+  // ─── A-056: Cliente pede a conta ────────────────────────────────────────
+  tableCheckRequested(storeId: string, data: { tableId: string; tableNumber: number; customerWhatsapp: string }): void {
+    io?.to(`store:${storeId}`).emit('table:check_requested', data)
+  },
+
   // ─── TASK-092: Alerta de pedido agendado ─────────────────────────────────
   orderScheduledAlert(storeId: string, data: unknown): void {
     io?.to(`store:${storeId}`).emit('order:scheduled_alert', data)
