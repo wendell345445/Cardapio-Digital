@@ -1,21 +1,103 @@
-import { useAddPaymentAccess, useRemovePaymentAccess, useStoreClients } from '../hooks/usePaymentAccess'
+import { useEffect, useState } from 'react'
+import { X } from 'lucide-react'
+
+import {
+  useAddPaymentAccess,
+  useAddPaymentAccessByWhatsapp,
+  useRemovePaymentAccess,
+  useStoreClients,
+} from '../hooks/usePaymentAccess'
+
+type Toast = { message: string; type: 'success' | 'error' } | null
+
+function ToastView({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+  if (!toast) return null
+  return (
+    <div
+      role="alert"
+      className={`fixed top-4 right-4 z-50 flex items-center gap-3 rounded-lg px-4 py-3 shadow-lg text-sm font-medium ${
+        toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+      }`}
+    >
+      <span>{toast.message}</span>
+      <button onClick={onClose} className="ml-1 opacity-80 hover:opacity-100" aria-label="Fechar">
+        <X size={14} />
+      </button>
+    </div>
+  )
+}
+
+function extractApiError(err: unknown, fallback: string): string {
+  const maybe = err as { response?: { data?: { error?: string; message?: string } } }
+  return maybe?.response?.data?.error ?? maybe?.response?.data?.message ?? fallback
+}
 
 export function ControleAcessoPage() {
   const { data: clients, isLoading, isError } = useStoreClients()
   const addMutation = useAddPaymentAccess()
+  const addByWhatsappMutation = useAddPaymentAccessByWhatsapp()
   const removeMutation = useRemovePaymentAccess()
 
-  function handleAdd(clientId: string, type: 'BLACKLIST' | 'WHITELIST') {
+  const [toast, setToast] = useState<Toast>(null)
+  const [name, setName] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [type, setType] = useState<'BLACKLIST' | 'WHITELIST'>('BLACKLIST')
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3500)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  function showToast(message: string, type: 'success' | 'error') {
+    setToast({ message, type })
+  }
+
+  function handleAdd(clientId: string, accessType: 'BLACKLIST' | 'WHITELIST') {
     addMutation.mutate(
-      { clientId, type },
-      { onError: () => alert('Erro ao atualizar acesso do cliente.') }
+      { clientId, type: accessType },
+      {
+        onSuccess: () => showToast('Acesso atualizado.', 'success'),
+        onError: (err) => showToast(extractApiError(err, 'Erro ao atualizar acesso do cliente.'), 'error'),
+      }
     )
   }
 
   function handleRemove(clientId: string) {
     removeMutation.mutate(clientId, {
-      onError: () => alert('Erro ao remover acesso do cliente.'),
+      onSuccess: () => showToast('Acesso removido.', 'success'),
+      onError: (err) => showToast(extractApiError(err, 'Erro ao remover acesso do cliente.'), 'error'),
     })
+  }
+
+  function handleAddByWhatsapp(e: React.FormEvent) {
+    e.preventDefault()
+    const digits = whatsapp.replace(/\D/g, '')
+    if (digits.length < 10) {
+      showToast('Informe um WhatsApp válido (mínimo 10 dígitos).', 'error')
+      return
+    }
+    addByWhatsappMutation.mutate(
+      {
+        whatsapp: digits,
+        ...(name.trim() ? { name: name.trim() } : {}),
+        type,
+      },
+      {
+        onSuccess: (result) => {
+          setName('')
+          setWhatsapp('')
+          setType('BLACKLIST')
+          showToast(
+            result.createdNewUser
+              ? 'Cliente adicionado e classificado.'
+              : 'Cliente existente classificado.',
+            'success'
+          )
+        },
+        onError: (err) => showToast(extractApiError(err, 'Erro ao adicionar cliente.'), 'error'),
+      }
+    )
   }
 
   return (
@@ -24,12 +106,86 @@ export function ControleAcessoPage() {
         <h1 className="text-xl font-bold text-gray-900">Controle de Acesso</h1>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8">
+      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
+        <ToastView toast={toast} onClose={() => setToast(null)} />
+
+        {/* Form: adicionar manualmente por WhatsApp (ADR-0002) */}
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">Adicionar Cliente</h2>
+          <p className="text-sm text-gray-500 mb-4">
+            Classifique um cliente pelo WhatsApp, mesmo que ele ainda não tenha feito pedidos na loja.
+          </p>
+          <form onSubmit={handleAddByWhatsapp} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Opcional"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  WhatsApp <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  placeholder="5511999999999"
+                  required
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <span className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo <span className="text-red-500">*</span>
+              </span>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accessType"
+                    checked={type === 'BLACKLIST'}
+                    onChange={() => setType('BLACKLIST')}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500"
+                  />
+                  <span className="text-sm text-gray-700">Blacklist</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accessType"
+                    checked={type === 'WHITELIST'}
+                    onChange={() => setType('WHITELIST')}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700">Whitelist</span>
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={addByWhatsappMutation.isPending}
+              className="px-4 py-2 rounded-md bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {addByWhatsappMutation.isPending ? 'Adicionando...' : 'Adicionar'}
+            </button>
+          </form>
+        </div>
+
+        {/* Listagem: clientes da loja (com histórico + adicionados manualmente) */}
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-base font-semibold text-gray-800">Blacklist / Whitelist de Clientes</h2>
             <p className="text-sm text-gray-500 mt-1">
-              Apenas clientes com histórico de pedido na loja aparecem aqui.
+              Inclui clientes com histórico de pedido e os adicionados manualmente acima.
             </p>
           </div>
 
@@ -45,7 +201,7 @@ export function ControleAcessoPage() {
 
           {clients && clients.length === 0 && (
             <p className="px-6 py-8 text-sm text-gray-500 text-center">
-              Nenhum cliente com histórico encontrado.
+              Nenhum cliente encontrado. Adicione manualmente pelo form acima.
             </p>
           )}
 

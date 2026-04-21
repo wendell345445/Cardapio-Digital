@@ -2,9 +2,10 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { addPaymentAccessSchema } from './payment-access.schema'
+import { addPaymentAccessByWhatsappSchema, addPaymentAccessSchema } from './payment-access.schema'
 import {
   addPaymentAccess,
+  addPaymentAccessByWhatsapp,
   listStoreClients,
   removePaymentAccess,
 } from './payment-access.service'
@@ -31,6 +32,22 @@ export async function addPaymentAccessController(req: Request, res: Response, ne
     const { userId } = getUser(req)
     const data = addPaymentAccessSchema.parse(req.body)
     const result = await addPaymentAccess(storeId, data, userId, req.ip)
+    res.status(201).json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function addPaymentAccessByWhatsappController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const data = addPaymentAccessByWhatsappSchema.parse(req.body)
+    const result = await addPaymentAccessByWhatsapp(storeId, data, userId, req.ip)
     res.status(201).json({ success: true, data: result })
   } catch (err) {
     next(err)

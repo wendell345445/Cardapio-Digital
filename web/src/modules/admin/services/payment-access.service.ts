@@ -16,6 +16,19 @@ export interface AddPaymentAccessDto {
   type: 'BLACKLIST' | 'WHITELIST'
 }
 
+export interface AddPaymentAccessByWhatsappDto {
+  whatsapp: string
+  name?: string
+  type: 'BLACKLIST' | 'WHITELIST'
+}
+
+export interface AddPaymentAccessByWhatsappResult {
+  clientId: string
+  accessId: string
+  type: 'BLACKLIST' | 'WHITELIST'
+  createdNewUser: boolean
+}
+
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function fetchStoreClients(): Promise<StoreClient[]> {
@@ -25,6 +38,13 @@ export async function fetchStoreClients(): Promise<StoreClient[]> {
 
 export async function addPaymentAccess(dto: AddPaymentAccessDto): Promise<unknown> {
   const { data } = await api.post('/admin/store/payment-access', dto)
+  return data.data
+}
+
+export async function addPaymentAccessByWhatsapp(
+  dto: AddPaymentAccessByWhatsappDto
+): Promise<AddPaymentAccessByWhatsappResult> {
+  const { data } = await api.post('/admin/store/payment-access/by-whatsapp', dto)
   return data.data
 }
 

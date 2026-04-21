@@ -2,7 +2,13 @@
 
 jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
-    user: { findMany: jest.fn(), findUnique: jest.fn() },
+    user: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
     order: { findFirst: jest.fn() },
     store: { findUnique: jest.fn() },
     clientPaymentAccess: {
@@ -20,6 +26,7 @@ import { prisma } from '../../../shared/prisma/prisma'
 import {
   listStoreClients,
   addPaymentAccess,
+  addPaymentAccessByWhatsapp,
   removePaymentAccess,
   getPaymentMethodsForClient,
 } from '../payment-access.service'
@@ -223,6 +230,190 @@ describe('removePaymentAccess', () => {
     ).rejects.toMatchObject({ status: 404 })
 
     expect(mockPrisma.clientPaymentAccess.delete).not.toHaveBeenCalled()
+  })
+})
+
+// ─── addPaymentAccessByWhatsapp (ADR-0002) ────────────────────────────────────
+
+describe('addPaymentAccessByWhatsapp', () => {
+  const WHATSAPP = '5511999998888'
+  const NEW_CLIENT_ID = 'new-client-1'
+  const EXISTING_CLIENT_ID = 'existing-client-1'
+  const ACCESS_ID = 'access-new-1'
+
+  it('cria User CLIENT novo quando WhatsApp não existe na loja', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: NEW_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: 'Fulano',
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.clientPaymentAccess.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    ;(mockPrisma.clientPaymentAccess.create as jest.Mock).mockResolvedValue({
+      id: ACCESS_ID,
+      storeId: STORE_ID,
+      clientId: NEW_CLIENT_ID,
+      type: 'BLACKLIST',
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const result = await addPaymentAccessByWhatsapp(
+      STORE_ID,
+      { whatsapp: WHATSAPP, name: 'Fulano', type: 'BLACKLIST' },
+      USER_ID,
+      IP
+    )
+
+    expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+      where: { whatsapp: WHATSAPP, storeId: STORE_ID, role: 'CLIENT' },
+    })
+    expect(mockPrisma.user.create).toHaveBeenCalledWith({
+      data: {
+        whatsapp: WHATSAPP,
+        storeId: STORE_ID,
+        role: 'CLIENT',
+        name: 'Fulano',
+        isActive: true,
+      },
+    })
+    expect(result).toEqual({
+      clientId: NEW_CLIENT_ID,
+      accessId: ACCESS_ID,
+      type: 'BLACKLIST',
+      createdNewUser: true,
+    })
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'store.payment-access.add-by-whatsapp',
+          data: expect.objectContaining({ createdNewUser: true }),
+        }),
+      })
+    )
+  })
+
+  it('usa fallback "Cliente <4 dígitos>" quando nome não informado', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.user.create as jest.Mock).mockResolvedValue({
+      id: NEW_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: 'Cliente 8888',
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.clientPaymentAccess.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    ;(mockPrisma.clientPaymentAccess.create as jest.Mock).mockResolvedValue({
+      id: ACCESS_ID,
+      storeId: STORE_ID,
+      clientId: NEW_CLIENT_ID,
+      type: 'WHITELIST',
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    await addPaymentAccessByWhatsapp(
+      STORE_ID,
+      { whatsapp: WHATSAPP, type: 'WHITELIST' },
+      USER_ID
+    )
+
+    expect(mockPrisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: 'Cliente 8888' }) })
+    )
+  })
+
+  it('reutiliza User CLIENT existente (mesmo whatsapp + storeId)', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+      id: EXISTING_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: 'Fulano',
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.clientPaymentAccess.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    ;(mockPrisma.clientPaymentAccess.create as jest.Mock).mockResolvedValue({
+      id: ACCESS_ID,
+      storeId: STORE_ID,
+      clientId: EXISTING_CLIENT_ID,
+      type: 'BLACKLIST',
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    const result = await addPaymentAccessByWhatsapp(
+      STORE_ID,
+      { whatsapp: WHATSAPP, type: 'BLACKLIST' },
+      USER_ID
+    )
+
+    expect(mockPrisma.user.create).not.toHaveBeenCalled()
+    expect(result.clientId).toBe(EXISTING_CLIENT_ID)
+    expect(result.createdNewUser).toBe(false)
+  })
+
+  it('substitui classificação anterior (deleteMany antes de create)', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+      id: EXISTING_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: 'Fulano',
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.clientPaymentAccess.deleteMany as jest.Mock).mockResolvedValue({ count: 1 })
+    ;(mockPrisma.clientPaymentAccess.create as jest.Mock).mockResolvedValue({
+      id: ACCESS_ID,
+      storeId: STORE_ID,
+      clientId: EXISTING_CLIENT_ID,
+      type: 'WHITELIST',
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    await addPaymentAccessByWhatsapp(
+      STORE_ID,
+      { whatsapp: WHATSAPP, type: 'WHITELIST' },
+      USER_ID
+    )
+
+    expect(mockPrisma.clientPaymentAccess.deleteMany).toHaveBeenCalledWith({
+      where: { storeId: STORE_ID, clientId: EXISTING_CLIENT_ID },
+    })
+    expect(mockPrisma.clientPaymentAccess.create).toHaveBeenCalled()
+  })
+
+  it('atualiza nome do User existente quando não tinha nome e foi informado', async () => {
+    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+      id: EXISTING_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: null,
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue({
+      id: EXISTING_CLIENT_ID,
+      whatsapp: WHATSAPP,
+      name: 'Agora Tem Nome',
+      storeId: STORE_ID,
+      role: 'CLIENT',
+    })
+    ;(mockPrisma.clientPaymentAccess.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    ;(mockPrisma.clientPaymentAccess.create as jest.Mock).mockResolvedValue({
+      id: ACCESS_ID,
+      storeId: STORE_ID,
+      clientId: EXISTING_CLIENT_ID,
+      type: 'BLACKLIST',
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
+    await addPaymentAccessByWhatsapp(
+      STORE_ID,
+      { whatsapp: WHATSAPP, name: 'Agora Tem Nome', type: 'BLACKLIST' },
+      USER_ID
+    )
+
+    expect(mockPrisma.user.update).toHaveBeenCalledWith({
+      where: { id: EXISTING_CLIENT_ID },
+      data: { name: 'Agora Tem Nome' },
+    })
   })
 })
 
