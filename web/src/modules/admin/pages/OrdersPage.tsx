@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, Clock, XCircle, CheckCheck } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 
-import { useOrders, useSendWaitingPayment } from '../hooks/useOrders'
+import { useOrders, usePrintOrder, useSendWaitingPayment } from '../hooks/useOrders'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -161,6 +161,7 @@ function OrderCard({
     !readonly && order.status === 'PENDING' && order.type === 'DELIVERY'
 
   const sendWaitingPaymentMutation = useSendWaitingPayment()
+  const printOrderMutation = usePrintOrder()
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-3 shadow-sm space-y-2 text-sm">
@@ -199,6 +200,14 @@ function OrderCard({
               className="flex-1 rounded-md border border-gray-300 text-gray-700 py-1 text-xs font-medium hover:bg-gray-50 transition-colors"
             >
               Ver detalhes
+            </button>
+            <button
+              onClick={() => printOrderMutation.mutate(order.id)}
+              disabled={printOrderMutation.isPending}
+              title="Imprimir pedido"
+              className="rounded-md border border-gray-300 text-gray-600 px-2 py-1 text-xs hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              <Printer className="w-3.5 h-3.5" />
             </button>
             {canAdvanceDirect && nextStatus && (
               <button

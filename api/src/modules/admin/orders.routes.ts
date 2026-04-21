@@ -11,6 +11,7 @@ import {
 import {
   assignMotoboyController,
   getOrderController,
+  getOrderReceiptController,
   listOrdersController,
   sendWaitingPaymentController,
   updateOrderStatusController,
@@ -25,6 +26,8 @@ router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requir
 
 router.get('/', listOrdersController)
 router.get('/:id', getOrderController)
+// TASK-084/A-050: Recibo para impressão manual
+router.get('/:id/receipt', getOrderReceiptController)
 router.patch('/:id/status', updateOrderStatusController)
 router.patch('/:id/motoboy', assignMotoboyController)
 // TASK-123: Botão manual "Aguardando Pix"
