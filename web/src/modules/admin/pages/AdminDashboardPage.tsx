@@ -37,6 +37,7 @@ const PERIOD_HINT: Record<Period, string> = {
   day: 'Hoje',
   week: 'Últimos 7 dias',
   month: 'Últimos 30 dias',
+  range: 'Período personalizado',
 }
 
 const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'

@@ -174,10 +174,105 @@ describe('invalidateAnalyticsCache', () => {
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:day:4`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:week:4`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:top-products:${STORE_ID}:month:4`)
-    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}:day`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}:week`)
+    expect(mockCache.del).toHaveBeenCalledWith(`analytics:peak-hours:${STORE_ID}:month`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:day`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:week`)
     expect(mockCache.del).toHaveBeenCalledWith(`analytics:payment-breakdown:${STORE_ID}:month`)
+  })
+})
+
+// ─── Date range (A-085 v2) ────────────────────────────────────────────────────
+
+describe('date range support', () => {
+  it('getSalesSummary com period=range filtra por { gte: from BRT, lt: to+1 BRT }', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await getSalesSummary(STORE_ID, {
+      period: 'range',
+      from: '2026-04-01',
+      to: '2026-04-03',
+    } as never)
+
+    const call = (mockPrisma.order.findMany as jest.Mock).mock.calls[0][0]
+    expect(call.where.createdAt.gte).toBeInstanceOf(Date)
+    expect(call.where.createdAt.lt).toBeInstanceOf(Date)
+    // from = 2026-04-01 00:00 BRT = 2026-04-01T03:00:00Z
+    expect((call.where.createdAt.gte as Date).toISOString()).toBe('2026-04-01T03:00:00.000Z')
+    // until = 2026-04-04 00:00 BRT = 2026-04-04T03:00:00Z (exclusive)
+    expect((call.where.createdAt.lt as Date).toISOString()).toBe('2026-04-04T03:00:00.000Z')
+  })
+
+  it('não salva no cache quando period=range', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([makeOrder({ total: 100 })])
+
+    await getSalesSummary(STORE_ID, {
+      period: 'range',
+      from: '2026-04-01',
+      to: '2026-04-03',
+    } as never)
+
+    expect(mockCache.set).not.toHaveBeenCalled()
+  })
+
+  it('não lê do cache quando period=range (força query fresca)', async () => {
+    const cached = { totalRevenue: 999, totalOrders: 9, averageTicket: 111, timeline: [] }
+    ;(mockCache.get as jest.Mock).mockResolvedValue(cached)
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await getSalesSummary(STORE_ID, {
+      period: 'range',
+      from: '2026-04-01',
+      to: '2026-04-03',
+    } as never)
+
+    expect(mockPrisma.order.findMany).toHaveBeenCalled()
+  })
+
+  it('getTopProducts com range passa createdAt com lt', async () => {
+    ;(mockPrisma.orderItem.findMany as jest.Mock).mockResolvedValue([])
+
+    await getTopProducts(STORE_ID, {
+      period: 'range',
+      limit: 10,
+      from: '2026-04-01',
+      to: '2026-04-02',
+    } as never)
+
+    const call = (mockPrisma.orderItem.findMany as jest.Mock).mock.calls[0][0]
+    expect(call.where.order.createdAt.gte).toBeInstanceOf(Date)
+    expect(call.where.order.createdAt.lt).toBeInstanceOf(Date)
+  })
+
+  it('getPaymentBreakdown com range filtra janela e não cacheia', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 100, paymentMethod: 'PIX' }),
+    ])
+
+    const result = await getPaymentBreakdown(STORE_ID, {
+      period: 'range',
+      from: '2026-04-01',
+      to: '2026-04-02',
+    } as never)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].method).toBe('PIX')
+    expect(mockCache.set).not.toHaveBeenCalled()
+  })
+
+  it('getPeakHours com range respeita janela customizada', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    await getPeakHours(STORE_ID, {
+      period: 'range',
+      from: '2026-04-01',
+      to: '2026-04-05',
+    } as never)
+
+    const call = (mockPrisma.order.findMany as jest.Mock).mock.calls[0][0]
+    expect(call.where.createdAt.gte).toBeInstanceOf(Date)
+    expect(call.where.createdAt.lt).toBeInstanceOf(Date)
   })
 })
 

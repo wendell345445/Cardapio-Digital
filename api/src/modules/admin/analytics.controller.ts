@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 
 import {
   paymentBreakdownQuerySchema,
+  peakHoursQuerySchema,
   rankingQuerySchema,
   salesQuerySchema,
   topProductsQuerySchema,
@@ -67,7 +68,8 @@ export async function getTopProductsController(req: Request, res: Response, next
 export async function getPeakHoursController(req: Request, res: Response, next: NextFunction) {
   try {
     const storeId = req.tenant!.storeId
-    const data = await getPeakHours(storeId)
+    const query = peakHoursQuerySchema.parse(req.query)
+    const data = await getPeakHours(storeId, query)
     res.json({ success: true, data })
   } catch (err) {
     next(err)

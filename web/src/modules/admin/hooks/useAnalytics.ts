@@ -10,41 +10,51 @@ import {
   getTopProducts,
   updateCustomer,
   type ClientRankingParams,
+  type DateRange,
   type Period,
   type UpdateCustomerInput,
 } from '../services/analytics.service'
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export function useSales(period: Period) {
+function rangeReady(period: Period, range?: DateRange): boolean {
+  if (period !== 'range') return true
+  return !!(range && range.from && range.to)
+}
+
+export function useSales(period: Period, range?: DateRange) {
   return useQuery({
-    queryKey: ['analytics', 'sales', period],
-    queryFn: () => getSales(period),
+    queryKey: ['analytics', 'sales', period, range?.from, range?.to],
+    queryFn: () => getSales(period, range),
     staleTime: 5 * 60 * 1000,
+    enabled: rangeReady(period, range),
   })
 }
 
-export function useTopProducts(period: Period, limit?: number) {
+export function useTopProducts(period: Period, limit?: number, range?: DateRange) {
   return useQuery({
-    queryKey: ['analytics', 'top-products', period, limit],
-    queryFn: () => getTopProducts(period, limit),
+    queryKey: ['analytics', 'top-products', period, limit, range?.from, range?.to],
+    queryFn: () => getTopProducts(period, limit, range),
     staleTime: 5 * 60 * 1000,
+    enabled: rangeReady(period, range),
   })
 }
 
-export function usePeakHours() {
+export function usePeakHours(period: Period = 'month', range?: DateRange) {
   return useQuery({
-    queryKey: ['analytics', 'peak-hours'],
-    queryFn: () => getPeakHours(),
+    queryKey: ['analytics', 'peak-hours', period, range?.from, range?.to],
+    queryFn: () => getPeakHours(period, range),
     staleTime: 10 * 60 * 1000,
+    enabled: rangeReady(period, range),
   })
 }
 
-export function usePaymentBreakdown(period: Period) {
+export function usePaymentBreakdown(period: Period, range?: DateRange) {
   return useQuery({
-    queryKey: ['analytics', 'payment-breakdown', period],
-    queryFn: () => getPaymentBreakdown(period),
+    queryKey: ['analytics', 'payment-breakdown', period, range?.from, range?.to],
+    queryFn: () => getPaymentBreakdown(period, range),
     staleTime: 5 * 60 * 1000,
+    enabled: rangeReady(period, range),
   })
 }
 
