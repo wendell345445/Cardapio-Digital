@@ -7,7 +7,7 @@ import {
   useSales,
   useTopProducts,
 } from '../hooks/useAnalytics'
-import type { PaymentBreakdownItem, Period } from '../services/analytics.service'
+import type { DateRange, PaymentBreakdownItem, Period } from '../services/analytics.service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -310,15 +310,41 @@ const PERIODS: { value: Period; label: string }[] = [
   { value: 'day', label: 'Hoje' },
   { value: 'week', label: 'Semana' },
   { value: 'month', label: 'Mês' },
+  { value: 'range', label: 'Range' },
 ]
+
+function todayISO(): string {
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
 
 export function AnalyticsPage() {
   const [period, setPeriod] = useState<Period>('day')
+  const today = todayISO()
+  const [rangeFrom, setRangeFrom] = useState<string>(today)
+  const [rangeTo, setRangeTo] = useState<string>(today)
 
-  const { data: sales, isLoading: loadingSales } = useSales(period)
-  const { data: topProducts, isLoading: loadingProducts } = useTopProducts(period, 10)
-  const { data: peakHours, isLoading: loadingPeakHours } = usePeakHours()
-  const { data: paymentBreakdown, isLoading: loadingPayments } = usePaymentBreakdown(period)
+  const rangeValid = rangeFrom && rangeTo && rangeFrom <= rangeTo
+  const effectiveRange: DateRange | undefined =
+    period === 'range' && rangeValid ? { from: rangeFrom, to: rangeTo } : undefined
+
+  const { data: sales, isLoading: loadingSales } = useSales(period, effectiveRange)
+  const { data: topProducts, isLoading: loadingProducts } = useTopProducts(
+    period,
+    10,
+    effectiveRange
+  )
+  const { data: peakHours, isLoading: loadingPeakHours } = usePeakHours(
+    period === 'range' ? 'range' : 'month',
+    effectiveRange
+  )
+  const { data: paymentBreakdown, isLoading: loadingPayments } = usePaymentBreakdown(
+    period,
+    effectiveRange
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -331,20 +357,53 @@ export function AnalyticsPage() {
           </div>
 
           {/* Period Selector */}
-          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            {PERIODS.map((p) => (
-              <button
-                key={p.value}
-                onClick={() => setPeriod(p.value)}
-                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  period === p.value
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPeriod(p.value)}
+                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                    period === p.value
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {period === 'range' && (
+              <div className="flex items-center gap-2 text-sm">
+                <label className="flex items-center gap-1.5">
+                  <span className="text-gray-500">De</span>
+                  <input
+                    type="date"
+                    value={rangeFrom}
+                    max={rangeTo || today}
+                    onChange={(e) => setRangeFrom(e.target.value)}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <span className="text-gray-500">Até</span>
+                  <input
+                    type="date"
+                    value={rangeTo}
+                    min={rangeFrom}
+                    max={today}
+                    onChange={(e) => setRangeTo(e.target.value)}
+                    className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </label>
+                {!rangeValid && (
+                  <span className="text-xs text-red-500">
+                    Data inicial deve ser &le; data final
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </header>

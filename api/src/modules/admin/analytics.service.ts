@@ -3,10 +3,13 @@ import { cache } from '../../shared/redis/redis'
 
 import type {
   PaymentBreakdownQuery,
+  PeakHoursQuery,
   RankingQuery,
   SalesQuery,
   TopProductsQuery,
 } from './analytics.schema'
+
+type PeriodQuery = { period: string; from?: string; to?: string }
 
 // ─── TASK-093: Serviço de Analytics ──────────────────────────────────────────
 
@@ -27,7 +30,9 @@ export async function invalidateAnalyticsCache(storeId: string): Promise<void> {
     cache.del(`analytics:top-products:${storeId}:day:4`),
     cache.del(`analytics:top-products:${storeId}:week:4`),
     cache.del(`analytics:top-products:${storeId}:month:4`),
-    cache.del(`analytics:peak-hours:${storeId}`),
+    cache.del(`analytics:peak-hours:${storeId}:day`),
+    cache.del(`analytics:peak-hours:${storeId}:week`),
+    cache.del(`analytics:peak-hours:${storeId}:month`),
     cache.del(`analytics:payment-breakdown:${storeId}:day`),
     cache.del(`analytics:payment-breakdown:${storeId}:week`),
     cache.del(`analytics:payment-breakdown:${storeId}:month`),
@@ -109,24 +114,49 @@ function getPeriodStart(period: string): Date {
   }
 }
 
-export async function getSalesSummary(storeId: string, query: SalesQuery): Promise<SalesSummaryResult> {
-  const cacheKey = `analytics:sales:${storeId}:${query.period}`
-  const cached = await cache.get<SalesSummaryResult>(cacheKey)
-  if (cached) return cached
+/**
+ * Resolve período para uma janela { since, until? }.
+ * - Presets (day/week/month): desde meia-noite BRT até agora (until=undefined).
+ * - Range: converte "YYYY-MM-DD" para instantes BRT (from=00:00 BRT / to+1dia=00:00 BRT, half-open).
+ */
+function resolvePeriod(query: PeriodQuery): { since: Date; until?: Date } {
+  if (query.period === 'range' && query.from && query.to) {
+    // "YYYY-MM-DD" BRT meia-noite = "YYYY-MM-DDT03:00:00Z" (UTC)
+    const since = new Date(`${query.from}T03:00:00.000Z`)
+    // until exclusivo = dia seguinte a 'to' às 00:00 BRT
+    const untilDate = new Date(`${query.to}T03:00:00.000Z`)
+    untilDate.setUTCDate(untilDate.getUTCDate() + 1)
+    return { since, until: untilDate }
+  }
+  return { since: getPeriodStart(query.period) }
+}
 
-  const since = getPeriodStart(query.period)
+function createdAtWhere(range: { since: Date; until?: Date }) {
+  return range.until ? { gte: range.since, lt: range.until } : { gte: range.since }
+}
+
+export async function getSalesSummary(storeId: string, query: SalesQuery): Promise<SalesSummaryResult> {
+  const isRange = query.period === 'range'
+  const cacheKey = `analytics:sales:${storeId}:${query.period}`
+  if (!isRange) {
+    const cached = await cache.get<SalesSummaryResult>(cacheKey)
+    if (cached) return cached
+  }
+
+  const range = resolvePeriod(query)
+  const createdAt = createdAtWhere(range)
 
   const [orders, cancelledCount] = await Promise.all([
     prisma.order.findMany({
       where: {
         storeId,
         status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-        createdAt: { gte: since },
+        createdAt,
       },
       select: { total: true, createdAt: true },
     }),
     prisma.order.count({
-      where: { storeId, status: 'CANCELLED', createdAt: { gte: since } },
+      where: { storeId, status: 'CANCELLED', createdAt },
     }),
   ])
 
@@ -148,23 +178,27 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
     .map(([date, data]) => ({ date, ...data }))
 
   const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, cancelledCount, timeline }
-  await cache.set(cacheKey, result, CACHE_TTL)
+  if (!isRange) await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }
 
 export async function getTopProducts(storeId: string, query: TopProductsQuery): Promise<TopProductsResult> {
+  const isRange = query.period === 'range'
   const cacheKey = `analytics:top-products:${storeId}:${query.period}:${query.limit}`
-  const cached = await cache.get<TopProductsResult>(cacheKey)
-  if (cached) return cached
+  if (!isRange) {
+    const cached = await cache.get<TopProductsResult>(cacheKey)
+    if (cached) return cached
+  }
 
-  const since = getPeriodStart(query.period)
+  const range = resolvePeriod(query)
+  const createdAt = createdAtWhere(range)
 
   const items = await prisma.orderItem.findMany({
     where: {
       order: {
         storeId,
         status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-        createdAt: { gte: since },
+        createdAt,
       },
     },
     select: { productName: true, quantity: true, totalPrice: true, productId: true },
@@ -184,23 +218,29 @@ export async function getTopProducts(storeId: string, query: TopProductsQuery): 
     .slice(0, query.limit)
     .map((p, i) => ({ rank: i + 1, ...p }))
 
-  await cache.set(cacheKey, topProducts, CACHE_TTL)
+  if (!isRange) await cache.set(cacheKey, topProducts, CACHE_TTL)
   return topProducts
 }
 
-export async function getPeakHours(storeId: string): Promise<PeakHoursResult> {
-  const cacheKey = `analytics:peak-hours:${storeId}`
-  const cached = await cache.get<PeakHoursResult>(cacheKey)
-  if (cached) return cached
+export async function getPeakHours(
+  storeId: string,
+  query: PeakHoursQuery = { period: 'month' }
+): Promise<PeakHoursResult> {
+  const isRange = query.period === 'range'
+  const cacheKey = `analytics:peak-hours:${storeId}:${query.period}`
+  if (!isRange) {
+    const cached = await cache.get<PeakHoursResult>(cacheKey)
+    if (cached) return cached
+  }
 
-  // Last 30 days
-  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const range = resolvePeriod(query)
+  const createdAt = createdAtWhere(range)
 
   const orders = await prisma.order.findMany({
     where: {
       storeId,
       status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-      createdAt: { gte: since },
+      createdAt,
     },
     select: { createdAt: true },
   })
@@ -214,7 +254,7 @@ export async function getPeakHours(storeId: string): Promise<PeakHoursResult> {
   }
 
   const result: PeakHoursResult = hourCounts.map((count, hour) => ({ hour, count }))
-  await cache.set(cacheKey, result, CACHE_TTL)
+  if (!isRange) await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }
 
@@ -223,17 +263,21 @@ export async function getPaymentBreakdown(
   storeId: string,
   query: PaymentBreakdownQuery
 ): Promise<PaymentBreakdownResult> {
+  const isRange = query.period === 'range'
   const cacheKey = `analytics:payment-breakdown:${storeId}:${query.period}`
-  const cached = await cache.get<PaymentBreakdownResult>(cacheKey)
-  if (cached) return cached
+  if (!isRange) {
+    const cached = await cache.get<PaymentBreakdownResult>(cacheKey)
+    if (cached) return cached
+  }
 
-  const since = getPeriodStart(query.period)
+  const range = resolvePeriod(query)
+  const createdAt = createdAtWhere(range)
 
   const orders = await prisma.order.findMany({
     where: {
       storeId,
       status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
-      createdAt: { gte: since },
+      createdAt,
     },
     select: { paymentMethod: true, total: true },
   })
@@ -257,7 +301,7 @@ export async function getPaymentBreakdown(
     }))
     .sort((a, b) => b.revenue - a.revenue)
 
-  await cache.set(cacheKey, result, CACHE_TTL)
+  if (!isRange) await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }
 

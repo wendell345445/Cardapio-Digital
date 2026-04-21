@@ -255,6 +255,84 @@ describe('GET /api/v1/admin/analytics/peak-hours', () => {
   })
 })
 
+// ─── Date range (period=range) ────────────────────────────────────────────────
+
+describe('analytics endpoints — period=range', () => {
+  beforeEach(() => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+  })
+
+  it('sales retorna 200 com from/to válidos', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/sales?period=range&from=2026-04-01&to=2026-04-05')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('sales retorna 400 sem from/to quando period=range', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/sales?period=range')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('sales retorna 400 quando from > to', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/sales?period=range&from=2026-04-10&to=2026-04-01')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('sales retorna 400 com from mal-formatado', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/analytics/sales?period=range&from=01/04/2026&to=2026-04-05')
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('payment-breakdown aceita range', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    const res = await request(app)
+      .get(
+        '/api/v1/admin/analytics/payment-breakdown?period=range&from=2026-04-01&to=2026-04-02'
+      )
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('top-products aceita range', async () => {
+    ;(mockPrisma.orderItem.findMany as jest.Mock).mockResolvedValue([])
+
+    const res = await request(app)
+      .get(
+        '/api/v1/admin/analytics/top-products?period=range&from=2026-04-01&to=2026-04-02&limit=5'
+      )
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+  })
+
+  it('peak-hours aceita range', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([])
+
+    const res = await request(app)
+      .get(
+        '/api/v1/admin/analytics/peak-hours?period=range&from=2026-04-01&to=2026-04-03'
+      )
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+  })
+})
+
 // ─── GET /admin/analytics/payment-breakdown (A-085) ──────────────────────────
 
 describe('GET /api/v1/admin/analytics/payment-breakdown', () => {

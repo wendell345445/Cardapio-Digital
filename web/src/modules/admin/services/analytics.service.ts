@@ -2,8 +2,20 @@ import { api } from '@/shared/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type Period = 'day' | 'week' | 'month'
+export type Period = 'day' | 'week' | 'month' | 'range'
 export type RankingPeriod = '7d' | '30d' | '90d' | 'all'
+
+export interface DateRange {
+  from: string // YYYY-MM-DD
+  to: string // YYYY-MM-DD
+}
+
+function periodParams(period: Period, range?: DateRange): Record<string, string> {
+  if (period === 'range' && range) {
+    return { period: 'range', from: range.from, to: range.to }
+  }
+  return { period }
+}
 
 export interface SalesSummary {
   totalRevenue: number
@@ -59,26 +71,37 @@ export interface ClientRankingParams {
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
-export async function getSales(period: Period): Promise<SalesSummary> {
-  const { data } = await api.get('/admin/analytics/sales', { params: { period } })
-  return data.data
-}
-
-export async function getTopProducts(period: Period, limit?: number): Promise<TopProduct[]> {
-  const { data } = await api.get('/admin/analytics/top-products', {
-    params: { period, ...(limit ? { limit } : {}) },
+export async function getSales(period: Period, range?: DateRange): Promise<SalesSummary> {
+  const { data } = await api.get('/admin/analytics/sales', {
+    params: periodParams(period, range),
   })
   return data.data
 }
 
-export async function getPeakHours(): Promise<PeakHour[]> {
-  const { data } = await api.get('/admin/analytics/peak-hours')
+export async function getTopProducts(
+  period: Period,
+  limit?: number,
+  range?: DateRange
+): Promise<TopProduct[]> {
+  const { data } = await api.get('/admin/analytics/top-products', {
+    params: { ...periodParams(period, range), ...(limit ? { limit } : {}) },
+  })
   return data.data
 }
 
-export async function getPaymentBreakdown(period: Period): Promise<PaymentBreakdownItem[]> {
+export async function getPeakHours(period: Period = 'month', range?: DateRange): Promise<PeakHour[]> {
+  const { data } = await api.get('/admin/analytics/peak-hours', {
+    params: periodParams(period, range),
+  })
+  return data.data
+}
+
+export async function getPaymentBreakdown(
+  period: Period,
+  range?: DateRange
+): Promise<PaymentBreakdownItem[]> {
   const { data } = await api.get('/admin/analytics/payment-breakdown', {
-    params: { period },
+    params: periodParams(period, range),
   })
   return data.data
 }
