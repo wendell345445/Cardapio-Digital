@@ -149,7 +149,7 @@ function AdjustmentModal({
   const [notes, setNotes] = useState('')
   const mutation = useAddAdjustment()
 
-  const isSangria = type === 'SANGRIA'
+  const isSangria = type === 'BLEED'
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -389,7 +389,7 @@ function SummaryCard({
 // ─── Adjustment Row ───────────────────────────────────────────────────────────
 
 function AdjustmentRow({ adj }: { adj: CashFlowAdjustment }) {
-  const isSangria = adj.type === 'SANGRIA'
+  const isSangria = adj.type === 'BLEED'
   return (
     <div className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
       <div
@@ -423,7 +423,8 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
   const [showAdjModal, setShowAdjModal] = useState<AdjustmentType | null>(null)
   const [showCloseModal, setShowCloseModal] = useState(false)
 
-  const { data: summary, isLoading: loadingSummary } = useCashFlowSummary(cashFlow.id)
+  const { data: summaryResponse, isLoading: loadingSummary } = useCashFlowSummary(cashFlow.id)
+  const summary = summaryResponse?.summary
 
   return (
     <div className="space-y-6">
@@ -452,7 +453,7 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
           <SummaryCard
             icon={DollarSign}
             label="Total Pedidos"
-            value={String(summary?.totalOrders ?? 0)}
+            value={formatCurrency(summary?.totalOrders ?? 0)}
             colorClass="bg-blue-100 text-blue-600"
           />
           <SummaryCard
@@ -470,7 +471,7 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
           <SummaryCard
             icon={DollarSign}
             label="Saldo Esperado"
-            value={formatCurrency(summary?.expectedBalance ?? 0)}
+            value={formatCurrency(summary?.expectedCash ?? 0)}
             colorClass="bg-orange-100 text-orange-600"
           />
         </div>
@@ -482,14 +483,14 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
           <h2 className="text-sm font-semibold text-gray-800">Movimentações</h2>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowAdjModal('SUPRIMENTO')}
+              onClick={() => setShowAdjModal('SUPPLY')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 text-xs font-medium hover:bg-blue-100 transition-colors"
             >
               <ArrowUpCircle className="w-3.5 h-3.5" />
               Suprimento
             </button>
             <button
-              onClick={() => setShowAdjModal('SANGRIA')}
+              onClick={() => setShowAdjModal('BLEED')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-medium hover:bg-red-100 transition-colors"
             >
               <ArrowDownCircle className="w-3.5 h-3.5" />
@@ -532,7 +533,7 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
       {showCloseModal && (
         <CloseCashFlowModal
           cashFlowId={cashFlow.id}
-          expectedBalance={summary?.expectedBalance ?? 0}
+          expectedBalance={summary?.expectedCash ?? 0}
           onClose={() => setShowCloseModal(false)}
         />
       )}
