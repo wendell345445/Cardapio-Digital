@@ -17,7 +17,6 @@ import {
   useUpdatePaymentSettings,
   useUpdatePix,
   useUpdateStore,
-  useUpdateStoreStatus,
   useUpdateWhatsapp,
 } from '../hooks/useStore'
 
@@ -49,7 +48,6 @@ const PIX_TYPES = [
 function TabDados() {
   const { data: store, isLoading } = useStore()
   const updateStoreMutation = useUpdateStore()
-  const updateStatusMutation = useUpdateStoreStatus()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -73,70 +71,12 @@ function TabDados() {
     )
   }
 
-  function handleStatus(manualOpen: boolean | null) {
-    updateStatusMutation.mutate(
-      { manualOpen },
-      { onError: () => alert('Erro ao atualizar status da loja.') }
-    )
-  }
-
   if (isLoading) {
     return <p className="text-sm text-gray-500 py-6 text-center">Carregando...</p>
   }
 
-  const statusLabel =
-    store?.manualOpen === true
-      ? 'Caixa aberto manualmente'
-      : store?.manualOpen === false
-        ? 'Caixa fechado manualmente'
-        : 'Caixa automático (por horário)'
-
-  const statusBadgeClass =
-    store?.manualOpen === true
-      ? 'bg-green-100 text-green-800'
-      : store?.manualOpen === false
-        ? 'bg-red-100 text-red-800'
-        : 'bg-gray-100 text-gray-600'
-
   return (
     <div className="space-y-8">
-      {/* Status da loja */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-base font-semibold text-gray-800 mb-1">Status da Loja</h2>
-        <p className="text-sm text-gray-500 mb-4">Controle manual sobrepõe o horário programado.</p>
-        <div className="flex items-center gap-3 mb-4">
-          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${statusBadgeClass}`}>
-            {statusLabel}
-          </span>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => handleStatus(true)}
-            disabled={updateStatusMutation.isPending}
-            className="px-4 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            Abrir agora
-          </button>
-          <button
-            onClick={() => handleStatus(false)}
-            disabled={updateStatusMutation.isPending}
-            className="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-          >
-            Fechar agora
-          </button>
-          <button
-            onClick={() => handleStatus(null)}
-            disabled={updateStatusMutation.isPending}
-            className="px-4 py-2 rounded-md bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-50 transition-colors"
-          >
-            Automático (por horário)
-          </button>
-        </div>
-        {updateStatusMutation.isSuccess && (
-          <p className="mt-3 text-sm text-green-600">Status atualizado com sucesso.</p>
-        )}
-      </div>
-
       {/* Dados da loja */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-800 mb-4">Dados da Loja</h2>
