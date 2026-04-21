@@ -534,6 +534,7 @@ enum PaymentMethod {
   CREDIT_ON_DELIVERY
   DEBIT_ON_DELIVERY
   PIX_ON_DELIVERY
+  PENDING
 }
 
 enum CouponType {

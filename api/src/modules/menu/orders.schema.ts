@@ -13,6 +13,7 @@ export const createOrderSchema = z.object({
     'CREDIT_ON_DELIVERY',
     'DEBIT_ON_DELIVERY',
     'PIX_ON_DELIVERY',
+    'PENDING',
   ]),
   notes: z.string().optional(),
   couponCode: z.string().optional(),
