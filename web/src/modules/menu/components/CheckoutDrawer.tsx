@@ -47,6 +47,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CREDIT_ON_DELIVERY: 'Cartão de Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Cartão de Débito na entrega',
   PIX_ON_DELIVERY: 'Pix na entrega',
+  PENDING: 'Pagamento na comanda',
 }
 
 // ViaCEP devolve só a UF (2 letras). Mapa pra mostrar o nome completo no checkout.

@@ -18,6 +18,7 @@ export type PaymentMethod =
   | 'CREDIT_ON_DELIVERY'
   | 'DEBIT_ON_DELIVERY'
   | 'PIX_ON_DELIVERY'
+  | 'PENDING'
 
 export interface CreateOrderDto {
   clientWhatsapp: string; clientName?: string
