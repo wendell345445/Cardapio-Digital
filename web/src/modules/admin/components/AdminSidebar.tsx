@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   BarChart2,
@@ -22,10 +21,10 @@ import {
 } from 'lucide-react'
 
 import { useStore } from '../hooks/useStore'
+import { useWhatsAppStatus } from '../hooks/useWhatsAppStatus'
 
 import { StoreStatusToggle } from './StoreStatusToggle'
 
-import { api } from '@/shared/lib/api'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
@@ -51,11 +50,6 @@ const NAV_ITEMS = [
   { label: 'Configurações', to: '/admin/configuracoes', icon: Settings },
 ]
 
-async function fetchWhatsAppStatus() {
-  const { data } = await api.get('/admin/whatsapp/qrcode')
-  return data.data as { qrCode: string | null; isConnected: boolean }
-}
-
 interface AdminSidebarProps {
   newOrdersCount?: number
 }
@@ -64,12 +58,7 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
   const { user, logout } = useAuthStore()
   const { data: store } = useStore()
   const navigate = useNavigate()
-  const { data: whatsappStatus } = useQuery({
-    queryKey: ['whatsapp-status'],
-    queryFn: fetchWhatsAppStatus,
-    refetchInterval: 30_000,
-    retry: false,
-  })
+  const { data: whatsappStatus } = useWhatsAppStatus()
 
   async function handleLogout() {
     const refreshToken = sessionStorage.getItem('refresh_token')
