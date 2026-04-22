@@ -23,6 +23,7 @@ jest.mock('../../../shared/socket/socket', () => ({
 
 jest.mock('../../whatsapp/whatsapp.service', () => ({
   sendMessage: jest.fn(),
+  sendMessageDirect: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
@@ -105,7 +106,7 @@ describe('takeoverConversation', () => {
     const updated = { ...mockConversation, isHumanMode: true, humanAgentId: AGENT_ID }
     ;(mockPrisma.conversation.update as jest.Mock).mockResolvedValue(updated)
     ;(mockPrisma.conversationMessage.create as jest.Mock).mockResolvedValue({})
-    mockSendMessage.mockResolvedValue(undefined)
+    mockSendMessage.mockResolvedValue({ ok: true, jid: 'jid@s.whatsapp.net' })
 
     const result = await takeoverConversation(STORE_ID, CONV_ID, AGENT_ID)
 
@@ -131,7 +132,7 @@ describe('releaseConversation', () => {
     const updated = { ...humanConv, isHumanMode: false, humanAgentId: null }
     ;(mockPrisma.conversation.update as jest.Mock).mockResolvedValue(updated)
     ;(mockPrisma.conversationMessage.create as jest.Mock).mockResolvedValue({})
-    mockSendMessage.mockResolvedValue(undefined)
+    mockSendMessage.mockResolvedValue({ ok: true, jid: 'jid@s.whatsapp.net' })
 
     const result = await releaseConversation(STORE_ID, CONV_ID)
 
@@ -152,7 +153,7 @@ describe('sendAgentMessage', () => {
     const msg = { id: 'msg-1', conversationId: CONV_ID, role: 'AGENT', content: 'Olá!' }
     ;(mockPrisma.conversationMessage.create as jest.Mock).mockResolvedValue(msg)
     ;(mockPrisma.conversation.update as jest.Mock).mockResolvedValue(humanConv)
-    mockSendMessage.mockResolvedValue(undefined)
+    mockSendMessage.mockResolvedValue({ ok: true, jid: 'jid@s.whatsapp.net' })
 
     const result = await sendAgentMessage(STORE_ID, CONV_ID, 'Olá!')
 

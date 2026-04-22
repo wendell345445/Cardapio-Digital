@@ -1,15 +1,20 @@
-import { prisma } from '../../shared/prisma/prisma'
+import { logger } from '../../shared/logger/logger'
 import { AppError } from '../../shared/middleware/error.middleware'
+import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
-import { sendMessage, sendMessageDirect } from '../whatsapp/whatsapp.service'
+import { sendMessage, sendMessageDirect, type SendResult } from '../whatsapp/whatsapp.service'
 
 /** Envia mensagem usando waJid direto (confiável) ou fallback por telefone */
-async function sendToCustomer(storeId: string, phone: string, text: string, waJid?: string | null) {
+async function sendToCustomer(
+  storeId: string,
+  phone: string,
+  text: string,
+  waJid?: string | null
+): Promise<SendResult> {
   if (waJid) {
-    await sendMessageDirect(storeId, waJid, text)
-  } else {
-    await sendMessage(storeId, phone, text)
+    return sendMessageDirect(storeId, waJid, text)
   }
+  return sendMessage(storeId, phone, text)
 }
 
 // ─── TASK-102: Conversations Service (Epic 10 — WhatsApp Chat) ───────────────
@@ -61,10 +66,14 @@ export async function takeoverConversation(storeId: string, id: string, agentId:
     },
   })
 
-  try {
-    await sendToCustomer(storeId, conversation.customerPhone, '👨‍💼 Um atendente humano está te atendendo agora!', conversation.waJid)
-  } catch {
-    // não bloqueia se WA não estiver conectado
+  const takeoverResult = await sendToCustomer(
+    storeId,
+    conversation.customerPhone,
+    '👨‍💼 Um atendente humano está te atendendo agora!',
+    conversation.waJid
+  )
+  if (!takeoverResult.ok) {
+    logger.warn({ storeId, id, reason: takeoverResult.reason }, '[Conversations] takeover notice falhou')
   }
 
   emit.conversationTakeover(storeId, { conversationId: id, isHumanMode: true })
@@ -91,10 +100,14 @@ export async function releaseConversation(storeId: string, id: string) {
     },
   })
 
-  try {
-    await sendToCustomer(storeId, conversation.customerPhone, '🤖 Voltei ao atendimento automático!', conversation.waJid)
-  } catch {
-    // não bloqueia se WA não estiver conectado
+  const releaseResult = await sendToCustomer(
+    storeId,
+    conversation.customerPhone,
+    '🤖 Voltei ao atendimento automático!',
+    conversation.waJid
+  )
+  if (!releaseResult.ok) {
+    logger.warn({ storeId, id, reason: releaseResult.reason }, '[Conversations] release notice falhou')
   }
 
   emit.conversationReleased(storeId, { conversationId: id, isHumanMode: false })
@@ -112,7 +125,14 @@ export async function sendAgentMessage(storeId: string, id: string, content: str
     throw new AppError('Só é possível enviar mensagens em modo humano. Assuma a conversa primeiro.', 400)
   }
 
-  await sendToCustomer(storeId, conversation.customerPhone, content, conversation.waJid)
+  const sendResult = await sendToCustomer(storeId, conversation.customerPhone, content, conversation.waJid)
+  if (!sendResult.ok) {
+    throw new AppError(
+      'Não foi possível entregar a mensagem — a loja não está conectada ao WhatsApp agora.',
+      422,
+      'WHATSAPP_UNAVAILABLE'
+    )
+  }
 
   const message = await prisma.conversationMessage.create({
     data: {

@@ -1,19 +1,57 @@
+import { randomUUID } from 'crypto'
+
 import { compare, hash } from 'bcrypt'
 import { sign, verify } from 'jsonwebtoken'
 import type { StringValue } from 'ms'
 
+import { logger } from '../../shared/logger/logger'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import { getRedis } from '../../shared/redis/redis'
 
 const SALT_ROUNDS = 12
 const ACCESS_TOKEN_EXPIRY = '15m' as const
 const REFRESH_TOKEN_EXPIRY = '7d'
 const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
 
+// Sessão única: blacklist expira um pouco além do maior access token em uso.
+// Admin/Owner = 15min; cobrimos até 1h pra folga (ex: clock drift).
+const REVOKED_SESSION_TTL_SECONDS = 60 * 60
+
 export interface TokenPayload {
   userId: string
   role: string
   storeId?: string
+  jti?: string
+}
+
+// Roles que têm sessão única (apenas 1 dispositivo ativo por vez).
+// MOTOBOY pode logar em múltiplos celulares simultâneos — regra de negócio.
+const SINGLE_SESSION_ROLES = new Set(['ADMIN', 'OWNER'])
+
+function isSingleSessionRole(role: string): boolean {
+  return SINGLE_SESSION_ROLES.has(role)
+}
+
+/**
+ * Revoga a sessão anterior do usuário (se houver) e registra a nova como ativa.
+ * Qualquer request subsequente com o jti antigo será rejeitada no middleware.
+ * Só aplica para roles em SINGLE_SESSION_ROLES — motoboy multi-dispositivo passa direto.
+ */
+async function rotateActiveSession(userId: string, newJti: string, role: string): Promise<void> {
+  if (!isSingleSessionRole(role)) return
+  try {
+    const redis = getRedis()
+    const activeKey = `session:active:${userId}`
+    const previousJti = await redis.get(activeKey)
+    if (previousJti && previousJti !== newJti) {
+      await redis.setex(`session:revoked:${previousJti}`, REVOKED_SESSION_TTL_SECONDS, '1')
+    }
+    await redis.setex(activeKey, REVOKED_SESSION_TTL_SECONDS, newJti)
+  } catch (err) {
+    // Redis fora: não bloquear login. Logar e seguir.
+    logger.warn({ err, userId }, '[Auth] rotateActiveSession falhou (Redis indisponível?)')
+  }
 }
 
 export interface AuthTokens {
@@ -31,12 +69,17 @@ export interface AuthResult extends AuthTokens {
   }
 }
 
-function generateTokens(payload: TokenPayload, accessExpiry: StringValue = ACCESS_TOKEN_EXPIRY): AuthTokens {
-  const accessToken = sign(payload, process.env.JWT_SECRET!, { expiresIn: accessExpiry })
-  const refreshToken = sign({ userId: payload.userId }, process.env.JWT_REFRESH_SECRET!, {
+function generateTokens(
+  payload: TokenPayload,
+  accessExpiry: StringValue = ACCESS_TOKEN_EXPIRY
+): AuthTokens & { jti: string } {
+  const jti = payload.jti ?? randomUUID()
+  const accessPayload = { ...payload, jti }
+  const accessToken = sign(accessPayload, process.env.JWT_SECRET!, { expiresIn: accessExpiry })
+  const refreshToken = sign({ userId: payload.userId, jti }, process.env.JWT_REFRESH_SECRET!, {
     expiresIn: REFRESH_TOKEN_EXPIRY,
   })
-  return { accessToken, refreshToken }
+  return { accessToken, refreshToken, jti }
 }
 
 export async function validateCredentials(email: string, password: string) {
@@ -89,6 +132,9 @@ export async function loginWithPassword(
   const accessExpiry = user.role === 'MOTOBOY' ? '8h' : ACCESS_TOKEN_EXPIRY
   const tokens = generateTokens(payload, accessExpiry)
 
+  // Single-session: revoga sessão anterior (se ADMIN/OWNER) e marca essa como ativa
+  await rotateActiveSession(user.id, tokens.jti, user.role)
+
   await prisma.refreshToken.create({
     data: {
       token: tokens.refreshToken,
@@ -98,7 +144,8 @@ export async function loginWithPassword(
   })
 
   return {
-    ...tokens,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
     user: {
       id: user.id,
       email: user.email ?? null,
@@ -110,9 +157,9 @@ export async function loginWithPassword(
 }
 
 export async function refreshAccessToken(refreshToken: string): Promise<{ accessToken: string }> {
-  let payload: { userId: string }
+  let payload: { userId: string; jti?: string }
   try {
-    payload = verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string }
+    payload = verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userId: string; jti?: string }
   } catch {
     throw new AppError('Refresh token inválido ou expirado', 401)
   }
@@ -130,10 +177,25 @@ export async function refreshAccessToken(refreshToken: string): Promise<{ access
     throw new AppError('Usuário inativo', 401)
   }
 
-  const accessPayload: TokenPayload = {
+  // Single-session: se o jti do refresh não for mais o ativo, a sessão foi revogada
+  // (outro login derrubou esse dispositivo). Bloqueia o refresh.
+  if (payload.jti && isSingleSessionRole(storedToken.user.role)) {
+    try {
+      const activeJti = await getRedis().get(`session:active:${storedToken.user.id}`)
+      if (activeJti && activeJti !== payload.jti) {
+        throw new AppError('Sessão encerrada em outro dispositivo', 401, 'SESSION_REVOKED')
+      }
+    } catch (err) {
+      if (err instanceof AppError) throw err
+      logger.warn({ err, userId: storedToken.user.id }, '[Auth] refresh check de sessão ativa falhou')
+    }
+  }
+
+  const accessPayload: TokenPayload & { jti: string } = {
     userId: payload.userId,
     role: storedToken.user.role,
     ...(storedToken.user.storeId ? { storeId: storedToken.user.storeId } : {}),
+    jti: payload.jti ?? randomUUID(),
   }
 
   const accessToken = sign(accessPayload, process.env.JWT_SECRET!, {
@@ -222,6 +284,7 @@ export async function findOrCreateOAuthUser(params: {
   }
 
   const tokens = generateTokens(payload)
+  await rotateActiveSession(user.id, tokens.jti, user.role)
 
   await prisma.refreshToken.create({
     data: {
@@ -232,7 +295,8 @@ export async function findOrCreateOAuthUser(params: {
   })
 
   return {
-    ...tokens,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
     user: {
       id: user.id,
       email: user.email ?? null,
@@ -260,7 +324,8 @@ export function verifyClientToken(token: string): { orderId: string } {
 
 export function generateMotoboyTokens(userId: string, role: string, storeId: string): AuthTokens {
   const payload: TokenPayload = { userId, role, storeId }
-  return generateTokens(payload, '8h')
+  const tokens = generateTokens(payload, '8h')
+  return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
 }
 
 /**
@@ -269,6 +334,7 @@ export function generateMotoboyTokens(userId: string, role: string, storeId: str
  */
 export async function generateAuthTokensForNewUser(payload: TokenPayload): Promise<AuthTokens> {
   const tokens = generateTokens(payload)
+  await rotateActiveSession(payload.userId, tokens.jti, payload.role)
 
   await prisma.refreshToken.create({
     data: {
@@ -278,5 +344,5 @@ export async function generateAuthTokensForNewUser(payload: TokenPayload): Promi
     },
   })
 
-  return tokens
+  return { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken }
 }

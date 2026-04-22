@@ -27,12 +27,26 @@ api.interceptors.request.use((config) => {
 // específicas da requisição (ex: senha incorreta no reauth). Não derrubar sessão.
 const SKIP_AUTO_LOGOUT_ON_401 = ['/auth/reauth', '/auth/login']
 
+// Evita mostrar o toast de sessão revogada múltiplas vezes quando várias
+// requests em paralelo batem no 401 ao mesmo tempo.
+let sessionRevokedToastShown = false
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       const url: string = error.config?.url ?? ''
+      const code: string | undefined = error.response?.data?.code
       const shouldSkip = SKIP_AUTO_LOGOUT_ON_401.some((path) => url.includes(path))
+
+      if (code === 'SESSION_REVOKED' && !sessionRevokedToastShown) {
+        sessionRevokedToastShown = true
+        if (typeof window !== 'undefined') {
+          setTimeout(() => { sessionRevokedToastShown = false }, 5000)
+          window.alert('Sua sessão foi encerrada porque você entrou em outro dispositivo. Faça login novamente.')
+        }
+      }
+
       if (!shouldSkip) {
         useAuthStore.getState().logout()
       }

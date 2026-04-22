@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
 import { verify } from 'jsonwebtoken'
 
+import { logger } from '../logger/logger'
 import { prisma } from '../prisma/prisma'
+import { getRedis } from '../redis/redis'
 
 import { AppError } from './error.middleware'
 
@@ -9,6 +11,7 @@ export interface JwtPayload {
   userId: string
   role: string
   storeId?: string
+  jti?: string
 }
 
 declare global {
@@ -18,6 +21,7 @@ declare global {
       userId: string
       role: string
       storeId?: string
+      jti?: string
     }
     interface Request {
       tenant?: { storeId: string }
@@ -26,20 +30,42 @@ declare global {
   }
 }
 
-export function authMiddleware(req: Request, _res: Response, next: NextFunction): void {
+// Roles com sessão única (1 dispositivo ativo por vez).
+// Motoboy pode ter múltiplos dispositivos — não checa revogação.
+const SINGLE_SESSION_ROLES = new Set(['ADMIN', 'OWNER'])
+
+export async function authMiddleware(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authorization = req.headers.authorization
   if (!authorization?.startsWith('Bearer ')) {
-    throw new AppError('Unauthorized', 401)
+    next(new AppError('Unauthorized', 401))
+    return
   }
 
   const token = authorization.slice(7)
+  let payload: JwtPayload
   try {
-    const payload = verify(token, process.env.JWT_SECRET!) as JwtPayload
-    req.user = payload
-    next()
+    payload = verify(token, process.env.JWT_SECRET!) as JwtPayload
   } catch {
-    throw new AppError('Invalid or expired token', 401)
+    next(new AppError('Invalid or expired token', 401))
+    return
   }
+
+  // Single-session check: bloqueia JWTs cujo jti foi revogado por outro login
+  if (payload.jti && SINGLE_SESSION_ROLES.has(payload.role)) {
+    try {
+      const revoked = await getRedis().get(`session:revoked:${payload.jti}`)
+      if (revoked) {
+        next(new AppError('Sua sessão foi encerrada porque você entrou em outro dispositivo.', 401, 'SESSION_REVOKED'))
+        return
+      }
+    } catch (err) {
+      // Redis fora: não bloquear requests. Logar e deixar passar.
+      logger.warn({ err, userId: payload.userId }, '[Auth] check de sessão revogada falhou (Redis indisponível?)')
+    }
+  }
+
+  req.user = payload
+  next()
 }
 
 export function requireRole(...roles: string[]) {

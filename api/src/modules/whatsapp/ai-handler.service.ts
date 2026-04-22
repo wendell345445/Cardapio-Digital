@@ -1,3 +1,4 @@
+import { logger } from '../../shared/logger/logger'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
@@ -65,11 +66,16 @@ async function replyAndSave(
   conversationId?: string,
   replyJid?: string
 ): Promise<void> {
-  if (replyJid) {
-    await sendMessageDirect(storeId, replyJid, text)
-  } else {
-    await sendMessage(storeId, fromPhone, text)
+  const result = replyJid
+    ? await sendMessageDirect(storeId, replyJid, text)
+    : await sendMessage(storeId, fromPhone, text)
+
+  if (!result.ok) {
+    logger.warn({ storeId, fromPhone, reason: result.reason }, '[AI] replyAndSave — envio falhou')
+    // Não persistimos mensagem que não foi entregue — confundiria o admin
+    return
   }
+
   if (!conversationId) return
   try {
     const saved = await prisma.conversationMessage.create({
@@ -100,11 +106,14 @@ export async function handleIncomingMessage(
   // Rate limit: máximo 5 mensagens/hora por número
   const rateLimitCheck = await checkRateLimit(storeId, fromPhone)
   if (!rateLimitCheck.allowed) {
-    await sendMessage(
+    const result = await sendMessage(
       storeId,
       fromPhone,
       '⏰ Você atingiu o limite de mensagens por hora. Tente novamente mais tarde.'
     )
+    if (!result.ok) {
+      logger.warn({ storeId, fromPhone, reason: result.reason }, '[AI] rate-limit notice falhou')
+    }
     return
   }
   await incrementRateLimit(storeId, fromPhone)
@@ -210,7 +219,7 @@ export async function handleIncomingMessage(
     if (errMsg === 'TIMEOUT' || errMsg.includes('TIMEOUT')) {
       await replyAndSave(storeId, fromPhone, `Desculpe, não entendi. Acesse nosso cardápio em ${menuUrl}`, conversationId, replyJid)
     } else {
-      console.error('[AI] Error handling message:', err)
+      logger.error({ storeId, fromPhone, err }, '[AI] Error handling message')
       await replyAndSave(storeId, fromPhone, `Desculpe, não entendi. Acesse nosso cardápio em ${menuUrl}`, conversationId, replyJid)
     }
   }

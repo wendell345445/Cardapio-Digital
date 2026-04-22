@@ -3,7 +3,7 @@ import { sign, verify } from 'jsonwebtoken'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
-import { sendMessage } from '../whatsapp/whatsapp.service'
+import { enqueueWhatsApp, WhatsAppJobResult } from '../whatsapp/whatsapp.queue'
 
 // ─── Constantes ─────────────────────────────────────────────────────────────
 
@@ -117,6 +117,8 @@ export async function checkCustomer(storeId: string, whatsapp: string): Promise<
 
 // ─── OTP Request ────────────────────────────────────────────────────────────
 
+const OTP_JOB_WAIT_MS = 15_000
+
 export async function requestOtp(storeId: string, whatsapp: string): Promise<void> {
   // Rate limit
   const rateLimited = await cache.get<boolean>(rateKey(storeId, whatsapp))
@@ -128,7 +130,57 @@ export async function requestOtp(storeId: string, whatsapp: string): Promise<voi
   await cache.set(otpKey(storeId, whatsapp), { code, attempts: 0 } satisfies OtpRecord, OTP_TTL)
   await cache.set(rateKey(storeId, whatsapp), true, OTP_RATE_LIMIT_TTL)
 
-  await sendMessage(storeId, whatsapp, `Seu código de verificação: ${code}`)
+  const job = await enqueueWhatsApp({
+    storeId,
+    to: whatsapp,
+    text: `Seu código de verificação: ${code}`,
+    type: 'OTP',
+  })
+
+  // Aguarda o worker finalizar em até 15s. Se estourar, o OTP ainda pode ser
+  // entregue depois pelo retry da fila, mas respondemos erro ao cliente pra ele
+  // saber que precisa tentar de novo (novo código será gerado).
+  let result: WhatsAppJobResult | null = null
+  try {
+    result = (await Promise.race([
+      job.finished(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('otp_wait_timeout')), OTP_JOB_WAIT_MS)),
+    ])) as WhatsAppJobResult
+  } catch (err) {
+    const msg = (err as Error).message
+    if (msg === 'otp_wait_timeout') {
+      // Remove o job pra evitar envio tardio quando o usuário já desistiu.
+      await job.remove().catch(() => { /* ignore */ })
+      // Invalida o OTP gerado — cliente vai pedir um novo.
+      await cache.del(otpKey(storeId, whatsapp)).catch(() => { /* ignore */ })
+      throw new AppError(
+        'Não foi possível enviar o código agora. Verifique se a loja está conectada ao WhatsApp e tente novamente.',
+        422,
+        'WHATSAPP_UNAVAILABLE'
+      )
+    }
+    // Bull rejeita o `job.finished()` quando esgota as tentativas — cai aqui.
+    await cache.del(otpKey(storeId, whatsapp)).catch(() => { /* ignore */ })
+    throw new AppError(
+      'Não foi possível enviar o código. Tente novamente em instantes.',
+      422,
+      'WHATSAPP_UNAVAILABLE'
+    )
+  }
+
+  if (!result.ok) {
+    // not_configured / invalid_number / expired → descartados pelo processor sem throw.
+    // Limpa o OTP e avisa o cliente.
+    await cache.del(otpKey(storeId, whatsapp)).catch(() => { /* ignore */ })
+    const isInvalidNumber = result.reason === 'invalid_number'
+    throw new AppError(
+      isInvalidNumber
+        ? 'Este número não possui WhatsApp ativo.'
+        : 'A loja não está conectada ao WhatsApp no momento. Tente novamente em alguns segundos.',
+      422,
+      isInvalidNumber ? 'WHATSAPP_INVALID_NUMBER' : 'WHATSAPP_UNAVAILABLE'
+    )
+  }
 }
 
 // ─── OTP Verify ─────────────────────────────────────────────────────────────

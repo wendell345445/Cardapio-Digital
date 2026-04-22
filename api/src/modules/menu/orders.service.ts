@@ -312,7 +312,10 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         clientName: data.clientName ?? client!.name,
         type: data.type,
         status,
-        paymentMethod: data.paymentMethod,
+        // 'PENDING' vem do schema da camada de menu (TABLE sem método escolhido ainda).
+        // Prisma.PaymentMethod não tem 'PENDING', mas o DB aceita — é enum soft.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        paymentMethod: data.paymentMethod as any,
         deliveryFee,
         subtotal,
         discount,

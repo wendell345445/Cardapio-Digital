@@ -1,7 +1,7 @@
 // C-040: motivo de cancelamento no template WhatsApp
 
-jest.mock('../whatsapp.service', () => ({
-  sendMessage: jest.fn().mockResolvedValue(undefined),
+jest.mock('../whatsapp.queue', () => ({
+  enqueueWhatsApp: jest.fn().mockResolvedValue({ id: 'job-1' }),
 }))
 
 jest.mock('../../admin/whatsapp-messages.service', () => ({
@@ -9,15 +9,16 @@ jest.mock('../../admin/whatsapp-messages.service', () => ({
 }))
 
 import { sendStatusUpdateMessage } from '../messages.service'
-import { sendMessage } from '../whatsapp.service'
+import { enqueueWhatsApp } from '../whatsapp.queue'
 import { getTemplate } from '../../admin/whatsapp-messages.service'
 
 const mockGetTemplate = getTemplate as jest.Mock
-const mockSendMessage = sendMessage as jest.Mock
+const mockEnqueue = enqueueWhatsApp as jest.Mock
 
 describe('sendStatusUpdateMessage — CANCELLED + cancelReason (C-040)', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    mockEnqueue.mockResolvedValue({ id: 'job-1' })
     mockGetTemplate.mockResolvedValue(
       '❌ *Pedido #{{numero}} cancelado.*\n{{motivo}}Entre em contato com {{loja}} para mais informações.'
     )
@@ -29,12 +30,12 @@ describe('sendStatusUpdateMessage — CANCELLED + cancelReason (C-040)', () => {
       { cancelReason: 'Produto em falta' }
     )
 
-    expect(mockSendMessage).toHaveBeenCalledTimes(1)
-    const [, , text] = mockSendMessage.mock.calls[0]
-    expect(text).toContain('Pedido #42 cancelado')
-    expect(text).toContain('Motivo: _Produto em falta_')
-    expect(text).toContain('Loja Teste')
-    expect(text).not.toContain('{{motivo}}')
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    const [payload] = mockEnqueue.mock.calls[0]
+    expect(payload.text).toContain('Pedido #42 cancelado')
+    expect(payload.text).toContain('Motivo: _Produto em falta_')
+    expect(payload.text).toContain('Loja Teste')
+    expect(payload.text).not.toContain('{{motivo}}')
   })
 
   it('omite a linha de motivo quando cancelReason não é informado', async () => {
@@ -42,10 +43,10 @@ describe('sendStatusUpdateMessage — CANCELLED + cancelReason (C-040)', () => {
       'store-1', '5511999990000', 42, 'CANCELLED', 'Loja Teste', 'DELIVERY'
     )
 
-    expect(mockSendMessage).toHaveBeenCalledTimes(1)
-    const [, , text] = mockSendMessage.mock.calls[0]
-    expect(text).toContain('Pedido #42 cancelado')
-    expect(text).not.toContain('Motivo:')
-    expect(text).not.toContain('{{motivo}}')
+    expect(mockEnqueue).toHaveBeenCalledTimes(1)
+    const [payload] = mockEnqueue.mock.calls[0]
+    expect(payload.text).toContain('Pedido #42 cancelado')
+    expect(payload.text).not.toContain('Motivo:')
+    expect(payload.text).not.toContain('{{motivo}}')
   })
 })

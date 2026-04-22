@@ -1,6 +1,6 @@
 import { getTemplate } from '../admin/whatsapp-messages.service'
 
-import { sendMessage } from './whatsapp.service'
+import { enqueueWhatsApp } from './whatsapp.queue'
 
 // ─── TASK-071: WhatsApp Mensagens de Status ──────────────────────────────────
 // ─── TASK-097: Templates customizados por loja ───────────────────────────────
@@ -73,7 +73,7 @@ export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
     .replace(/\{\{motivo\}\}/g, '')
     .replace(/\{\{horario\}\}/g, '')
 
-  await sendMessage(store.id, order.clientWhatsapp, message)
+  await enqueueWhatsApp({ storeId: store.id, to: order.clientWhatsapp, text: message, type: 'ORDER' })
 }
 
 export async function sendStatusUpdateMessage(
@@ -125,7 +125,7 @@ export async function sendStatusUpdateMessage(
     .replace(/\{\{motivo\}\}/g, motivoStr)
     .replace(/\{\{horario\}\}/g, '')
 
-  await sendMessage(storeId, phone, text)
+  await enqueueWhatsApp({ storeId, to: phone, text, type: 'ORDER' })
 }
 
 export async function sendWaitingPaymentMessage(
@@ -145,7 +145,7 @@ export async function sendWaitingPaymentMessage(
     .replace(/\{\{motivo\}\}/g, '')
     .replace(/\{\{horario\}\}/g, '')
 
-  await sendMessage(storeId, phone, text)
+  await enqueueWhatsApp({ storeId, to: phone, text, type: 'ORDER' })
 }
 
 export async function sendMotoboyAssignedMessage(
@@ -193,5 +193,5 @@ export async function sendMotoboyAssignedMessage(
     .replace(/\{\{motivo\}\}/g, '')
     .replace(/\{\{horario\}\}/g, '')
 
-  await sendMessage(storeId, motoboyPhone, message)
+  await enqueueWhatsApp({ storeId, to: motoboyPhone, text: message, type: 'MOTOBOY' })
 }

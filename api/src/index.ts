@@ -3,6 +3,7 @@ import { createServer } from 'http'
 
 import { app } from './app'
 import { registerTrialSuspensionJob } from './jobs/trial-suspension.job'
+import { getWhatsAppQueue } from './modules/whatsapp/whatsapp.queue'
 import { restoreAllSessions } from './modules/whatsapp/whatsapp.service'
 import { logger } from './shared/logger/logger'
 import { connectRedis } from './shared/redis/redis'
@@ -18,6 +19,10 @@ async function bootstrap() {
 
   // Cron jobs (Bull repeatable)
   await registerTrialSuspensionJob()
+
+  // WhatsApp outbox queue — registra o processor antes de restaurar sessões
+  // pra garantir que jobs pendentes (persistidos em Redis) comecem a drenar imediatamente.
+  getWhatsAppQueue()
 
   httpServer.listen(PORT, () => {
     logger.info({ port: PORT }, 'API running')

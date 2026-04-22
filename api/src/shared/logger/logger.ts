@@ -47,8 +47,11 @@ export const stripeLogger: Logger = isTest
             target: 'pino-roll',
             options: {
               file: path.resolve(LOGS_DIR, 'stripe.log'),
-              frequency: 3_888_000_000, // 45 dias em ms
-              limit: { count: 3 },
+              // 'daily' = roda 1x/dia. Anterior ('3_888_000_000 ms' = 45d) ultrapassava
+              // o limite de 32-bit do setTimeout do Node, gerando warnings em loop e
+              // fallback pra rotação a cada 1ms.
+              frequency: 'daily',
+              limit: { count: 45 },
               mkdir: true,
             },
             level: 'debug',

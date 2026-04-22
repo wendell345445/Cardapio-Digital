@@ -9,12 +9,12 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../whatsapp/whatsapp.service', () => ({
-  sendMessage: jest.fn().mockResolvedValue(undefined),
+jest.mock('../../whatsapp/whatsapp.queue', () => ({
+  enqueueWhatsApp: jest.fn().mockResolvedValue({ id: 'job-1' }),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { sendMessage } from '../../whatsapp/whatsapp.service'
+import { enqueueWhatsApp } from '../../whatsapp/whatsapp.queue'
 import {
   getTemplate,
   DEFAULT_TEMPLATES,
@@ -24,7 +24,7 @@ import {
 import { sendStatusUpdateMessage } from '../../whatsapp/messages.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
-const mockSendMessage = sendMessage as jest.MockedFunction<typeof sendMessage>
+const mockSendMessage = enqueueWhatsApp as jest.Mock
 
 const STORE_ID = 'store-1'
 
@@ -87,10 +87,10 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
   it('envia mensagem CONFIRMED com template padrão', async () => {
     await sendStatusUpdateMessage(STORE_ID, PHONE, ORDER_NUMBER, 'CONFIRMED', STORE_NAME)
     expect(mockSendMessage).toHaveBeenCalledTimes(1)
-    const [calledStoreId, calledPhone, calledText] = mockSendMessage.mock.calls[0]
-    expect(calledStoreId).toBe(STORE_ID)
-    expect(calledPhone).toBe(PHONE)
-    expect(calledText).toContain(String(ORDER_NUMBER))
+    const [payload] = mockSendMessage.mock.calls[0]
+    expect(payload.storeId).toBe(STORE_ID)
+    expect(payload.to).toBe(PHONE)
+    expect(payload.text).toContain(String(ORDER_NUMBER))
   })
 
   it('envia mensagem PREPARING com template padrão', async () => {
@@ -121,9 +121,9 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
   it('envia READY_FOR_PICKUP quando status=READY e tipo=PICKUP', async () => {
     await sendStatusUpdateMessage(STORE_ID, PHONE, ORDER_NUMBER, 'READY', STORE_NAME, 'PICKUP')
     expect(mockSendMessage).toHaveBeenCalledTimes(1)
-    const [, , calledText] = mockSendMessage.mock.calls[0]
+    const [payload] = mockSendMessage.mock.calls[0]
     // O template padrão de READY_FOR_PICKUP contém "retirada"
-    expect(calledText.toLowerCase()).toContain('retirada')
+    expect(payload.text.toLowerCase()).toContain('retirada')
   })
 
   it('NÃO envia mensagem quando status=READY e tipo=DELIVERY (motoboy cuida do disparo)', async () => {
@@ -138,11 +138,11 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
 
   it('substitui variáveis {{numero}} e {{loja}} no template', async () => {
     await sendStatusUpdateMessage(STORE_ID, PHONE, ORDER_NUMBER, 'CONFIRMED', STORE_NAME)
-    const [, , calledText] = mockSendMessage.mock.calls[0]
-    expect(calledText).toContain(String(ORDER_NUMBER))
-    expect(calledText).toContain(STORE_NAME)
-    expect(calledText).not.toContain('{{numero}}')
-    expect(calledText).not.toContain('{{loja}}')
+    const [payload] = mockSendMessage.mock.calls[0]
+    expect(payload.text).toContain(String(ORDER_NUMBER))
+    expect(payload.text).toContain(STORE_NAME)
+    expect(payload.text).not.toContain('{{numero}}')
+    expect(payload.text).not.toContain('{{loja}}')
   })
 
   it('usa template customizado quando disponível (ignora modo)', async () => {
@@ -155,9 +155,9 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
     })
 
     await sendStatusUpdateMessage(STORE_ID, PHONE, ORDER_NUMBER, 'CONFIRMED', STORE_NAME)
-    const [, , calledText] = mockSendMessage.mock.calls[0]
-    expect(calledText).toContain('CUSTOM:')
-    expect(calledText).toContain(String(ORDER_NUMBER))
-    expect(calledText).toContain(STORE_NAME)
+    const [payload] = mockSendMessage.mock.calls[0]
+    expect(payload.text).toContain('CUSTOM:')
+    expect(payload.text).toContain(String(ORDER_NUMBER))
+    expect(payload.text).toContain(STORE_NAME)
   })
 })

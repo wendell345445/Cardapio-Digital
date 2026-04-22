@@ -29,27 +29,39 @@ beforeEach(() => {
 // ─── authMiddleware ────────────────────────────────────────────────────────────
 
 describe('authMiddleware', () => {
-  it('throws 401 when Authorization header is missing', () => {
+  // authMiddleware virou async (precisa consultar Redis para single-session check).
+  // Em vez de throw, chama next(err) com AppError. Os testes usam mock de next.
+
+  it('calls next(AppError 401) when Authorization header is missing', async () => {
     const req = makeReq({ headers: {} })
-    expect(() => authMiddleware(req, res, next)).toThrow(AppError)
-    expect(() => authMiddleware(req, res, next)).toThrow('Unauthorized')
+    await authMiddleware(req, res, next)
+    expect(next).toHaveBeenCalledWith(expect.any(AppError))
+    const passedErr = (next as jest.Mock).mock.calls[0][0] as AppError
+    expect(passedErr.message).toBe('Unauthorized')
+    expect(passedErr.status).toBe(401)
   })
 
-  it('throws 401 when Authorization header does not start with Bearer', () => {
+  it('calls next(AppError 401) when Authorization header does not start with Bearer', async () => {
     const req = makeReq({ headers: { authorization: 'Basic abc123' } })
-    expect(() => authMiddleware(req, res, next)).toThrow('Unauthorized')
+    await authMiddleware(req, res, next)
+    expect(next).toHaveBeenCalledWith(expect.any(AppError))
+    const passedErr = (next as jest.Mock).mock.calls[0][0] as AppError
+    expect(passedErr.message).toBe('Unauthorized')
   })
 
-  it('throws 401 when token is invalid', () => {
+  it('calls next(AppError 401) when token is invalid', async () => {
     const req = makeReq({ headers: { authorization: 'Bearer invalid.token.here' } })
-    expect(() => authMiddleware(req, res, next)).toThrow('Invalid or expired token')
+    await authMiddleware(req, res, next)
+    expect(next).toHaveBeenCalledWith(expect.any(AppError))
+    const passedErr = (next as jest.Mock).mock.calls[0][0] as AppError
+    expect(passedErr.message).toBe('Invalid or expired token')
   })
 
-  it('sets req.user and calls next() with a valid token', () => {
+  it('sets req.user and calls next() with a valid token (sem jti = sem check de sessão revogada)', async () => {
     const payload = { userId: 'u1', role: 'ADMIN', storeId: 's1' }
     const token = sign(payload, JWT_SECRET)
     const req = makeReq({ headers: { authorization: `Bearer ${token}` } })
-    authMiddleware(req, res, next)
+    await authMiddleware(req, res, next)
     expect(req.user).toMatchObject(payload)
     expect(next).toHaveBeenCalledWith()
   })
