@@ -19,12 +19,18 @@ import {
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function setCookieOnResponse(res: Response, token: string): void {
+  // Em prod, API e cardápio vivem em subdomínios diferentes (api.X / slug.X), então
+  // o cookie precisa de domain compartilhado + SameSite=None pra atravessar cross-site.
+  // Em dev é same-origin via proxy do Vite — mantém 'lax' sem domain.
+  const isProd = process.env.NODE_ENV === 'production'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
+    sameSite: isProd ? 'none' : 'lax',
+    secure: isProd,
     maxAge: COOKIE_MAX_AGE,
     path: '/',
+    ...(isProd && rootDomain ? { domain: `.${rootDomain}` } : {}),
   })
 }
 
@@ -98,7 +104,12 @@ export function customerLogoutController(
   _req: Request,
   res: Response,
 ): void {
-  res.clearCookie(COOKIE_NAME, { path: '/' })
+  const isProd = process.env.NODE_ENV === 'production'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN
+  res.clearCookie(COOKIE_NAME, {
+    path: '/',
+    ...(isProd && rootDomain ? { domain: `.${rootDomain}` } : {}),
+  })
   res.json({ success: true })
 }
 

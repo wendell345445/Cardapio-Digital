@@ -21,7 +21,10 @@ export function createPublicApi(config: CreateAxiosDefaults = {}): AxiosInstance
   const baseURL = import.meta.env.VITE_API_URL
     ? `${import.meta.env.VITE_API_URL}/api/v1`
     : '/api/v1'
-  const instance = axios.create({ baseURL, ...config })
+  // withCredentials: cookie mp_customer_verified mora em .menupanda.com.br em prod
+  // (api.X seta, slug.X lê). Sem isso, cross-origin POST /orders não envia cookie
+  // e backend responde 403 'Número não verificado'.
+  const instance = axios.create({ baseURL, withCredentials: true, ...config })
   instance.interceptors.request.use((cfg) => {
     const slug = currentTenantSlug()
     if (slug) cfg.headers.set('X-Tenant-Slug', slug)
