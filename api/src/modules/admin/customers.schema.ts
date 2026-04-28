@@ -27,6 +27,10 @@ export const addressInputSchema = z.object({
   city: z.string().trim().min(1, 'Cidade obrigatória').max(120),
   state: z.string().trim().length(2, 'UF deve ter 2 letras').toUpperCase(),
   reference: z.string().trim().max(200).optional().nullable(),
+  // Coordenadas resolvidas (Google Geocoding ou input manual). Opcionais —
+  // o admin pode editar o cliente sem mexer nas coords salvas.
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
 })
 
 export const phoneInputSchema = z.object({

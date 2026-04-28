@@ -17,6 +17,7 @@ import type { DistanceRange } from '../services/delivery.service'
 
 import { maskCep } from '@/shared/lib/masks'
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
+import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -222,6 +223,7 @@ export function DeliveryPage() {
   const [addrCity, setAddrCity] = useState('')
   const [addrState, setAddrState] = useState('')
   const [geocodeLoading, setGeocodeLoading] = useState(false)
+  const [manualModalOpen, setManualModalOpen] = useState(false)
   const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
 
   async function handleCepBlur() {
@@ -264,6 +266,12 @@ export function DeliveryPage() {
       const axiosErr = err as { response?: { data?: { error?: string } } }
       const msg = axiosErr?.response?.data?.error ?? 'Endereço não encontrado'
       showToast(msg, 'error')
+      // Quando Google não acha, oferece input manual via Google Maps —
+      // crítico aqui porque a coord da loja é base do cálculo de TODAS as
+      // taxas de entrega; sem ela, nenhum delivery funciona.
+      if (msg === 'Endereço não encontrado') {
+        setManualModalOpen(true)
+      }
     } finally {
       setGeocodeLoading(false)
     }
@@ -635,6 +643,21 @@ export function DeliveryPage() {
           isDeleting={deleteDistanceMutation.isPending}
         />
       )}
+
+      <ManualCoordinatesModal
+        isOpen={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        title="Não conseguimos localizar este endereço"
+        description="Abra o Google Maps, encontre o endereço exato da loja e cole as coordenadas."
+        onConfirm={(coords) => {
+          setCoordLat(String(coords.latitude))
+          setCoordLng(String(coords.longitude))
+          setCoordLabel(null)
+          setEditingCoords(true)
+          setManualModalOpen(false)
+          showToast('Coordenadas preenchidas. Clique em "Salvar coordenadas" para confirmar.', 'success')
+        }}
+      />
     </div>
   )
 }

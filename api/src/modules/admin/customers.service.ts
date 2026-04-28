@@ -17,6 +17,8 @@ export interface CustomerAddressView {
   city: string
   state: string
   reference: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface CustomerPhoneView {
@@ -112,6 +114,8 @@ export async function getCustomerDetail(
       city: a.city,
       state: a.state,
       reference: a.reference,
+      latitude: a.latitude,
+      longitude: a.longitude,
     }))
     phones = customer.phones.map((p) => ({
       id: p.id,
@@ -138,6 +142,8 @@ export async function getCustomerDetail(
           city: addr.city ?? '',
           state: addr.state ?? '',
           reference: addr.reference ?? null,
+          latitude: null,
+          longitude: null,
         },
       ]
     }
@@ -309,6 +315,8 @@ export async function upsertCustomer(
         city: a.city,
         state: a.state,
         reference: a.reference ?? null,
+        latitude: a.latitude ?? null,
+        longitude: a.longitude ?? null,
       })),
     })
 

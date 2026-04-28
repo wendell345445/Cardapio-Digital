@@ -1,15 +1,21 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { cache } from '../../shared/redis/redis'
 
+import { incrementGeocodingUsage } from './geocoding-usage.service'
+
 // Geocoding = endereço (texto) → { latitude, longitude }.
 // Usado no checkout público pra resolver o endereço do cliente e então calcular
 // a taxa de entrega via Haversine contra as coordenadas da loja.
 //
-// Provider padrão: Nominatim (OpenStreetMap). Grátis, sem token. Exige User-Agent
-// identificando a aplicação (política OSM). Rate-limit: 1 req/s.
+// Provider: Google Geocoding API. Exige `GOOGLE_GEOCODING_API_KEY` no backend.
+// Cobertura BR muito superior à OSM/Nominatim (especialmente CEPs únicos de
+// cidade pequena, loteamentos novos, condomínios). Resposta cacheada no Redis
+// por 7 dias com chave do endereço normalizado.
 //
-// Troque o provider pela env `GEOCODING_PROVIDER`. Se um dia precisar trocar
-// pra Google/Mapbox, basta implementar a interface e plugar no switch abaixo.
+// Quota: o contador de uso é incrementado quando a Google de fato cobra a
+// requisição (status `OK` ou `ZERO_RESULTS`). Cache hit, erro de rede,
+// `REQUEST_DENIED` ou `INVALID_REQUEST` não contam — espelham o que o Google
+// fatura.
 
 export interface GeocodeInput {
   cep?: string
@@ -27,31 +33,38 @@ export interface GeocodeResult {
   displayName?: string
 }
 
-interface GeocodingProvider {
-  geocode(input: GeocodeInput): Promise<GeocodeResult>
-  reverse(latitude: number, longitude: number): Promise<GeocodeResult>
+interface GoogleGeometry {
+  location: { lat: number; lng: number }
+}
+interface GoogleResult {
+  formatted_address?: string
+  geometry: GoogleGeometry
+}
+interface GoogleResponse {
+  status: string
+  results: GoogleResult[]
+  error_message?: string
 }
 
-// ─── Nominatim ───────────────────────────────────────────────────────────────
+// Google cobra quando retorna OK ou ZERO_RESULTS — espelhamos isso no contador.
+const BILLABLE_STATUSES = new Set(['OK', 'ZERO_RESULTS'])
 
-function nominatimBaseUrl(): string {
-  return process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org'
-}
-function nominatimUserAgent(): string {
-  return (
-    process.env.NOMINATIM_USER_AGENT ||
-    'MenuPanda/1.0 (wendellalonso2013@gmail.com)'
-  )
-}
-
-// Shape subset do JSON do Nominatim /search
-interface NominatimHit {
-  lat: string
-  lon: string
-  display_name?: string
+function googleApiKey(): string {
+  const key = process.env.GOOGLE_GEOCODING_API_KEY
+  if (!key || !key.trim()) {
+    throw new AppError(
+      'Geocoding indisponível: GOOGLE_GEOCODING_API_KEY não configurada',
+      503
+    )
+  }
+  return key
 }
 
-function buildQuery(input: GeocodeInput): string {
+function googleBaseUrl(): string {
+  return process.env.GOOGLE_GEOCODING_BASE_URL || 'https://maps.googleapis.com/maps/api/geocode/json'
+}
+
+function buildAddressQuery(input: GeocodeInput): string {
   const parts = [
     input.street && input.number ? `${input.street}, ${input.number}` : input.street,
     input.neighborhood,
@@ -63,94 +76,94 @@ function buildQuery(input: GeocodeInput): string {
   return parts.join(', ')
 }
 
-const nominatim: GeocodingProvider = {
-  async geocode(input) {
-    const hasUsefulFields =
-      Boolean(input.street?.trim()) ||
-      Boolean(input.cep?.trim()) ||
-      Boolean(input.city?.trim())
-    if (!hasUsefulFields) {
-      throw new AppError('Endereço insuficiente para geocodificação', 422)
-    }
-
-    const query = buildQuery(input)
-    if (!query) throw new AppError('Endereço vazio para geocodificação', 422)
-
-    const params = new URLSearchParams({
-      q: query,
-      format: 'json',
-      limit: '1',
-      addressdetails: '0',
+async function callGoogle(params: URLSearchParams): Promise<GoogleResponse> {
+  // Toda chamada à Google passa por aqui — única porta pra o contador de uso
+  // ser incrementado de forma consistente.
+  let response: Response
+  try {
+    response = await fetch(`${googleBaseUrl()}?${params.toString()}`, {
+      headers: { Accept: 'application/json' },
     })
+  } catch {
+    throw new AppError('Serviço de geocodificação indisponível', 503)
+  }
 
-    let response: Response
-    try {
-      response = await fetch(`${nominatimBaseUrl()}/search?${params.toString()}`, {
-        headers: { 'User-Agent': nominatimUserAgent(), Accept: 'application/json' },
-      })
-    } catch {
-      throw new AppError('Serviço de geocodificação indisponível', 503)
-    }
+  if (!response.ok) {
+    throw new AppError('Serviço de geocodificação indisponível', 503)
+  }
 
-    if (!response.ok) {
-      throw new AppError('Serviço de geocodificação indisponível', 503)
-    }
+  const body = (await response.json()) as GoogleResponse
 
-    const hits = (await response.json()) as NominatimHit[]
-    if (!Array.isArray(hits) || hits.length === 0) {
-      throw new AppError('Endereço não encontrado', 422)
-    }
+  if (BILLABLE_STATUSES.has(body.status)) {
+    // Best-effort: erro no Redis não pode derrubar o geocoding em si
+    incrementGeocodingUsage().catch(() => undefined)
+  }
 
-    const lat = Number(hits[0].lat)
-    const lng = Number(hits[0].lon)
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      throw new AppError('Endereço não encontrado', 422)
-    }
-
-    return { latitude: lat, longitude: lng, displayName: hits[0].display_name }
-  },
-
-  async reverse(latitude, longitude) {
-    const params = new URLSearchParams({
-      lat: String(latitude),
-      lon: String(longitude),
-      format: 'json',
-      addressdetails: '0',
-    })
-
-    let response: Response
-    try {
-      response = await fetch(`${nominatimBaseUrl()}/reverse?${params.toString()}`, {
-        headers: { 'User-Agent': nominatimUserAgent(), Accept: 'application/json' },
-      })
-    } catch {
-      throw new AppError('Serviço de geocodificação indisponível', 503)
-    }
-
-    if (!response.ok) {
-      throw new AppError('Serviço de geocodificação indisponível', 503)
-    }
-
-    // Nominatim /reverse retorna um objeto, não array
-    const hit = (await response.json()) as NominatimHit & { error?: string }
-    if (!hit || hit.error || !hit.display_name) {
-      throw new AppError('Endereço não encontrado para estas coordenadas', 422)
-    }
-
-    return { latitude, longitude, displayName: hit.display_name }
-  },
+  return body
 }
 
-// ─── Provider selection ──────────────────────────────────────────────────────
-
-function getProvider(): GeocodingProvider {
-  const name = (process.env.GEOCODING_PROVIDER || 'nominatim').toLowerCase()
-  switch (name) {
-    case 'nominatim':
-      return nominatim
-    default:
-      throw new AppError(`Geocoding provider desconhecido: ${name}`, 500)
+async function googleGeocode(input: GeocodeInput): Promise<GeocodeResult> {
+  const hasUsefulFields =
+    Boolean(input.street?.trim()) ||
+    Boolean(input.cep?.trim()) ||
+    Boolean(input.city?.trim())
+  if (!hasUsefulFields) {
+    throw new AppError('Endereço insuficiente para geocodificação', 422)
   }
+
+  const query = buildAddressQuery(input)
+  if (!query) throw new AppError('Endereço vazio para geocodificação', 422)
+
+  const params = new URLSearchParams({
+    address: query,
+    key: googleApiKey(),
+    region: 'br',
+    language: 'pt-BR',
+  })
+
+  const body = await callGoogle(params)
+
+  if (body.status === 'ZERO_RESULTS') {
+    throw new AppError('Endereço não encontrado', 422)
+  }
+
+  if (body.status !== 'OK' || body.results.length === 0) {
+    throw new AppError('Serviço de geocodificação indisponível', 503)
+  }
+
+  const hit = body.results[0]
+  const lat = hit.geometry?.location?.lat
+  const lng = hit.geometry?.location?.lng
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new AppError('Endereço não encontrado', 422)
+  }
+
+  return { latitude: lat, longitude: lng, displayName: hit.formatted_address }
+}
+
+async function googleReverse(latitude: number, longitude: number): Promise<GeocodeResult> {
+  const params = new URLSearchParams({
+    latlng: `${latitude},${longitude}`,
+    key: googleApiKey(),
+    language: 'pt-BR',
+  })
+
+  const body = await callGoogle(params)
+
+  if (body.status === 'ZERO_RESULTS') {
+    throw new AppError('Endereço não encontrado para estas coordenadas', 422)
+  }
+
+  if (body.status !== 'OK' || body.results.length === 0) {
+    throw new AppError('Serviço de geocodificação indisponível', 503)
+  }
+
+  const hit = body.results[0]
+  if (!hit.formatted_address) {
+    throw new AppError('Endereço não encontrado para estas coordenadas', 422)
+  }
+
+  return { latitude, longitude, displayName: hit.formatted_address }
 }
 
 // ─── Public API (cached) ─────────────────────────────────────────────────────
@@ -180,7 +193,7 @@ export async function geocodeAddress(input: GeocodeInput): Promise<GeocodeResult
     // Redis indisponível: segue direto pro provider
   }
 
-  const result = await getProvider().geocode(input)
+  const result = await googleGeocode(input)
 
   try {
     await cache.set(key, result, CACHE_TTL_SECONDS)
@@ -189,6 +202,25 @@ export async function geocodeAddress(input: GeocodeInput): Promise<GeocodeResult
   }
 
   return result
+}
+
+// "Sementeia" o cache de geocode com coords manuais (cliente colou lat/lng
+// do Google Maps porque Google Geocoding não achou o endereço). Próximo
+// pedido com mesmo endereço normalizado sai do cache sem custo de cota.
+// `displayName` fica vazio porque não temos um endereço formatado garantido.
+export async function primeGeocodeCacheFromManual(
+  input: GeocodeInput,
+  coords: { latitude: number; longitude: number }
+): Promise<void> {
+  try {
+    await cache.set(
+      cacheKey(input),
+      { latitude: coords.latitude, longitude: coords.longitude } satisfies GeocodeResult,
+      CACHE_TTL_SECONDS
+    )
+  } catch {
+    // Redis off: não bloqueia
+  }
 }
 
 // Reverse: lat/lng → displayName (ex: "Av. Paulista, 1000 - Bela Vista, São Paulo").
@@ -211,7 +243,7 @@ export async function reverseGeocode(
     // sem cache, segue
   }
 
-  const result = await getProvider().reverse(latitude, longitude)
+  const result = await googleReverse(latitude, longitude)
 
   try {
     await cache.set(key, result, CACHE_TTL_SECONDS)

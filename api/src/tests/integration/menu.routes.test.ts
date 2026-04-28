@@ -65,6 +65,7 @@ const mockVerify = verify as jest.Mock
 
 process.env.JWT_SECRET = 'test-secret'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
+process.env.GOOGLE_GEOCODING_API_KEY = 'test-google-key'
 
 const SLUG = 'pizzaria-do-ze'
 const STORE_ID = 'store-1'
@@ -159,6 +160,22 @@ function setupOrderMocks() {
   ;(mockPrisma.customer.findUnique as jest.Mock).mockResolvedValue({
     whatsapp: '54999990000', name: 'Teste', addresses: [],
   })
+  // Geocoding (Google): pedidos DELIVERY chamam geocodeAddress no checkout.
+  // Mocka fetch retornando lat/lng fictícios — o test de orders não valida o
+  // valor da taxa, só que o pedido seja criado.
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      status: 'OK',
+      results: [
+        {
+          formatted_address: 'Mock Address, BR',
+          geometry: { location: { lat: -27.0, lng: -48.0 } },
+        },
+      ],
+    }),
+  }) as unknown as typeof fetch
 }
 
 beforeEach(() => {
@@ -448,6 +465,44 @@ describe('POST /api/v1/menu/:slug/orders', () => {
       })
     )
   })
+
+  it('aceita manualCoordinates e NÃO chama Google Geocoding', async () => {
+    setupOrderMocks()
+    // Sobrescreve o fetch mockado em setupOrderMocks pra detectar uso indevido:
+    // se chamar, o teste falha na asserção abaixo.
+    global.fetch = jest.fn() as unknown as typeof fetch
+
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({
+        ...validOrderBody,
+        address: {
+          ...validOrderBody.address,
+          manualCoordinates: { latitude: -16.17, longitude: -42.29 },
+        },
+      })
+
+    expect(res.status).toBe(201)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejeita manualCoordinates fora do range válido', async () => {
+    setupOrderMocks()
+
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({
+        ...validOrderBody,
+        address: {
+          ...validOrderBody.address,
+          manualCoordinates: { latitude: 999, longitude: -42.29 },
+        },
+      })
+
+    expect(res.status).toBe(400)
+  })
 })
 
 // ─── GET /menu/:slug/pedido/:token ────────────────────────────────────────────
@@ -655,7 +710,15 @@ describe('POST /api/v1/menu/delivery/geocode', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => [{ lat: '-23.5505', lon: '-46.6333', display_name: 'Av. Paulista, 1000' }],
+      json: async () => ({
+        status: 'OK',
+        results: [
+          {
+            formatted_address: 'Av. Paulista, 1000',
+            geometry: { location: { lat: -23.5505, lng: -46.6333 } },
+          },
+        ],
+      }),
     }) as unknown as typeof fetch
 
     const res = await request(app)

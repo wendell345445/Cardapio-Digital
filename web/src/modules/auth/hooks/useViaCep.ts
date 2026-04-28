@@ -1,5 +1,15 @@
 import { useCallback, useState } from 'react'
 
+import { api } from '@/shared/lib/api'
+
+// Mantém o nome `useViaCep` por compatibilidade com os callers existentes
+// (RegisterStorePage, DeliveryPage, CheckoutDrawer). Por baixo, agora chama
+// o backend (`POST /api/v1/cep/lookup`), que tenta Google Geocoding primeiro
+// e cai em ViaCEP quando o Google não traz dados utilizáveis. Centraliza no
+// backend pra (1) cobrir CEPs únicos de cidade pequena que o ViaCEP devolve
+// truncado, (2) proteger a chave da Google Geocoding (não vai pro browser)
+// e (3) contabilizar quota.
+
 export interface ViaCepResult {
   street: string
   neighborhood: string
@@ -7,18 +17,21 @@ export interface ViaCepResult {
   state: string
 }
 
-interface ViaCepResponse {
-  cep?: string
-  logradouro?: string
-  bairro?: string
-  localidade?: string
-  uf?: string
-  erro?: boolean
+interface CepLookupResponse {
+  success: boolean
+  data: {
+    cep: string
+    street: string
+    neighborhood: string
+    city: string
+    state: string
+    source: 'google' | 'viacep'
+  }
 }
 
 /**
- * Consulta a API ViaCEP (https://viacep.com.br/ws/{cep}/json) e retorna os campos de endereço.
- * Lança erro caso o CEP seja inválido ou a API retorne `erro: true`.
+ * Consulta CEP via backend (`POST /cep/lookup`). Retorna os campos de endereço.
+ * Lança erro caso o CEP seja inválido (8 dígitos) ou o backend retorne erro.
  */
 export async function fetchCep(cep: string): Promise<ViaCepResult> {
   const digits = cep.replace(/\D/g, '')
@@ -26,21 +39,25 @@ export async function fetchCep(cep: string): Promise<ViaCepResult> {
     throw new Error('CEP inválido')
   }
 
-  const response = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
-  if (!response.ok) {
-    throw new Error('Falha ao consultar ViaCEP')
-  }
-
-  const data = (await response.json()) as ViaCepResponse
-  if (data.erro) {
-    throw new Error('CEP não encontrado')
-  }
-
-  return {
-    street: data.logradouro ?? '',
-    neighborhood: data.bairro ?? '',
-    city: data.localidade ?? '',
-    state: data.uf ?? '',
+  try {
+    const response = await api.post<CepLookupResponse>('/cep/lookup', { cep: digits })
+    const data = response.data?.data
+    if (!data) throw new Error('CEP não encontrado')
+    return {
+      street: data.street ?? '',
+      neighborhood: data.neighborhood ?? '',
+      city: data.city ?? '',
+      state: data.state ?? '',
+    }
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'CEP não encontrado') throw err
+    const message =
+      (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
+        ?.error ??
+      (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data
+        ?.message ??
+      'Falha ao consultar CEP'
+    throw new Error(message)
   }
 }
 

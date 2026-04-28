@@ -19,6 +19,7 @@ import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { maskCep } from '@/shared/lib/masks'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
+import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -178,6 +179,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
   const [deliveryFeeError, setDeliveryFeeError] = useState('')
+  // Quando Google não acha o endereço (ZERO_RESULTS), abre modal pro cliente
+  // colar lat/lng do Maps. Coords ficam aqui e vão junto no submit do pedido.
+  const [manualCoordinates, setManualCoordinates] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [manualModalOpen, setManualModalOpen] = useState(false)
   const [otpInput, setOtpInput] = useState('')
   const errorRef = useRef<HTMLDivElement>(null)
 
@@ -282,11 +287,16 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   }, [couponCode, subtotalValue])
 
   const lookupDeliveryFee = useCallback(
-    async (payload: { cep?: string; street: string; number: string; neighborhood?: string; city?: string; state?: string }) => {
+    async (
+      payload: { cep?: string; street: string; number: string; neighborhood?: string; city?: string; state?: string },
+      manual?: { latitude: number; longitude: number } | null,
+    ) => {
       setDeliveryFeeLoading(true)
       setDeliveryFeeError('')
       try {
-        const coords = await fetchGeocode(payload)
+        // Se cliente já colou lat/lng manual antes (modal de fallback), pula
+        // direto pro cálculo da taxa — não bate na Google de novo.
+        const coords = manual ?? (await fetchGeocode(payload))
         const result = await fetchDeliveryFee(coords.latitude, coords.longitude)
         setDeliveryFee(result.fee)
       } catch (err: unknown) {
@@ -294,6 +304,10 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
         setDeliveryFeeError(msg)
         setDeliveryFee(0)
+        // Abre modal pra cliente colar lat/lng do Maps quando Google não acha.
+        if (msg === 'Endereço não encontrado') {
+          setManualModalOpen(true)
+        }
       } finally {
         setDeliveryFeeLoading(false)
       }
@@ -303,6 +317,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   // Calcula taxa quando o endereço essencial está preenchido (debounce 600ms).
   // Precisa de rua + número pra geocoding resolver bem; cidade/bairro/CEP ajudam.
+  // Se cliente já colou manualCoordinates (modal de fallback), usa direto.
   useEffect(() => {
     if (orderType !== 'DELIVERY') {
       setDeliveryFee(0)
@@ -317,17 +332,29 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       return
     }
     const timer = setTimeout(() => {
-      lookupDeliveryFee({
-        cep: (zipCode ?? '').trim() || undefined,
-        street: streetT,
-        number: numberT,
-        neighborhood: (neighborhood ?? '').trim() || undefined,
-        city: (city ?? '').trim() || undefined,
-        state: (stateUf ?? '').trim() || undefined,
-      })
+      lookupDeliveryFee(
+        {
+          cep: (zipCode ?? '').trim() || undefined,
+          street: streetT,
+          number: numberT,
+          neighborhood: (neighborhood ?? '').trim() || undefined,
+          city: (city ?? '').trim() || undefined,
+          state: (stateUf ?? '').trim() || undefined,
+        },
+        manualCoordinates,
+      )
     }, 600)
     return () => clearTimeout(timer)
-  }, [orderType, zipCode, street, streetNumber, neighborhood, city, stateUf, lookupDeliveryFee])
+  }, [orderType, zipCode, street, streetNumber, neighborhood, city, stateUf, manualCoordinates, lookupDeliveryFee])
+
+  // Quando cliente edita rua/número/bairro depois de colar coords manuais,
+  // descarta as coords antigas — o endereço novo precisa ser re-geocodado.
+  // CEP/cidade/UF não disparam reset porque costumam vir junto da rua via auto-fill.
+  // (manualCoordinates fora das deps de propósito: o efeito reage só a mudanças
+  // do endereço; incluir manualCoordinates causaria loop pós-reset.)
+  useEffect(() => {
+    setManualCoordinates((current) => (current ? null : current))
+  }, [street, streetNumber, neighborhood])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')
@@ -360,6 +387,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           neighborhood: form.neighborhood!,
           city: form.city!,
           state: form.state,
+          manualCoordinates: manualCoordinates ?? undefined,
         } : undefined,
         tableNumber: form.type === 'TABLE' && tableNumber ? tableNumber : undefined,
         items: items.map(i => ({
@@ -747,7 +775,22 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
                   )}
                   {deliveryFeeError && (
-                    <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                    <div className="mt-1">
+                      <p className="text-red-500 text-xs">{deliveryFeeError}</p>
+                      <button
+                        type="button"
+                        onClick={() => setManualModalOpen(true)}
+                        className="text-xs text-blue-600 hover:text-blue-800 underline mt-0.5"
+                      >
+                        Marcar localização no Google Maps
+                      </button>
+                    </div>
+                  )}
+                  {manualCoordinates && !deliveryFeeError && (
+                    <p className="text-green-600 text-xs mt-1">
+                      📍 Localização confirmada manualmente ({manualCoordinates.latitude.toFixed(4)},{' '}
+                      {manualCoordinates.longitude.toFixed(4)})
+                    </p>
                   )}
                   {errors.neighborhood && !deliveryFeeError && (
                     <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>
@@ -959,6 +1002,16 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           </div>
         )}
       </div>
+
+      <ManualCoordinatesModal
+        isOpen={manualModalOpen}
+        onClose={() => setManualModalOpen(false)}
+        onConfirm={(coords) => {
+          setManualCoordinates(coords)
+          setManualModalOpen(false)
+          setDeliveryFeeError('')
+        }}
+      />
     </>
   )
 }
