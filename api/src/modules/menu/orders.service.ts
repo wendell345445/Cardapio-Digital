@@ -380,10 +380,10 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     try {
       pixData = await generatePix({
         pixKey: store.pixKey,
-        pixKeyType: store.pixKeyType ?? 'RANDOM',
+        pixKeyType: store.pixKeyType ?? 'EVP',
         amount: total,
-        merchantName: store.name.slice(0, 25),
-        merchantCity: 'SAO PAULO',
+        merchantName: store.name,
+        merchantCity: store.address ?? 'BRASIL',
         txid: order.number.toString(),
       })
     } catch (err) {
