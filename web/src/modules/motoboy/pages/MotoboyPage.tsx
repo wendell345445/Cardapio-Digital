@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { SiGooglemaps, SiWaze } from 'react-icons/si'
 
 import { useAuthConfig } from '../../auth/hooks/useAuthConfig'
 import { fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
@@ -347,14 +348,29 @@ function OrderCard({
 
       <div className="px-4 py-4 space-y-4">
         {/* Client contact */}
-        <div className="flex items-center gap-2">
-          <span className="text-gray-500 text-sm">Telefone:</span>
-          <a
-            href={`tel:${order.clientWhatsapp}`}
-            className="text-green-700 font-medium text-sm underline"
-          >
-            {order.clientWhatsapp}
-          </a>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-sm">Telefone:</span>
+            <span className="text-gray-900 font-medium text-sm">{order.clientWhatsapp}</span>
+          </div>
+          <div className="flex gap-2">
+            <a
+              href={`tel:${order.clientWhatsapp}`}
+              className="flex-1 text-center bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
+              aria-label="Ligar para o cliente"
+            >
+              📞 Ligar
+            </a>
+            <a
+              href={`https://wa.me/${order.clientWhatsapp.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-center bg-green-50 hover:bg-green-100 text-green-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
+              aria-label="Abrir WhatsApp do cliente"
+            >
+              💬 WhatsApp
+            </a>
+          </div>
         </div>
 
         {/* Address + navigation */}
@@ -368,17 +384,19 @@ function OrderCard({
                 href={buildMapsUrl(order.address)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 text-center bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
               >
-                🗺️ Maps
+                <SiGooglemaps className="w-4 h-4" style={{ color: '#4285F4' }} aria-hidden />
+                Maps
               </a>
               <a
                 href={buildWazeUrl(order.address)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 bg-sky-50 hover:bg-sky-100 text-sky-700 font-medium rounded-xl py-2.5 text-sm transition-colors"
               >
-                🧭 Waze
+                <SiWaze className="w-4 h-4" style={{ color: '#33CCFF' }} aria-hidden />
+                Waze
               </a>
             </div>
           </div>
