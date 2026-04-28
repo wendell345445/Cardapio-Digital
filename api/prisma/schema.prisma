@@ -41,6 +41,10 @@ model Store {
   allowDelivery        Boolean       @default(true)
   manualOpen           Boolean?
   whatsappMode         WhatsAppMode  @default(WHATSAPP)
+  /// Número WhatsApp pareado (ex: "5511999999999"). Único globalmente — uma mesma
+  /// conta WA não pode estar pareada em duas lojas, senão recebem o mesmo evento
+  /// messages.upsert e respondem cada uma com greeting/IA própria, confundindo o cliente.
+  whatsappPairedNumber String?       @unique
   stripeCustomerId     String?
   stripeSubscriptionId String?
   stripeTrialEndsAt    DateTime?

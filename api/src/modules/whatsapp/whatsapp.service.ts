@@ -138,6 +138,16 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
         instance.qrCode = null
         emitter.emit(`connected:${storeId}`)
         logger.info({ storeId }, '[WhatsApp] CONNECTED')
+
+        // Mesmo número WA pareado em outra loja → desconecta a outra para que esta seja
+        // a única recebendo eventos. Sem isso, ambas respondem GREETING/IA com o nome
+        // de loja próprio e o cliente vê mensagens duplicadas.
+        const pairedJid: string | undefined = sock.user?.id
+        if (pairedJid) {
+          void evictPriorPairings(storeId, pairedJid).catch((err) => {
+            logger.error({ storeId, pairedJid, err }, '[WhatsApp] evictPriorPairings falhou')
+          })
+        }
       }
 
       if (connection === 'close') {
@@ -333,6 +343,69 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
 }
 
 /**
+ * Extrai o número (ex: "5511999999999") de um JID do Baileys.
+ * `sock.user.id` pode vir como "5511999999999:42@s.whatsapp.net" ou "...@lid".
+ */
+function extractPairedNumber(jid: string): string | null {
+  const raw = jid.replace(/:.*$/, '').replace(/@.*$/, '')
+  const normalized = normalizePhone(raw)
+  return normalized || null
+}
+
+/**
+ * Garante que o número WA pareado pertença a uma única loja.
+ *
+ * Quando o mesmo número é pareado em duas lojas, o WhatsApp Web entrega o evento
+ * `messages.upsert` para AMBOS os devices — cada loja responde GREETING/IA com o
+ * próprio nome e o cliente vê mensagens duplicadas. Evidência: screenshot do bug
+ * mostra duas saudações ("Bem-vindo a burgertop" + "Bem-vindo a burgermais") no
+ * mesmo chat.
+ *
+ * Solução: ao conectar, desconecta sessões anteriores que usavam o mesmo número
+ * em outras lojas e atualiza `Store.whatsappPairedNumber`. O alerta de WhatsApp
+ * offline já existente ([WhatsAppOfflineAlert.tsx]) cobre o aviso ao admin da
+ * loja desconectada.
+ */
+export async function evictPriorPairings(currentStoreId: string, pairedJid: string): Promise<void> {
+  const pairedNumber = extractPairedNumber(pairedJid)
+  if (!pairedNumber) {
+    logger.warn({ currentStoreId, pairedJid }, '[WhatsApp] evictPriorPairings: JID inválido, skip')
+    return
+  }
+
+  const conflicting = await prisma.store.findMany({
+    where: { whatsappPairedNumber: pairedNumber, NOT: { id: currentStoreId } },
+    select: { id: true, name: true },
+  })
+
+  for (const other of conflicting) {
+    logger.warn(
+      { currentStoreId, evictedStoreId: other.id, evictedName: other.name, pairedNumber },
+      '[WhatsApp] Mesmo número pareado em outra loja — desconectando para evitar mensagens duplicadas'
+    )
+    try {
+      await disconnectWhatsApp(other.id)
+    } catch (err) {
+      logger.error({ evictedStoreId: other.id, err }, '[WhatsApp] Falha ao desconectar loja conflitante')
+    }
+  }
+
+  // Limpa pairedNumber das outras (caso alguma esteja órfã sem instância em memória — ex: outro
+  // processo do app teve a sessão) e salva na atual. Tudo numa transação para evitar violar
+  // o índice unique.
+  await prisma.$transaction([
+    prisma.store.updateMany({
+      where: { whatsappPairedNumber: pairedNumber, NOT: { id: currentStoreId } },
+      data: { whatsappPairedNumber: null },
+    }),
+    prisma.store.update({
+      where: { id: currentStoreId },
+      data: { whatsappPairedNumber: pairedNumber },
+    }),
+  ])
+}
+
+/**
  * Restaura todas as sessões WhatsApp salvas em disco ao iniciar o servidor.
  * Lê os diretórios em SESSIONS_DIR (cada subpasta = storeId) e chama connectWhatsApp().
  * Sessões válidas reconectam automaticamente sem precisar escanear QR de novo.
@@ -375,11 +448,12 @@ export async function restoreAllSessions(): Promise<void> {
 
 export async function disconnectWhatsApp(storeId: string): Promise<void> {
   const instance = instances.get(storeId)
-  if (!instance) return
-  try {
-    await instance.sock?.logout()
-  } catch { /* ignore */ }
-  instances.delete(storeId)
+  if (instance) {
+    try {
+      await instance.sock?.logout()
+    } catch { /* ignore */ }
+    instances.delete(storeId)
+  }
   // Invalidar cache de JID dessa loja
   for (const key of jidCache.keys()) {
     if (key.startsWith(`${storeId}:`)) jidCache.delete(key)
@@ -388,6 +462,15 @@ export async function disconnectWhatsApp(storeId: string): Promise<void> {
   const sessionPath = path.join(SESSIONS_DIR, storeId)
   if (fs.existsSync(sessionPath)) {
     fs.rmSync(sessionPath, { recursive: true })
+  }
+  // Libera o número pareado para que outra loja possa parear (ou esta mesma reparar com outro).
+  try {
+    await prisma.store.updateMany({
+      where: { id: storeId, whatsappPairedNumber: { not: null } },
+      data: { whatsappPairedNumber: null },
+    })
+  } catch (err) {
+    logger.error({ storeId, err }, '[WhatsApp] Falha ao limpar whatsappPairedNumber')
   }
   logger.info({ storeId }, '[WhatsApp] disconnectWhatsApp done')
 }
