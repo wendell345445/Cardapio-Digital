@@ -7,7 +7,6 @@ import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
-import { getPaymentMethodsForClient } from '../admin/payment-access.service'
 
 import { geocodeAddress } from './geocoding.service'
 import { generatePix } from './pix.service'
@@ -252,39 +251,12 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
 
   const total = subtotal - discount + deliveryFee
 
-  // 7. Cria ou encontra cliente por WhatsApp
-  let client = await prisma.user.findFirst({
-    where: { whatsapp: data.clientWhatsapp, storeId: store.id },
-  })
-  if (!client) {
-    client = await prisma.user.create({
-      data: {
-        whatsapp: data.clientWhatsapp,
-        name: data.clientName,
-        role: 'CLIENT',
-        storeId: store.id,
-      },
-    })
-  } else if (data.clientName && !client.name) {
-    client = await prisma.user.update({
-      where: { id: client.id },
-      data: { name: data.clientName },
-    })
-  }
-
-  // 7a. C-027: Bloqueia qualquer pagamento na entrega quando cliente está na blacklist
-  // (e libera quando whitelist mesmo se a loja não tem COD habilitado por default)
-  const isOnDeliveryPmt =
-    data.paymentMethod === 'CASH_ON_DELIVERY' ||
-    data.paymentMethod === 'CREDIT_ON_DELIVERY' ||
-    data.paymentMethod === 'DEBIT_ON_DELIVERY' ||
-    data.paymentMethod === 'PIX_ON_DELIVERY'
-  if (isOnDeliveryPmt) {
-    const allowed = await getPaymentMethodsForClient(client.id, store.id)
-    if (!allowed.cashOnDelivery) {
-      throw new AppError('Pagamento na entrega não está disponível. Escolha outra forma de pagamento.', 422)
-    }
-  }
+  // 7. TASK-130 (parte 2): cliente não digita mais WhatsApp no checkout.
+  // Não criamos User CLIENT aqui — pedido fica sem clientId. O User é
+  // criado/casado no opt-in inbound, quando temos o número de fato.
+  // Consequência: blacklist por cliente (ClientPaymentAccess) não pode ser
+  // checada no checkout público. Restrições por loja (allowCashOnDelivery)
+  // continuam valendo via validação anterior.
 
   // 8. Número sequencial por loja
   const lastOrder = await prisma.order.findFirst({
@@ -306,9 +278,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       data: {
         storeId: store.id,
         number: orderNumber,
-        clientId: client!.id,
-        clientWhatsapp: data.clientWhatsapp,
-        clientName: data.clientName ?? client!.name,
+        clientName: data.clientName,
         type: data.type,
         status,
         // 'PENDING' vem do schema da camada de menu (TABLE sem método escolhido ainda).

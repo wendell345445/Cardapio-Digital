@@ -286,8 +286,10 @@ export function OrderTrackingPage() {
 
 // Card de opt-in para notificações via WhatsApp.
 // Some quando notifyOnStatusChange já é true (cliente já fez opt-in).
-// O número da loja vem do tracking endpoint; sem número, escondemos o card.
-function OptInCard({ order }: { order: { number: number; notifyOnStatusChange?: boolean; store?: { phone?: string | null } } }) {
+// TASK-130 (parte 2): o número usado no link wa.me é o REALMENTE pareado no
+// Baileys da loja (Store.whatsappPairedNumber). Esse é o número que recebe
+// inbound — sem ele, o opt-in não funciona, então escondemos o card.
+function OptInCard({ order }: { order: { number: number; notifyOnStatusChange?: boolean; store?: { whatsappPairedNumber?: string | null } } }) {
   if (order.notifyOnStatusChange) {
     return (
       <section className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
@@ -302,13 +304,13 @@ function OptInCard({ order }: { order: { number: number; notifyOnStatusChange?: 
     )
   }
 
-  const storePhone = (order.store?.phone ?? '').replace(/\D/g, '')
-  if (!storePhone) return null
+  // whatsappPairedNumber já vem com prefixo de país (ex: "5538984091451"),
+  // porque o Baileys salva nesse formato. Se não estiver pareada, escondemos.
+  const pairedNumber = (order.store?.whatsappPairedNumber ?? '').replace(/\D/g, '')
+  if (!pairedNumber) return null
 
-  // Brasil: prefixo 55 + DDD + número. O campo phone da loja já vem só com dígitos.
-  const waNumber = storePhone.startsWith('55') ? storePhone : `55${storePhone}`
   const message = `Olá, quero receber status do meu pedido #${order.number}`
-  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`
+  const waLink = `https://wa.me/${pairedNumber}?text=${encodeURIComponent(message)}`
 
   return (
     <section className="bg-white border border-green-200 rounded-xl p-4 space-y-3">

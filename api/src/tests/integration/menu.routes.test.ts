@@ -132,7 +132,6 @@ const mockOrder = {
 }
 
 const validOrderBody = {
-  clientWhatsapp: '54999990000',
   clientName: 'João Cliente',
   type: 'DELIVERY',
   paymentMethod: 'PIX',
@@ -354,8 +353,8 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     expect(res.status).toBe(400)
   })
 
-  it('retorna 400 quando clientWhatsapp não informado', async () => {
-    const { clientWhatsapp: _, ...body } = validOrderBody as any
+  it('retorna 400 quando clientName não informado (TASK-130 parte 2)', async () => {
+    const { clientName: _, ...body } = validOrderBody as any
 
     const res = await request(app)
       .post('/api/v1/menu/orders')
@@ -363,6 +362,18 @@ describe('POST /api/v1/menu/:slug/orders', () => {
       .send(body)
 
     expect(res.status).toBe(400)
+  })
+
+  it('aceita pedido sem clientWhatsapp (cliente não digita mais — opt-in via WA)', async () => {
+    setupOrderMocks()
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send(validOrderBody) // já não tem clientWhatsapp
+
+    expect(res.status).toBe(201)
+    const orderCreateCall = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(orderCreateCall.data.clientWhatsapp).toBeUndefined()
   })
 
   it('retorna 400 quando type é inválido', async () => {
@@ -684,14 +695,16 @@ describe('POST /api/v1/menu/delivery/geocode', () => {
 // ─── TASK-130: customerSessionId + flag de notificação ───────────────────────
 
 describe('POST /api/v1/menu/orders — TASK-130', () => {
-  it('rejeita 400 quando WhatsApp não casa com regex de celular BR', async () => {
+  it('ignora silenciosamente clientWhatsapp se enviado (Zod strip)', async () => {
     setupOrderMocks()
     const res = await request(app)
       .post('/api/v1/menu/orders')
       .set('Host', menuHost())
-      .send({ ...validOrderBody, clientWhatsapp: '11111111111' })
+      .send({ ...validOrderBody, clientWhatsapp: '11999999999' })
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(201)
+    const orderCreateCall = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(orderCreateCall.data.clientWhatsapp).toBeUndefined()
   })
 
   it('persiste customerSessionId e notifyOnStatusChange=false ao criar', async () => {

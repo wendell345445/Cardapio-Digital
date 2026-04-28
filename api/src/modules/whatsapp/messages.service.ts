@@ -9,7 +9,7 @@ import { enqueueWhatsApp } from './whatsapp.queue'
 interface OrderData {
   id: string
   number: number
-  clientWhatsapp: string
+  clientWhatsapp?: string | null
   clientName?: string | null
   type: string
   status: string
@@ -59,6 +59,10 @@ function formatItems(items: OrderData['items']): string {
 }
 
 export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
+  // TASK-130 (parte 2): pedido pode não ter clientWhatsapp (cliente não digita
+  // mais no checkout). Função fica como utilitária — caller decide quando
+  // chamar. Sem destinatário, no-op.
+  if (!order.clientWhatsapp) return
   const store = order.store
 
   const itemsStr = formatItems(order.items)
@@ -182,7 +186,9 @@ export async function sendMotoboyAssignedMessage(
   order: {
     number: number
     clientName?: string | null
-    clientWhatsapp: string
+    /** TASK-130: pode ser null se cliente não fez opt-in. Motoboy inicia
+     *  contato manualmente nesse caso (loja repassa o número de outro jeito). */
+    clientWhatsapp?: string | null
     address?: Record<string, string> | null
     items: OrderData['items']
     total: number
@@ -204,7 +210,9 @@ export async function sendMotoboyAssignedMessage(
     wazeUrl ? `🧭 Waze: ${wazeUrl}` : '',
   ].filter(Boolean).join('\n')
 
-  const clienteStr = `${order.clientName ?? 'N/A'} | ${order.clientWhatsapp}`
+  const clienteStr = order.clientWhatsapp
+    ? `${order.clientName ?? 'N/A'} | ${order.clientWhatsapp}`
+    : `${order.clientName ?? 'N/A'} (sem WhatsApp)`
   const itemsStr = formatItems(order.items)
   const paymentLabel = order.paymentMethod === 'PIX' ? 'Pix — já pago' : 'Cobrar na entrega'
   const totalStr = `${formatMoney(order.total)} (${paymentLabel})`

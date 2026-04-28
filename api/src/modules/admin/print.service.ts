@@ -14,7 +14,7 @@ interface PrintOrder {
   number: number
   createdAt: Date
   clientName?: string | null
-  clientWhatsapp: string
+  clientWhatsapp?: string | null
   type: string
   paymentMethod: string
   subtotal: number
@@ -108,7 +108,7 @@ export function buildReceiptText(order: PrintOrder): string {
     center(`${dateStr} ${timeStr}`),
     separator('-'),
     `Cliente: ${order.clientName ?? 'N/A'}`,
-    `WhatsApp: ${order.clientWhatsapp}`,
+    `WhatsApp: ${order.clientWhatsapp ?? '—'}`,
     `Tipo: ${typeLabel[order.type] ?? order.type}`,
     `Pagamento: ${paymentLabel[order.paymentMethod] ?? order.paymentMethod}`,
   ]

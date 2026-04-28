@@ -21,7 +21,7 @@ export type PaymentMethod =
   | 'PENDING'
 
 export interface CreateOrderDto {
-  clientWhatsapp: string; clientName?: string
+  clientName: string
   /** TASK-130: id por navegador (UUID em localStorage) — usado em /meus-pedidos */
   customerSessionId?: string
   type: 'DELIVERY' | 'PICKUP' | 'TABLE'

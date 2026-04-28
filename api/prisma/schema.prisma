@@ -247,7 +247,7 @@ model Order {
   storeId        String
   number         Int
   clientId       String?
-  clientWhatsapp String
+  clientWhatsapp String?
   clientName     String?
   type           OrderType
   status         OrderStatus   @default(WAITING_CONFIRMATION)
