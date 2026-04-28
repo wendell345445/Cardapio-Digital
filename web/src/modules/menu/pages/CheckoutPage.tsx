@@ -10,6 +10,7 @@ import { useMenu } from '../hooks/useMenu'
 import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { validateCouponPublic } from '../services/orders.service'
+import { saveAddress } from '../lib/customerAddresses'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
@@ -147,6 +148,16 @@ export function CheckoutPage() {
 
     try {
       const result = await mutation.mutateAsync(dto)
+      // TASK-130 (parte 3): persiste endereço usado pra próximos pedidos.
+      if (dto.address) {
+        saveAddress({
+          street: dto.address.street,
+          number: dto.address.number,
+          complement: dto.address.complement,
+          neighborhood: dto.address.neighborhood,
+          city: dto.address.city,
+        })
+      }
       clearCart()
       navigate(`/pedido/${result.token}`, { state: result })
     } catch (err: unknown) {
