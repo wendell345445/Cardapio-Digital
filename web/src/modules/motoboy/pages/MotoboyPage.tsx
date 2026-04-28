@@ -205,6 +205,31 @@ function formatMoney(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
+// M-010: rótulo do pagamento com status (pago/cobrar)
+// PIX e CREDIT_CARD = pago online (admin já confirmou para liberar DISPATCHED).
+// *_ON_DELIVERY = cobrar na entrega.
+// PENDING = forma ainda não definida — admin precisa informar.
+function describePayment(method: string): { label: string; tone: 'paid' | 'cash' | 'pending' } {
+  switch (method) {
+    case 'PIX':
+      return { label: '💳 Pix — pago', tone: 'paid' }
+    case 'CREDIT_CARD':
+      return { label: '💳 Cartão online — pago', tone: 'paid' }
+    case 'CASH_ON_DELIVERY':
+      return { label: '💵 Dinheiro — cobrar na entrega', tone: 'cash' }
+    case 'CREDIT_ON_DELIVERY':
+      return { label: '💳 Crédito na maquininha — cobrar', tone: 'cash' }
+    case 'DEBIT_ON_DELIVERY':
+      return { label: '💳 Débito na maquininha — cobrar', tone: 'cash' }
+    case 'PIX_ON_DELIVERY':
+      return { label: '💳 Pix na entrega — cobrar', tone: 'cash' }
+    case 'PENDING':
+      return { label: '⏳ Pagamento pendente', tone: 'pending' }
+    default:
+      return { label: method, tone: 'pending' }
+  }
+}
+
 // ─── Delivery Problem Reasons ─────────────────────────────────────────────────
 
 const DELIVERY_PROBLEM_REASONS = [
@@ -410,12 +435,23 @@ function OrderCard({
         </div>
 
         {/* Total + payment */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-          <span className="font-bold text-gray-900">{formatMoney(order.total)}</span>
-          <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {order.paymentMethod === 'PIX' ? '💳 Pix (pago)' : '💵 Cobrar na entrega'}
-          </span>
-        </div>
+        {(() => {
+          const payment = describePayment(order.paymentMethod)
+          const toneClass =
+            payment.tone === 'paid'
+              ? 'bg-green-50 text-green-700'
+              : payment.tone === 'cash'
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-gray-100 text-gray-600'
+          return (
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
+              <span className="font-bold text-gray-900">{formatMoney(order.total)}</span>
+              <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${toneClass}`}>
+                {payment.label}
+              </span>
+            </div>
+          )
+        })()}
 
         {/* Action buttons — only for DISPATCHED in active tab */}
         {order.status === 'DISPATCHED' && (
