@@ -43,7 +43,7 @@ export async function getCustomerComanda(storeId: string, tableNumber: number) {
 export async function requestTableCheck(
   storeId: string,
   tableNumber: number,
-  customerWhatsapp: string
+  customerWhatsapp: string | null
 ) {
   const table = await prisma.table.findUnique({
     where: { storeId_number: { storeId, number: tableNumber } },
@@ -58,7 +58,7 @@ export async function requestTableCheck(
   emit.tableCheckRequested(storeId, {
     tableId: table.id,
     tableNumber: table.number,
-    customerWhatsapp,
+    customerWhatsapp: customerWhatsapp ?? '',
   })
 
   return { success: true }

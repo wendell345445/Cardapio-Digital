@@ -124,7 +124,6 @@ const mockOrder = {
 }
 
 const baseOrderInput = {
-  clientWhatsapp: '54999990000',
   clientName: 'João Cliente',
   type: 'DELIVERY' as const,
   paymentMethod: 'PIX' as const,
@@ -657,46 +656,27 @@ describe('createOrder — status por método de pagamento', () => {
 
 // ─── Cliente — criar ou encontrar ─────────────────────────────────────────────
 
-describe('createOrder — cliente', () => {
-  it('reutiliza cliente existente por WhatsApp', async () => {
+describe('createOrder — cliente (TASK-130 parte 2)', () => {
+  it('NÃO cria User CLIENT no checkout — pedido nasce sem clientId/clientWhatsapp', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(mockClient)
 
     await createOrder(SLUG, baseOrderInput)
 
     expect(mockPrisma.user.create).not.toHaveBeenCalled()
+    expect(mockPrisma.user.findFirst).not.toHaveBeenCalled()
+    const createArgs = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(createArgs.data.clientId).toBeUndefined()
+    expect(createArgs.data.clientWhatsapp).toBeUndefined()
+    expect(createArgs.data.notifyOnStatusChange).toBe(false)
   })
 
-  it('cria novo cliente quando WhatsApp não cadastrado', async () => {
+  it('persiste clientName mesmo sem WhatsApp', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)
-    ;(mockPrisma.user.create as jest.Mock).mockResolvedValue(mockClient)
 
     await createOrder(SLUG, baseOrderInput)
 
-    expect(mockPrisma.user.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          whatsapp: baseOrderInput.clientWhatsapp,
-          role: 'CLIENT',
-          storeId: STORE_ID,
-        }),
-      })
-    )
-  })
-
-  it('atualiza nome do cliente quando cliente existe sem nome', async () => {
-    setupDefaultMocks()
-    ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ ...mockClient, name: null })
-    ;(mockPrisma.user.update as jest.Mock).mockResolvedValue(mockClient)
-
-    await createOrder(SLUG, baseOrderInput)
-
-    expect(mockPrisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { name: baseOrderInput.clientName },
-      })
-    )
+    const createArgs = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(createArgs.data.clientName).toBe(baseOrderInput.clientName)
   })
 })
 
@@ -866,48 +846,17 @@ describe('createOrder — mesa via QR code (C-002/C-022)', () => {
 
 // ─── C-027: Blacklist bloqueia "Pagar na entrega" ────────────────────────────
 
-describe('createOrder — blacklist (C-027)', () => {
-  it('lança 422 quando cliente está na blacklist e tenta pagar com CASH_ON_DELIVERY', async () => {
+describe('createOrder — blacklist (C-027) — TASK-130 parte 2', () => {
+  // Sem WhatsApp no checkout, não temos identidade do cliente para casar com
+  // ClientPaymentAccess. Blacklist por cliente fica desativada no fluxo público.
+  // Restrições por loja (allowCashOnDelivery=false) continuam válidas via
+  // validação anterior em createOrder, e blacklist continua valendo no admin.
+  it('NÃO consulta blacklist no checkout (cliente é anônimo)', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue({
-      id: 'access-1',
-      type: 'BLACKLIST',
-      storeId: STORE_ID,
-      clientId: CLIENT_ID,
-    })
-
-    await expect(
-      createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' as const })
-    ).rejects.toMatchObject({ status: 422 })
-
-    expect(mockPrisma.order.create).not.toHaveBeenCalled()
-  })
-
-  it.each([
-    'CREDIT_ON_DELIVERY' as const,
-    'DEBIT_ON_DELIVERY' as const,
-    'PIX_ON_DELIVERY' as const,
-  ])('lança 422 quando cliente está na blacklist e tenta pagar com %s', async (method) => {
-    setupDefaultMocks()
-    ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue({
-      id: 'access-1',
-      type: 'BLACKLIST',
-      storeId: STORE_ID,
-      clientId: CLIENT_ID,
-    })
-
-    await expect(
-      createOrder(SLUG, { ...baseOrderInput, paymentMethod: method })
-    ).rejects.toMatchObject({ status: 422 })
-
-    expect(mockPrisma.order.create).not.toHaveBeenCalled()
-  })
-
-  it('permite CASH_ON_DELIVERY quando cliente não está em blacklist', async () => {
-    setupDefaultMocks() // clientPaymentAccess.findFirst → null por default
 
     await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' as const })
 
+    expect(mockPrisma.clientPaymentAccess.findFirst).not.toHaveBeenCalled()
     expect(mockPrisma.order.create).toHaveBeenCalled()
   })
 })

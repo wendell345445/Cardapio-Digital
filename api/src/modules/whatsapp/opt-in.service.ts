@@ -1,10 +1,12 @@
-// TASK-130: opt-in de notificações por pedido via WhatsApp.
+// TASK-130 (parte 2): opt-in de notificações por pedido via WhatsApp.
 //
-// Cliente finaliza pedido na web → vê link wa.me com texto pré-preenchido
-// "Olá, quero receber status do meu pedido #42". Quando essa mensagem cai
-// no inbound, este módulo detecta o "#42", localiza o pedido cuja loja é a
-// que recebeu a mensagem e cujo clientWhatsapp bate com o número do remetente,
-// seta notifyOnStatusChange=true e responde com confirmação + status atual.
+// Cliente finaliza pedido na web (sem digitar WhatsApp) → vê link wa.me com
+// texto pronto "quero receber status do meu pedido #42". Quando a mensagem cai
+// no inbound, este módulo detecta "#42", casa pelo número do pedido na loja
+// (sem checar clientWhatsapp — pedido nasce sem ele), filtra por janela de
+// 24h E status aberto pra reduzir risco de impostor adivinhando números, seta
+// `clientWhatsapp = senderPhone` + `notifyOnStatusChange = true` e responde
+// com confirmação + status atual.
 
 import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
@@ -13,6 +15,22 @@ import { renderAndEnqueueStatusMessage } from './messages.service'
 import { enqueueWhatsApp } from './whatsapp.queue'
 
 const ORDER_NUMBER_REGEX = /#\s*(\d{1,8})/
+
+// Janela em que um pedido fica elegível pro opt-in. 24h cobre o caso natural
+// (cliente faz pedido, recebe atualizações até a entrega/finalização).
+const OPT_IN_WINDOW_HOURS = 24
+
+// Status considerados "abertos" pra opt-in. Pedido entregue/cancelado não
+// recebe mais notificações — opt-in nesse momento não tem sentido.
+const OPEN_STATUSES = [
+  'WAITING_PAYMENT',
+  'WAITING_PAYMENT_PROOF',
+  'WAITING_CONFIRMATION',
+  'CONFIRMED',
+  'PREPARING',
+  'READY',
+  'DISPATCHED',
+]
 
 const STATUS_LABEL: Record<string, string> = {
   WAITING_CONFIRMATION: 'Aguardando confirmação',
@@ -28,8 +46,9 @@ const STATUS_LABEL: Record<string, string> = {
 
 /**
  * Tenta processar opt-in a partir de uma mensagem inbound. Se a mensagem contém
- * "#N" e existe pedido N na loja com clientWhatsapp = senderPhone, ativa a flag,
- * envia confirmação + status atual e retorna true.
+ * "#N" e existe pedido N na loja criado nas últimas 24h e ainda em aberto,
+ * adota o número do remetente como `clientWhatsapp`, ativa a flag, envia
+ * confirmação + status atual e retorna true.
  *
  * Retorna false se nada matchar — caller segue com o fluxo normal (greeting/AI).
  */
@@ -44,11 +63,14 @@ export async function tryHandleOptIn(
   const orderNumber = parseInt(match[1], 10)
   if (!Number.isFinite(orderNumber) || orderNumber <= 0) return false
 
+  const cutoff = new Date(Date.now() - OPT_IN_WINDOW_HOURS * 60 * 60 * 1000)
+
   const order = await prisma.order.findFirst({
     where: {
       storeId,
       number: orderNumber,
-      clientWhatsapp: senderPhone,
+      createdAt: { gte: cutoff },
+      status: { in: OPEN_STATUSES as any },
     },
     select: {
       id: true,
@@ -56,16 +78,23 @@ export async function tryHandleOptIn(
       status: true,
       type: true,
       total: true,
+      clientWhatsapp: true,
       notifyOnStatusChange: true,
       store: { select: { id: true, name: true } },
     },
   })
   if (!order) return false
 
-  if (!order.notifyOnStatusChange) {
+  // Adota o número do remetente como contato do pedido se ainda não houver,
+  // ou se o cliente fez opt-in de outro device (ex: número diferente).
+  const needsUpdate = !order.notifyOnStatusChange || order.clientWhatsapp !== senderPhone
+  if (needsUpdate) {
     await prisma.order.update({
       where: { id: order.id },
-      data: { notifyOnStatusChange: true },
+      data: {
+        clientWhatsapp: senderPhone,
+        notifyOnStatusChange: true,
+      },
     })
     // Refresh em tempo real da OrderTrackingPage (esconde o card de opt-in)
     // e da fila do admin (sinaliza que o cliente entrou no opt-in).

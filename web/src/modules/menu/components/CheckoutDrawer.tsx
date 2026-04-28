@@ -68,7 +68,6 @@ function ufToStateName(uf: string): string {
 
 // Traduz paths de erros Zod pra nomes amigáveis no checkout público.
 const FIELD_LABELS: Record<string, string> = {
-  clientWhatsapp: 'WhatsApp',
   clientName: 'Nome',
   type: 'Tipo do pedido',
   paymentMethod: 'Forma de pagamento',
@@ -112,16 +111,11 @@ function paymentGroupFor(m: PaymentMethod | undefined): PaymentGroup | null {
   return 'ON_DELIVERY'
 }
 
-// TASK-130: validação só de formato — celular BR com 11 dígitos (DDD + 9 + 8).
-// Sem OTP / sem checagem de WhatsApp real.
-const BR_MOBILE_REGEX = /^[1-9][0-9]9[0-9]{8}$/
+// TASK-130 (parte 2): cliente não digita mais WhatsApp. Só nome + endereço.
+// O número é capturado depois, no opt-in via WhatsApp inbound.
 
 const schema = z
   .object({
-    clientWhatsapp: z
-      .string()
-      .length(11, 'Informe 11 dígitos (com DDD)')
-      .regex(BR_MOBILE_REGEX, 'Informe um celular brasileiro válido'),
     clientName: z.string().min(1, 'Informe seu nome'),
     type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
     paymentMethod: z.enum(PAYMENT_METHODS),
@@ -333,7 +327,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     setCouponError('')
     try {
       const result = await mutation.mutateAsync({
-        clientWhatsapp: form.clientWhatsapp,
         clientName: form.clientName,
         customerSessionId: getCustomerSessionId(),
         type: form.type,
@@ -545,26 +538,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Seus dados
               </h3>
-
-              <div>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="WhatsApp (DDD + 9 + 8 dígitos)"
-                  {...register('clientWhatsapp', {
-                    onChange: (e) => {
-                      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11)
-                    },
-                  })}
-                  maxLength={11}
-                  autoComplete="tel-national"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{ fontSize: 16 }}
-                />
-                {errors.clientWhatsapp && (
-                  <p className="text-red-500 text-xs mt-1">{errors.clientWhatsapp.message}</p>
-                )}
-              </div>
 
               <div>
                 <input

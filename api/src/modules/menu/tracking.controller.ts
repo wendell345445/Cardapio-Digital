@@ -19,7 +19,11 @@ export async function getOrderTrackingController(req: Request, res: Response, ne
       include: {
         items: { include: { additionals: true } },
         motoboy: { select: { name: true, whatsapp: true } },
-        store: { select: { slug: true, name: true, phone: true } },
+        // TASK-130: link wa.me usa o número REALMENTE pareado no Baileys
+        // (Store.whatsappPairedNumber), porque é ele que recebe inbound e
+        // dispara o handler de opt-in. Store.phone é cadastro manual e pode
+        // estar diferente do que o WhatsApp Web está conectado.
+        store: { select: { slug: true, name: true, whatsappPairedNumber: true } },
         table: { select: { number: true } },
       },
     })

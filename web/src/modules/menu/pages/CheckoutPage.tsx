@@ -27,9 +27,9 @@ function toDatetimeLocalValue(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// TASK-130 (parte 2): cliente não digita mais WhatsApp.
 const checkoutSchema = z.object({
-  clientWhatsapp: z.string().length(11, 'Informe 11 dígitos (com DDD, sem espaços)'),
-  clientName: z.string().min(1, 'Informe seu nome').optional(),
+  clientName: z.string().min(1, 'Informe seu nome'),
   type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum(['PIX', 'CASH_ON_DELIVERY']),
   notes: z.string().optional(),
@@ -119,7 +119,6 @@ export function CheckoutPage() {
   const onSubmit = async (form: CheckoutForm) => {
     setCouponError('')
     const dto = {
-      clientWhatsapp: form.clientWhatsapp,
       clientName: form.clientName,
       type: form.type,
       paymentMethod: form.paymentMethod,
@@ -201,26 +200,16 @@ export function CheckoutPage() {
         <section className="bg-white rounded-xl p-4 shadow-sm space-y-3">
           <h2 className="font-bold text-gray-800 mb-1">Seus dados</h2>
           <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">WhatsApp (com DDD) *</label>
-            <input
-              type="tel"
-              placeholder="11999999999"
-              {...register('clientWhatsapp')}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-              style={{ fontSize: 16 }}
-              maxLength={11}
-            />
-            {errors.clientWhatsapp && <p className="text-red-500 text-xs mt-1">{errors.clientWhatsapp.message}</p>}
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Nome</label>
+            <label className="text-sm font-medium text-gray-700 block mb-1">Nome *</label>
             <input
               type="text"
               placeholder="Seu nome"
+              autoComplete="name"
               {...register('clientName')}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
               style={{ fontSize: 16 }}
             />
+            {errors.clientName && <p className="text-red-500 text-xs mt-1">{errors.clientName.message}</p>}
           </div>
         </section>
 

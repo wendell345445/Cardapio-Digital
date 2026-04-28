@@ -351,7 +351,10 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
   > = {}
 
   for (const order of orders) {
+    // TASK-130 (parte 2): pedidos podem não ter clientWhatsapp (cliente não
+    // fez opt-in nem foi vinculado depois). Não entram no ranking de clientes.
     const key = order.clientWhatsapp
+    if (!key) continue
     if (!clientMap[key]) {
       clientMap[key] = {
         clientId: order.clientId ?? key,

@@ -30,7 +30,7 @@ async function ensureSessionOwnsTable(
   storeId: string,
   tableNumber: number,
   sessionId: string
-): Promise<{ tableId: string; clientWhatsapp: string }> {
+): Promise<{ tableId: string; clientWhatsapp: string | null }> {
   const table = await prisma.table.findUnique({
     where: { storeId_number: { storeId, number: tableNumber } },
   })
