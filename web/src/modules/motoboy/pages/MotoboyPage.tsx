@@ -349,12 +349,16 @@ function OrderCard({
         {/* Client contact */}
         <div className="flex items-center gap-2">
           <span className="text-gray-500 text-sm">Telefone:</span>
-          <a
-            href={`tel:${order.clientWhatsapp}`}
-            className="text-green-700 font-medium text-sm underline"
-          >
-            {order.clientWhatsapp}
-          </a>
+          {order.clientWhatsapp ? (
+            <a
+              href={`tel:${order.clientWhatsapp}`}
+              className="text-green-700 font-medium text-sm underline"
+            >
+              {order.clientWhatsapp}
+            </a>
+          ) : (
+            <span className="text-gray-400 text-sm">não informado</span>
+          )}
         </div>
 
         {/* Address + navigation */}

@@ -569,7 +569,7 @@ export function OrdersPage() {
         (o) =>
           String(o.number).includes(search) ||
           (o.clientName ?? '').toLowerCase().includes(search.toLowerCase()) ||
-          o.clientWhatsapp.includes(search)
+          (o.clientWhatsapp ?? '').includes(search)
       )
     : filteredByType
 

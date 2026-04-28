@@ -8,7 +8,7 @@ export interface MotoboyOrder {
   number: number
   status: string
   clientName?: string | null
-  clientWhatsapp: string
+  clientWhatsapp?: string | null
   address?: {
     street: string
     number: string

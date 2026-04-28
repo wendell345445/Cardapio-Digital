@@ -241,13 +241,11 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             message: savedMsg,
           })
 
-          // Se modo humano → não responder automaticamente
-          if (conversation.isHumanMode) {
-            logger.info({ storeId, from }, '[WhatsApp] Human mode active — skipping auto-response')
-            continue
-          }
-
-          // TASK-130: opt-in para notificações de pedido — antes de tudo
+          // TASK-130: opt-in para notificações de pedido — antes do gate de
+          // modo humano. Opt-in é registro de intenção do cliente (não é
+          // resposta da IA), então roda independentemente. Sem isso, conversas
+          // em modo humano nunca processavam "#N" e o cliente não recebia
+          // notificações automáticas de status mesmo após pedir.
           try {
             const { tryHandleOptIn } = await import('./opt-in.service')
             const handled = await tryHandleOptIn(storeId, from, text)
@@ -257,6 +255,12 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             }
           } catch (err) {
             logger.error({ storeId, err }, '[WhatsApp] Erro no opt-in handler')
+          }
+
+          // Se modo humano → não responder automaticamente
+          if (conversation.isHumanMode) {
+            logger.info({ storeId, from }, '[WhatsApp] Human mode active — skipping auto-response')
+            continue
           }
 
           // 2. Resolver JID para envio via onWhatsApp (chamada de rede, pode demorar)

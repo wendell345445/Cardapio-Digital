@@ -30,7 +30,7 @@ export interface Order {
   type: string
   paymentMethod: string
   clientName?: string | null
-  clientWhatsapp: string
+  clientWhatsapp?: string | null
   subtotal: number
   deliveryFee: number
   discount: number
