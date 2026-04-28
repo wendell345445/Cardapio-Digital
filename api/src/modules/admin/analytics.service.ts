@@ -150,7 +150,7 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
     prisma.order.findMany({
       where: {
         storeId,
-        status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+        status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
         createdAt,
       },
       select: { total: true, createdAt: true },
@@ -197,7 +197,7 @@ export async function getTopProducts(storeId: string, query: TopProductsQuery): 
     where: {
       order: {
         storeId,
-        status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+        status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
         createdAt,
       },
     },
@@ -239,7 +239,7 @@ export async function getPeakHours(
   const orders = await prisma.order.findMany({
     where: {
       storeId,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+      status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
       createdAt,
     },
     select: { createdAt: true },
@@ -276,7 +276,7 @@ export async function getPaymentBreakdown(
   const orders = await prisma.order.findMany({
     where: {
       storeId,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+      status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
       createdAt,
     },
     select: { paymentMethod: true, total: true },
@@ -322,7 +322,7 @@ export async function getClientRanking(storeId: string, query: RankingQuery): Pr
 
   const whereOrder: Record<string, unknown> = {
     storeId,
-    status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+    status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
   }
   if (since) whereOrder.createdAt = { gte: since }
 

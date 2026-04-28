@@ -20,7 +20,7 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
-    "@prisma/client": "^5.8.1",
+    "@prisma/client": "^5.22.0",
     "@types/nodemailer": "^8.0.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "axios": "^1.14.0",

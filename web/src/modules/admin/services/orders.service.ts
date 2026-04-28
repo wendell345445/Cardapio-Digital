@@ -97,12 +97,6 @@ export async function updateOrderAddress(id: string, address: OrderAddress): Pro
   return data.data
 }
 
-// TASK-123/124: Botão manual "Aguardando Pix"
-export async function sendWaitingPayment(id: string): Promise<{ success: boolean }> {
-  const { data } = await api.patch(`/admin/orders/${id}/send-waiting-payment`)
-  return data.data
-}
-
 // TASK-084/A-050: Buscar recibo formatado para impressão
 export async function fetchOrderReceipt(id: string): Promise<string> {
   const { data } = await api.get(`/admin/orders/${id}/receipt`)

@@ -37,7 +37,7 @@ jest.mock('../analytics.service', () => ({
 
 import { prisma } from '../../../shared/prisma/prisma'
 import { emit } from '../../../shared/socket/socket'
-import { listOrders, getOrder, updateOrderStatus, assignMotoboy, sendWaitingPaymentNotification } from '../orders.service'
+import { listOrders, getOrder, updateOrderStatus, assignMotoboy } from '../orders.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockEmit = emit as jest.Mocked<typeof emit>
@@ -243,15 +243,6 @@ describe('updateOrderStatus', () => {
     ).rejects.toMatchObject({ status: 422 })
 
     expect(mockPrisma.order.update).not.toHaveBeenCalled()
-  })
-
-  // TASK-121: PENDING → CONFIRMED agora é permitido (admin confirma direto da coluna "Novo")
-  it('permite transição direta PENDING → CONFIRMED (v2.4)', async () => {
-    setupUpdateMocks({ status: 'PENDING' })
-    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...mockOrder, status: 'CONFIRMED' })
-
-    const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
-    expect(result.status).toBe('CONFIRMED')
   })
 
   it('lança 422 quando status DISPATCHED aplicado em pedido de PICKUP', async () => {
@@ -664,22 +655,6 @@ describe('A-051: Coluna "Confirmado" do Kanban', () => {
     )
   })
 
-  it('PENDING → CONFIRMED (confirmação direta): pedido entra na coluna Confirmado', async () => {
-    setupUpdateMocks({ status: 'PENDING' })
-
-    const result = await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID, IP)
-
-    expect(result.status).toBe('CONFIRMED')
-    expect(mockPrisma.order.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: 'CONFIRMED',
-          confirmedAt: expect.any(Date),
-        }),
-      })
-    )
-  })
-
   it('emite socket.io order:status CONFIRMED para atualização real-time do Kanban', async () => {
     setupUpdateMocks({ status: 'WAITING_PAYMENT_PROOF' })
 
@@ -704,7 +679,7 @@ describe('A-051: Coluna "Confirmado" do Kanban', () => {
 
   it('pedido CONFIRMED NÃO aparece na coluna Novos (statuses diferentes)', () => {
     // Validação estática: CONFIRMED não está nos statuses da coluna "Novos"
-    const novosStatuses = ['PENDING', 'WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION']
+    const novosStatuses = ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION']
     expect(novosStatuses).not.toContain('CONFIRMED')
   })
 
@@ -725,109 +700,3 @@ describe('A-051: Coluna "Confirmado" do Kanban', () => {
   })
 })
 
-// ─── sendWaitingPaymentNotification (TASK-123 / A-053) ────────────────────────
-
-describe('sendWaitingPaymentNotification', () => {
-  const pendingDeliveryOrder = {
-    id: ORDER_ID,
-    storeId: STORE_ID,
-    type: 'DELIVERY' as const,
-    status: 'PENDING' as const,
-    paymentMethod: 'PIX' as const,
-    clientWhatsapp: '5548999990001',
-    number: 42,
-  }
-
-  function setupWaitingMocks(orderOverrides = {}) {
-    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({ ...pendingDeliveryOrder, ...orderOverrides })
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...pendingDeliveryOrder, status: 'WAITING_PAYMENT_PROOF' })
-    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
-  }
-
-  beforeEach(() => jest.clearAllMocks())
-
-  it('retorna { success: true } para pedido DELIVERY + PENDING + PIX', async () => {
-    setupWaitingMocks()
-
-    const result = await sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID, IP)
-
-    expect(result).toEqual({ success: true })
-  })
-
-  it('lança 404 quando pedido não encontrado', async () => {
-    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('lança 404 quando pedido pertence a outra loja (isolamento multi-tenant)', async () => {
-    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({ ...pendingDeliveryOrder, storeId: 'outra-loja' })
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 404 })
-  })
-
-  it('lança 400 para pedido de PICKUP (não aplicável)', async () => {
-    setupWaitingMocks({ type: 'PICKUP' })
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 400 })
-  })
-
-  it('lança 400 quando pedido não está com status PENDING', async () => {
-    setupWaitingMocks({ status: 'CONFIRMED' })
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 400 })
-  })
-
-  it('lança 400 para PIX_ON_DELIVERY — pagamento na entrega, fluxo diferente (A-053)', async () => {
-    setupWaitingMocks({ paymentMethod: 'PIX_ON_DELIVERY' })
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 400 })
-  })
-
-  it('lança 400 quando paymentMethod não é PIX (A-053)', async () => {
-    setupWaitingMocks({ paymentMethod: 'CASH_ON_DELIVERY' })
-
-    await expect(
-      sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-    ).rejects.toMatchObject({ status: 400 })
-  })
-
-  it('registra AuditLog com action order.send_waiting_payment', async () => {
-    setupWaitingMocks()
-
-    await sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID, IP)
-
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: 'order.send_waiting_payment',
-          entity: 'Order',
-          entityId: ORDER_ID,
-          ip: IP,
-        }),
-      })
-    )
-  })
-
-  it('muda status para WAITING_PAYMENT_PROOF (A-053)', async () => {
-    setupWaitingMocks()
-
-    await sendWaitingPaymentNotification(STORE_ID, ORDER_ID, USER_ID)
-
-    expect(mockPrisma.order.update).toHaveBeenCalledWith({
-      where: { id: ORDER_ID },
-      data: { status: 'WAITING_PAYMENT_PROOF' },
-    })
-  })
-})

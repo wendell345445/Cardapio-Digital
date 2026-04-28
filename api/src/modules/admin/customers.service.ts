@@ -69,7 +69,7 @@ export async function getCustomerDetail(
     where: {
       storeId,
       clientWhatsapp: whatsapp,
-      status: { notIn: ['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'] },
+      status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
     },
     select: {
       total: true,

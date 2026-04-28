@@ -58,7 +58,7 @@ export function AdminDashboardPage() {
   const allLive = liveOrders.data?.orders ?? []
   const allRecent = recentOrders.data?.orders ?? []
 
-  const pending = countByStatus(allLive, 'PENDING', 'WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION')
+  const pending = countByStatus(allLive, 'WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION')
   const confirmed = countByStatus(allLive, 'CONFIRMED')
   const preparing = countByStatus(allLive, 'PREPARING')
   const ready = countByStatus(allLive, 'READY', 'DISPATCHED')

@@ -1,4 +1,4 @@
-import { OrderStatus, OrderType, PaymentMethod } from '@prisma/client'
+import { OrderStatus, OrderType } from '@prisma/client'
 
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
@@ -17,9 +17,8 @@ import { linkOrderToCashFlow } from './cashflow.service'
 
 // ─── TASK-081: Listagem e Detalhes de Pedidos ────────────────────────────────
 
-/** Valid status transitions map */
+// Pedidos nascem em WAITING_PAYMENT_PROOF (PIX) ou WAITING_CONFIRMATION (demais meios).
 const STATUS_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PENDING: ['CONFIRMED', 'WAITING_CONFIRMATION', 'CANCELLED'],
   WAITING_PAYMENT_PROOF: ['CONFIRMED', 'CANCELLED'],
   WAITING_CONFIRMATION: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
@@ -247,75 +246,6 @@ export async function updateOrderStatus(
   })
 
   return updated
-}
-
-// ─── TASK-123: Botão "Aguardando Pix" — Disparo manual ───────────────────────
-
-/**
- * Envia mensagem WhatsApp "Aguardando Pix" e muda status para WAITING_PAYMENT_PROOF.
- * Somente aplicável a pedidos DELIVERY + PENDING + PIX.
- * A-053: botão some após clicar (status deixa de ser PENDING).
- */
-export async function sendWaitingPaymentNotification(
-  storeId: string,
-  orderId: string,
-  userId: string,
-  ip?: string
-) {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    select: { id: true, storeId: true, type: true, status: true, paymentMethod: true, clientWhatsapp: true, number: true },
-  })
-
-  if (!order || order.storeId !== storeId) {
-    throw new AppError('Pedido não encontrado', 404)
-  }
-
-  if (order.type !== OrderType.DELIVERY) {
-    throw new AppError('Mensagem de Aguardando Pix não se aplica a pedidos de retirada', 400)
-  }
-
-  if (order.status !== 'PENDING') {
-    throw new AppError('Mensagem de Aguardando Pix só pode ser enviada para pedidos no status Novo', 400)
-  }
-
-  if (order.paymentMethod !== PaymentMethod.PIX) {
-    throw new AppError('Mensagem de Aguardando Pix só se aplica a pedidos com pagamento Pix adiantado', 400)
-  }
-
-  const store = await prisma.store.findUnique({
-    where: { id: storeId },
-    select: { name: true },
-  })
-
-  if (!store) throw new AppError('Loja não encontrada', 404)
-
-  // Atualiza status para WAITING_PAYMENT_PROOF (pedido continua na coluna "Novos")
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: OrderStatus.WAITING_PAYMENT_PROOF },
-  })
-
-  // Fire-and-forget WhatsApp
-  if (order.clientWhatsapp) {
-    sendStatusUpdateMessage(storeId, order.clientWhatsapp, order.number, 'WAITING_PAYMENT', store.name).catch(
-      () => void 0
-    )
-  }
-
-  await prisma.auditLog.create({
-    data: {
-      storeId,
-      userId,
-      action: 'order.send_waiting_payment',
-      entity: 'Order',
-      entityId: orderId,
-      data: { previousStatus: 'PENDING', newStatus: 'WAITING_PAYMENT_PROOF' },
-      ip,
-    },
-  })
-
-  return { success: true }
 }
 
 // ─── TASK-085: Atribuição de Motoboy ─────────────────────────────────────────

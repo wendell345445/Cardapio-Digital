@@ -43,7 +43,6 @@ const PAYMENT_LABELS: Record<string, string> = {
 }
 
 const ALL_STATUSES = [
-  'PENDING',
   'WAITING_PAYMENT_PROOF',
   'WAITING_CONFIRMATION',
   'CONFIRMED',

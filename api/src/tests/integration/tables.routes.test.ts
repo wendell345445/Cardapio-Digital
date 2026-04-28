@@ -92,7 +92,7 @@ const mockOrder = {
   id: 'order-1',
   storeId: STORE_ID,
   tableId: TABLE_ID,
-  status: 'PENDING',
+  status: 'WAITING_CONFIRMATION',
   items: mockOrderItems,
 }
 

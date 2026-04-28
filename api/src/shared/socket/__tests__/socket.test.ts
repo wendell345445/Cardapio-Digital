@@ -44,7 +44,7 @@ describe('emit helpers', () => {
 
   it('emit.orderNew sends order:new to store room', async () => {
     const emit = await setupSocket()
-    const order = { id: 'o2', status: 'PENDING' }
+    const order = { id: 'o2', status: 'WAITING_CONFIRMATION' }
     emit.orderNew('store-1', order)
     expect(mockTo).toHaveBeenCalledWith('store:store-1')
     expect(mockEmit).toHaveBeenCalledWith('order:new', order)

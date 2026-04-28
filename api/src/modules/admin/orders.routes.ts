@@ -13,7 +13,6 @@ import {
   getOrderController,
   getOrderReceiptController,
   listOrdersController,
-  sendWaitingPaymentController,
   updateOrderAddressController,
   updateOrderStatusController,
 } from './orders.controller'
@@ -32,7 +31,5 @@ router.get('/:id/receipt', getOrderReceiptController)
 router.patch('/:id/status', updateOrderStatusController)
 router.patch('/:id/address', updateOrderAddressController)
 router.patch('/:id/motoboy', assignMotoboyController)
-// TASK-123: Botão manual "Aguardando Pix"
-router.patch('/:id/send-waiting-payment', sendWaitingPaymentController)
 
 export default router

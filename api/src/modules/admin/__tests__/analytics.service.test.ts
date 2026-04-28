@@ -155,7 +155,7 @@ describe('getSalesSummary', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           storeId: STORE_ID,
-          status: { notIn: expect.arrayContaining(['CANCELLED', 'PENDING']) },
+          status: { notIn: expect.arrayContaining(['CANCELLED', 'WAITING_PAYMENT_PROOF']) },
         }),
       })
     )
@@ -338,7 +338,7 @@ describe('getPaymentBreakdown', () => {
 
     const call = (mockPrisma.order.findMany as jest.Mock).mock.calls[0][0]
     expect(call.where.status.notIn).toEqual(
-      expect.arrayContaining(['CANCELLED', 'PENDING', 'WAITING_PAYMENT_PROOF'])
+      expect.arrayContaining(['CANCELLED', 'WAITING_PAYMENT_PROOF'])
     )
   })
 })

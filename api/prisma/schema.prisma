@@ -246,7 +246,7 @@ model Order {
   clientWhatsapp String
   clientName     String?
   type           OrderType
-  status         OrderStatus   @default(PENDING)
+  status         OrderStatus   @default(WAITING_CONFIRMATION)
   paymentMethod  PaymentMethod
   deliveryFee    Float         @default(0)
   subtotal       Float
@@ -510,7 +510,6 @@ enum OrderType {
 }
 
 enum OrderStatus {
-  PENDING
   WAITING_PAYMENT_PROOF
   WAITING_CONFIRMATION
   CONFIRMED

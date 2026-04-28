@@ -6,7 +6,6 @@ import {
   fetchOrderReceipt,
   fetchOrders,
   printReceipt,
-  sendWaitingPayment,
   updateOrderAddress,
   updateOrderStatus,
   type ListOrdersParams,
@@ -78,13 +77,3 @@ export function usePrintOrder() {
   })
 }
 
-// TASK-124: Botão manual "Aguardando Pix"
-export function useSendWaitingPayment() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => sendWaitingPayment(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['orders'] })
-    },
-  })
-}

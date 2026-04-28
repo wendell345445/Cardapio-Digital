@@ -65,7 +65,7 @@ describe('useNewOrdersCount', () => {
 
     await waitFor(() => expect(result.current.count).toBe(3))
     expect(fetchOrdersMock).toHaveBeenCalledWith({
-      status: 'PENDING,WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION',
+      status: 'WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION',
       limit: 100,
     })
   })
@@ -89,7 +89,7 @@ describe('useNewOrdersCount', () => {
 
     fetchOrdersMock.mockResolvedValueOnce({ orders: [{ id: '1' }, { id: '2' }] })
     act(() => {
-      mockSocket.emit('order:new', { id: '2', status: 'PENDING' })
+      mockSocket.emit('order:new', { id: '2', status: 'WAITING_CONFIRMATION' })
     })
 
     await waitFor(() => expect(result.current.count).toBe(2))

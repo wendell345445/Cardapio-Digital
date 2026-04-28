@@ -2,7 +2,7 @@
 // the polling fallback below with a real WebSocket connection.
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, Clock, XCircle, CheckCheck } from 'lucide-react'
+import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, XCircle, CheckCheck } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -16,8 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 
-import { useOrders, usePrintOrder, useSendWaitingPayment } from '../hooks/useOrders'
-import { useNewOrdersCount } from '../hooks/useNewOrdersCount'
+import { useOrders, usePrintOrder } from '../hooks/useOrders'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -46,10 +45,8 @@ const PAYMENT_LABELS: Record<string, string> = {
 }
 
 const NEXT_STATUS: Partial<Record<string, string>> = {
-  PENDING: 'CONFIRMED',
   WAITING_PAYMENT_PROOF: 'CONFIRMED',
   WAITING_CONFIRMATION: 'CONFIRMED',
-  // CONFIRMED is handled by "→" button → PREPARING
   CONFIRMED: 'PREPARING',
   PREPARING: 'READY',
   READY: 'DISPATCHED',
@@ -58,7 +55,6 @@ const NEXT_STATUS: Partial<Record<string, string>> = {
 
 /** Backend-validated transitions — used to validate drag-and-drop */
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  PENDING: ['CONFIRMED', 'WAITING_CONFIRMATION', 'CANCELLED'],
   WAITING_PAYMENT_PROOF: ['CONFIRMED', 'CANCELLED'],
   WAITING_CONFIRMATION: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
@@ -71,10 +67,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 
 /**
  * Maps each Kanban column to the target status when an order is dropped there.
- * For columns that hold multiple statuses (e.g. "novos"), we pick the most common entry point.
+ * Coluna "novos" não recebe drops (não há transição válida de outras colunas pra ela).
  */
 const COLUMN_DROP_STATUS: Record<string, string> = {
-  novos: 'PENDING',
+  novos: 'WAITING_CONFIRMATION',
   confirmado: 'CONFIRMED',
   em_preparo: 'PREPARING',
   prontos: 'READY',
@@ -110,7 +106,9 @@ const ACTIVE_COLUMN_CONFIG = [
   {
     id: 'novos',
     label: 'Novos',
-    statuses: ['PENDING', 'WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION'],
+    // Pedidos nascem em WAITING_PAYMENT_PROOF (PIX) ou WAITING_CONFIRMATION (demais).
+    // Status PENDING foi descontinuado.
+    statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION'],
     color: 'border-yellow-200',
     headerColor: 'bg-yellow-50',
     icon: ClipboardList,
@@ -264,21 +262,15 @@ function OrderCard({
   readonly?: boolean
 }) {
   const nextStatus = NEXT_STATUS[order.status]
-  // A-053: bloqueios do fluxo PIX:
-  // - PENDING + PIX: deve usar "Enviar Aguardando Pix" (não pode pular para CONFIRMED)
-  // - DISPATCHED + PIX: deve usar "Pix Pago" (não pode ir para DELIVERED sem confirmar pgto)
-  const isPixPending = order.status === 'PENDING' && order.paymentMethod === 'PIX'
+  // A-053: DISPATCHED + PIX deve usar "Pix Pago" (não pode ir para DELIVERED sem confirmar pgto).
   const isPixDispatched = order.status === 'DISPATCHED' && order.paymentMethod === 'PIX'
   const canAdvanceDirect = !readonly && nextStatus
     && !(order.status === 'READY' && order.type === 'DELIVERY')
-    && !isPixPending && !isPixDispatched
+    && !isPixDispatched
 
-  // TASK-124/A-053: Botão "Enviar Aguardando Pix" — só DELIVERY + PENDING + PIX
-  const showWaitingPixButton = !readonly && isPixPending && order.type === 'DELIVERY'
   // A-053: Botão "Pix Pago" — só DISPATCHED + PIX (motoboy retornou)
   const showPixPagoButton = !readonly && isPixDispatched
 
-  const sendWaitingPaymentMutation = useSendWaitingPayment()
   const printOrderMutation = usePrintOrder()
 
   return (
@@ -374,18 +366,6 @@ function OrderCard({
             )}
           </div>
 
-          {/* TASK-124: Botão Aguardando Pix (somente delivery + PENDING) */}
-          {showWaitingPixButton && (
-            <button
-              onClick={() => sendWaitingPaymentMutation.mutate(order.id)}
-              disabled={sendWaitingPaymentMutation.isPending}
-              className="w-full flex items-center justify-center gap-1 rounded-md border border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 py-1 text-xs font-medium transition-colors disabled:opacity-50"
-              title="Enviar mensagem de Aguardando Pagamento Pix"
-            >
-              <Clock className="w-3 h-3" />
-              {sendWaitingPaymentMutation.isPending ? 'Enviando...' : 'Enviar Aguardando Pix'}
-            </button>
-          )}
           {/* A-053: Botão "Pix Pago" — motoboy retornou, confirmar pagamento */}
           {showPixPagoButton && (
             <button
@@ -549,10 +529,6 @@ export function OrdersPage() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  // Pedidos pendentes (sem filtro de data) — usado pelo banner "Pedidos Pendentes"
-  const { count: pendingCount, orders: pendingOrders } = useNewOrdersCount()
-  const [showPending, setShowPending] = useState(false)
-
   const { from: dateFrom, to: dateTo } = dayRangeISO(filterDate || undefined)
   const queryParams = {
     dateFrom,
@@ -644,13 +620,12 @@ export function OrdersPage() {
     // Validate transition
     if (!canTransition(order.status, targetStatus)) return
 
-    // A-053: bloqueios PIX via drag-and-drop
-    // - PENDING + PIX não pode pular para CONFIRMED (deve usar "Enviar Aguardando Pix")
-    // - DISPATCHED + PIX não pode ir para DELIVERED (deve usar "Pix Pago")
-    if (order.paymentMethod === 'PIX' && (
-      (order.status === 'PENDING' && targetStatus === 'CONFIRMED') ||
-      (order.status === 'DISPATCHED' && targetStatus === 'DELIVERED')
-    )) return
+    // A-053: DISPATCHED + PIX não pode ir para DELIVERED via drag (deve usar "Pix Pago")
+    if (
+      order.paymentMethod === 'PIX' &&
+      order.status === 'DISPATCHED' &&
+      targetStatus === 'DELIVERED'
+    ) return
 
     if (requiresMotoboyConfirmation(order, targetStatus)) {
       const confirmed = window.confirm(
@@ -781,41 +756,6 @@ export function OrdersPage() {
           </div>
         </div>
       </div>
-
-      {/* Banner pedidos pendentes */}
-      {pendingCount > 0 && (
-        <div className="px-6 pt-2 flex-shrink-0">
-          <button
-            onClick={() => setShowPending((v) => !v)}
-            className="w-full flex items-center gap-3 bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 hover:bg-amber-100 transition-colors text-left"
-          >
-            <Clock className="w-4 h-4 text-amber-600 flex-shrink-0" />
-            <span className="text-sm font-semibold text-amber-800 flex-1">
-              {pendingCount} {pendingCount === 1 ? 'pedido pendente' : 'pedidos pendentes'}
-            </span>
-            <span className={`text-xs text-amber-600 transition-transform ${showPending ? 'rotate-180' : ''}`}>
-              ▼
-            </span>
-          </button>
-
-          {showPending && (
-            <div className="mt-2 border border-amber-200 rounded-lg bg-white p-3">
-              <div className="flex flex-wrap gap-3">
-                {pendingOrders.map((order) => (
-                  <div key={order.id} className="w-64 flex-shrink-0">
-                    <OrderCard
-                      order={order}
-                      onViewDetail={(id) => setSelectedOrderId(id)}
-                      onAdvanceStatus={handleAdvanceStatus}
-                      advancing={advancingId === order.id}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Conteúdo principal */}
       <main className="flex-1 overflow-x-auto px-6 py-4">

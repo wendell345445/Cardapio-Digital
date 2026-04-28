@@ -6,7 +6,9 @@ import { fetchOrders } from '../services/orders.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import { useSocket } from '@/shared/hooks/useSocket'
 
-const NEW_ORDERS_STATUS = 'PENDING,WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION'
+// Badge da sidebar admin: pedidos que ainda estão na coluna "Novos" do Kanban
+// (aguardando comprovante de pagamento ou confirmação manual). PENDING foi descontinuado.
+const NEW_ORDERS_STATUS = 'WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION'
 const NEW_ORDERS_QUERY_KEY = ['orders', 'new-count'] as const
 
 // A-009: polling 30s como fallback + listener Socket.io (`order:new` / `order:status`)

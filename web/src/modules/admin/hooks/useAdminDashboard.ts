@@ -34,7 +34,7 @@ export function useAdminDashboard(period: Period = 'day') {
 
   const liveOrders = useQuery({
     queryKey: ['orders', 'live'],
-    queryFn: () => fetchOrders({ status: 'PENDING,WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION,CONFIRMED,PREPARING,READY,DISPATCHED', limit: 100 }),
+    queryFn: () => fetchOrders({ status: 'WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION,CONFIRMED,PREPARING,READY,DISPATCHED', limit: 100 }),
     staleTime: 30_000,
     refetchInterval: 30_000,
   })
