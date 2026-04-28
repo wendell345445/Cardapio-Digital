@@ -15,6 +15,14 @@ import {
   validateCouponPublic,
 } from '../services/orders.service'
 import { getCustomerSessionId } from '../lib/customerSession'
+import {
+  listAddresses,
+  saveAddress,
+  removeAddress,
+  type SavedAddress,
+} from '../lib/customerAddresses'
+
+import { AddressPicker } from './AddressPicker'
 
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { maskCep } from '@/shared/lib/masks'
@@ -182,6 +190,18 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [deliveryFeeError, setDeliveryFeeError] = useState('')
   const errorRef = useRef<HTMLDivElement>(null)
 
+  // TASK-130 (parte 3): endereços salvos no navegador.
+  // 'saved' = picker visível, usa endereço pré-selecionado no submit.
+  // 'new'   = form clássico aparece; após submit, vira mais um endereço salvo.
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>(() => listAddresses())
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    () => listAddresses()[0]?.id ?? null
+  )
+  const [addressMode, setAddressMode] = useState<'saved' | 'new'>(() =>
+    listAddresses().length > 0 ? 'saved' : 'new'
+  )
+  const selectedAddress = savedAddresses.find((a) => a.id === selectedAddressId) ?? null
+
   useEffect(() => {
     if (mutation.error && errorRef.current) {
       errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -284,10 +304,9 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   // Calcula taxa quando o endereço essencial está preenchido (debounce 600ms).
   // Precisa de rua + número pra geocoding resolver bem; cidade/bairro/CEP ajudam.
+  // No modo 'saved', o effect abaixo cuida disso; aqui só processa o form.
   useEffect(() => {
-    if (orderType !== 'DELIVERY') {
-      setDeliveryFee(0)
-      setDeliveryFeeError('')
+    if (orderType !== 'DELIVERY' || addressMode !== 'new') {
       return
     }
     const streetT = (street ?? '').trim()
@@ -308,7 +327,40 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       })
     }, 600)
     return () => clearTimeout(timer)
-  }, [orderType, zipCode, street, streetNumber, neighborhood, city, stateUf, lookupDeliveryFee])
+  }, [orderType, addressMode, zipCode, street, streetNumber, neighborhood, city, stateUf, lookupDeliveryFee])
+
+  // TASK-130 (parte 3): taxa pro endereço salvo selecionado. Sem debounce
+  // — endereço já é dado consolidado, calcula imediatamente quando muda.
+  useEffect(() => {
+    if (orderType !== 'DELIVERY') {
+      setDeliveryFee(0)
+      setDeliveryFeeError('')
+      return
+    }
+    if (addressMode !== 'saved' || !selectedAddress) return
+    lookupDeliveryFee({
+      cep: selectedAddress.zipCode,
+      street: selectedAddress.street,
+      number: selectedAddress.number,
+      neighborhood: selectedAddress.neighborhood,
+      city: selectedAddress.city,
+      state: selectedAddress.state,
+    })
+  }, [orderType, addressMode, selectedAddress, lookupDeliveryFee])
+
+  // Sincroniza form com endereço salvo selecionado — necessário pra superRefine
+  // do Zod (que exige street/number/etc preenchidos quando type=DELIVERY) não
+  // bloquear o submit no modo 'saved'.
+  useEffect(() => {
+    if (addressMode !== 'saved' || !selectedAddress) return
+    setValue('zipCode', selectedAddress.zipCode ?? '', { shouldValidate: false })
+    setValue('street', selectedAddress.street, { shouldValidate: true })
+    setValue('number', selectedAddress.number, { shouldValidate: true })
+    setValue('complement', selectedAddress.complement ?? '', { shouldValidate: false })
+    setValue('neighborhood', selectedAddress.neighborhood, { shouldValidate: true })
+    setValue('city', selectedAddress.city, { shouldValidate: true })
+    setValue('state', selectedAddress.state ?? '', { shouldValidate: false })
+  }, [addressMode, selectedAddress, setValue])
 
   async function handleCepBlur() {
     const digits = (zipCode ?? '').replace(/\D/g, '')
@@ -325,6 +377,31 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const onSubmit = async (form: CheckoutForm) => {
     setCouponError('')
+    // TASK-130 (parte 3): se usuário escolheu um endereço salvo, manda ele;
+    // senão usa o que está no form e persiste após sucesso.
+    const useSaved = form.type === 'DELIVERY' && addressMode === 'saved' && selectedAddress
+    const orderAddress =
+      form.type !== 'DELIVERY'
+        ? undefined
+        : useSaved
+          ? {
+              zipCode: selectedAddress.zipCode,
+              street: selectedAddress.street,
+              number: selectedAddress.number,
+              complement: selectedAddress.complement,
+              neighborhood: selectedAddress.neighborhood,
+              city: selectedAddress.city,
+              state: selectedAddress.state,
+            }
+          : {
+              zipCode: form.zipCode,
+              street: form.street!,
+              number: form.number!,
+              complement: form.complement,
+              neighborhood: form.neighborhood!,
+              city: form.city!,
+              state: form.state,
+            }
     try {
       const result = await mutation.mutateAsync({
         clientName: form.clientName,
@@ -333,15 +410,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         paymentMethod: form.paymentMethod,
         notes: form.notes,
         couponCode: form.couponCode ? form.couponCode.trim().toUpperCase() || undefined : undefined,
-        address: form.type === 'DELIVERY' ? {
-          zipCode: form.zipCode,
-          street: form.street!,
-          number: form.number!,
-          complement: form.complement,
-          neighborhood: form.neighborhood!,
-          city: form.city!,
-          state: form.state,
-        } : undefined,
+        address: orderAddress,
         tableNumber: form.type === 'TABLE' && tableNumber ? tableNumber : undefined,
         items: items.map(i => ({
           productId: i.productId,
@@ -351,6 +420,19 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           additionalIds: i.additionals.map(a => a.id),
         })),
       })
+      // Persiste endereço usado: refresca lastUsedAt do salvo, ou cria novo
+      // a partir do form. Dedup é responsabilidade do helper.
+      if (orderAddress) {
+        saveAddress({
+          zipCode: orderAddress.zipCode,
+          street: orderAddress.street,
+          number: orderAddress.number,
+          complement: orderAddress.complement,
+          neighborhood: orderAddress.neighborhood,
+          city: orderAddress.city,
+          state: orderAddress.state,
+        })
+      }
       clearCart()
       onClose()
       navigate(`/pedido/${result.token}`, { state: result })
@@ -562,97 +644,139 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   Endereço
                 </h3>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="CEP"
-                    inputMode="numeric"
-                    value={zipCode ?? ''}
-                    onChange={(e) => setValue('zipCode', maskCep(e.target.value))}
-                    onBlur={handleCepBlur}
-                    maxLength={9}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 16 }}
-                  />
-                  {cepLoading && (
-                    <p className="text-gray-400 text-xs mt-1">Buscando endereço…</p>
-                  )}
-                  {cepError && !cepLoading && (
-                    <p className="text-red-500 text-xs mt-1">{cepError}</p>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Rua"
-                    {...register('street')}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 16 }}
-                  />
-                  {errors.street && (
-                    <p className="text-red-500 text-xs mt-1">{errors.street.message}</p>
-                  )}
-                </div>
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Número *"
-                    {...register('number')}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 16 }}
-                  />
-                  {errors.number && (
-                    <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  placeholder="Complemento (opcional)"
-                  {...register('complement')}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                  style={{ fontSize: 16 }}
-                />
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Bairro"
-                    {...register('neighborhood')}
-                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                      deliveryFeeError ? 'border-red-400' : 'border-gray-200'
-                    }`}
-                    style={{ fontSize: 16 }}
-                  />
-                  {deliveryFeeLoading && (
-                    <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
-                  )}
-                  {deliveryFeeError && (
-                    <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
-                  )}
-                  {errors.neighborhood && !deliveryFeeError && (
-                    <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
+
+                {addressMode === 'saved' && savedAddresses.length > 0 ? (
+                  <>
+                    <AddressPicker
+                      addresses={savedAddresses}
+                      selectedId={selectedAddressId}
+                      onSelect={setSelectedAddressId}
+                      onUseNew={() => setAddressMode('new')}
+                      onRemove={(id) => {
+                        removeAddress(id)
+                        const next = listAddresses()
+                        setSavedAddresses(next)
+                        if (selectedAddressId === id) {
+                          if (next.length > 0) {
+                            setSelectedAddressId(next[0].id)
+                          } else {
+                            setSelectedAddressId(null)
+                            setAddressMode('new')
+                          }
+                        }
+                      }}
+                    />
+                    {deliveryFeeLoading && (
+                      <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
+                    )}
+                    {deliveryFeeError && (
+                      <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {savedAddresses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setAddressMode('saved')}
+                        className="text-xs text-red-500 hover:text-red-600"
+                      >
+                        ← Usar endereço salvo
+                      </button>
+                    )}
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="CEP"
+                        inputMode="numeric"
+                        value={zipCode ?? ''}
+                        onChange={(e) => setValue('zipCode', maskCep(e.target.value))}
+                        onBlur={handleCepBlur}
+                        maxLength={9}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                        style={{ fontSize: 16 }}
+                      />
+                      {cepLoading && (
+                        <p className="text-gray-400 text-xs mt-1">Buscando endereço…</p>
+                      )}
+                      {cepError && !cepLoading && (
+                        <p className="text-red-500 text-xs mt-1">{cepError}</p>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Rua"
+                        {...register('street')}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                        style={{ fontSize: 16 }}
+                      />
+                      {errors.street && (
+                        <p className="text-red-500 text-xs mt-1">{errors.street.message}</p>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Número *"
+                        {...register('number')}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                        style={{ fontSize: 16 }}
+                      />
+                      {errors.number && (
+                        <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>
+                      )}
+                    </div>
                     <input
                       type="text"
-                      placeholder="Cidade"
-                      {...register('city')}
+                      placeholder="Complemento (opcional)"
+                      {...register('complement')}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                       style={{ fontSize: 16 }}
                     />
-                    {errors.city && (
-                      <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Estado"
-                    {...register('state')}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 16 }}
-                  />
-                </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Bairro"
+                        {...register('neighborhood')}
+                        className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                          deliveryFeeError ? 'border-red-400' : 'border-gray-200'
+                        }`}
+                        style={{ fontSize: 16 }}
+                      />
+                      {deliveryFeeLoading && (
+                        <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
+                      )}
+                      {deliveryFeeError && (
+                        <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                      )}
+                      {errors.neighborhood && !deliveryFeeError && (
+                        <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <input
+                          type="text"
+                          placeholder="Cidade"
+                          {...register('city')}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                          style={{ fontSize: 16 }}
+                        />
+                        {errors.city && (
+                          <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Estado"
+                        {...register('state')}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                        style={{ fontSize: 16 }}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
