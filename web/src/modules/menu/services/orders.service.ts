@@ -5,6 +5,12 @@ const menuApi = createPublicApi()
 export interface OrderAddress {
   zipCode?: string
   street: string; number: string; complement?: string; neighborhood: string; city: string; state?: string
+  /**
+   * Cliente colou lat/lng do Google Maps quando o Google Geocoding não achou
+   * o endereço (ex: loteamento novo, cidade pequena). Backend confia, pula
+   * geocoding e calcula taxa direto contra a loja.
+   */
+  manualCoordinates?: { latitude: number; longitude: number }
 }
 
 export interface OrderItem {

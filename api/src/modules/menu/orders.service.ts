@@ -8,7 +8,7 @@ import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
 
-import { geocodeAddress } from './geocoding.service'
+import { geocodeAddress, primeGeocodeCacheFromManual } from './geocoding.service'
 import { generatePix } from './pix.service'
 import type { PixData } from './pix.service'
 import type { CreateOrderInput } from './orders.schema'
@@ -220,24 +220,46 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     couponId = coupon.id
   }
 
-  // 6. Taxa de entrega: geocodifica o endereço e calcula distância contra a loja.
-  // Se a loja não tiver coordenadas ou faixas configuradas, fee fica 0 (grátis).
-  // Erro de geocoding/fora-de-área é propagado como 422.
+  // 6. Taxa de entrega: descobre lat/lng do endereço e calcula distância
+  // contra a loja. Se a loja não tiver coordenadas ou faixas configuradas,
+  // fee fica 0 (grátis). Erro de geocoding/fora-de-área é propagado como 422.
+  //
+  // Origem das coordenadas:
+  //   (a) `manualCoordinates` no payload — cliente colou lat/lng do Maps
+  //       quando Google não achou o endereço. Backend confia, sem geocode.
+  //       Também grava no cache Redis 7d (mesmo que Google: próxima vez que
+  //       alguém digitar o mesmo endereço, sai do cache sem custo).
+  //   (b) Google Geocoding (cacheado em Redis 7d) — caminho normal.
   let deliveryFee = 0
   if (data.type === 'DELIVERY' && data.address) {
-    const coords = await geocodeAddress({
-      cep: data.address.zipCode,
-      street: data.address.street,
-      number: data.address.number,
-      neighborhood: data.address.neighborhood,
-      city: data.address.city,
-      state: data.address.state ?? undefined,
-    })
-    try {
-      const result = await calculateDeliveryFee(store.id, {
-        latitude: coords.latitude,
-        longitude: coords.longitude,
+    let coords: { latitude: number; longitude: number }
+    if (data.address.manualCoordinates) {
+      coords = data.address.manualCoordinates
+      await primeGeocodeCacheFromManual(
+        {
+          cep: data.address.zipCode,
+          street: data.address.street,
+          number: data.address.number,
+          neighborhood: data.address.neighborhood,
+          city: data.address.city,
+          state: data.address.state ?? undefined,
+        },
+        coords
+      )
+    } else {
+      const result = await geocodeAddress({
+        cep: data.address.zipCode,
+        street: data.address.street,
+        number: data.address.number,
+        neighborhood: data.address.neighborhood,
+        city: data.address.city,
+        state: data.address.state ?? undefined,
       })
+      coords = { latitude: result.latitude, longitude: result.longitude }
+    }
+
+    try {
+      const result = await calculateDeliveryFee(store.id, coords)
       deliveryFee = result.fee
     } catch (err) {
       // Se loja não tem coords/faixas, fee = 0. Erros de "fora da área" propagam.

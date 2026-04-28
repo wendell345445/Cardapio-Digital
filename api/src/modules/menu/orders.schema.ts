@@ -32,6 +32,15 @@ export const createOrderSchema = z.object({
       neighborhood: z.string().min(1),
       city: z.string().min(1),
       state: z.string().optional(),
+      // Cliente preenche manualmente quando o Google não acha o endereço:
+      // copia lat/lng do Google Maps. Backend confia, pula geocoding e usa
+      // direto pra calcular taxa.
+      manualCoordinates: z
+        .object({
+          latitude: z.number().min(-90).max(90),
+          longitude: z.number().min(-180).max(180),
+        })
+        .optional(),
     })
     .optional(),
   scheduledFor: z.coerce.date().optional(),

@@ -1,26 +1,33 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 import { fetchCep } from '../useViaCep'
 
-describe('fetchCep', () => {
+import { api } from '@/shared/lib/api'
+
+vi.mock('@/shared/lib/api', () => ({
+  api: { post: vi.fn() },
+}))
+
+const mockedPost = api.post as unknown as ReturnType<typeof vi.fn>
+
+describe('fetchCep (backend /cep/lookup)', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    mockedPost.mockReset()
   })
 
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
-  it('returns address fields from a successful ViaCEP response', async () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        cep: '88010-000',
-        logradouro: 'Praça XV de Novembro',
-        bairro: 'Centro',
-        localidade: 'Florianópolis',
-        uf: 'SC',
-      }),
+  it('retorna campos do backend quando lookup bem-sucedido', async () => {
+    mockedPost.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          cep: '88010000',
+          street: 'Praça XV de Novembro',
+          neighborhood: 'Centro',
+          city: 'Florianópolis',
+          state: 'SC',
+          source: 'google',
+        },
+      },
     })
 
     const result = await fetchCep('88010000')
@@ -31,40 +38,33 @@ describe('fetchCep', () => {
       city: 'Florianópolis',
       state: 'SC',
     })
-    expect(global.fetch).toHaveBeenCalledWith('https://viacep.com.br/ws/88010000/json/')
+    expect(mockedPost).toHaveBeenCalledWith('/cep/lookup', { cep: '88010000' })
   })
 
-  it('strips non-digit characters from the input CEP before requesting', async () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        logradouro: 'X',
-        bairro: 'Y',
-        localidade: 'Z',
-        uf: 'SP',
-      }),
+  it('normaliza CEP removendo caracteres não-dígitos antes de enviar', async () => {
+    mockedPost.mockResolvedValue({
+      data: { success: true, data: { cep: '01310100', street: 'X', neighborhood: 'Y', city: 'Z', state: 'SP', source: 'google' } },
     })
 
     await fetchCep('01310-100')
-    expect(global.fetch).toHaveBeenCalledWith('https://viacep.com.br/ws/01310100/json/')
+    expect(mockedPost).toHaveBeenCalledWith('/cep/lookup', { cep: '01310100' })
   })
 
-  it('throws when CEP has fewer than 8 digits', async () => {
+  it('lança quando CEP tem menos de 8 dígitos (validação local, sem chamar backend)', async () => {
     await expect(fetchCep('123')).rejects.toThrow('CEP inválido')
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(mockedPost).not.toHaveBeenCalled()
   })
 
-  it('throws when ViaCEP returns erro: true', async () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
-      ok: true,
-      json: async () => ({ erro: true }),
+  it('lança quando backend retorna 422 (CEP não encontrado)', async () => {
+    mockedPost.mockRejectedValue({
+      response: { status: 422, data: { success: false, error: 'CEP não encontrado' } },
     })
 
     await expect(fetchCep('00000000')).rejects.toThrow('CEP não encontrado')
   })
 
-  it('throws when fetch returns a non-ok response', async () => {
-    ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, status: 500 })
-    await expect(fetchCep('88010000')).rejects.toThrow('Falha ao consultar ViaCEP')
+  it('lança "Falha ao consultar CEP" quando backend está fora do ar', async () => {
+    mockedPost.mockRejectedValue(new Error('Network Error'))
+    await expect(fetchCep('88010000')).rejects.toThrow('Falha ao consultar CEP')
   })
 })

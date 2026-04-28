@@ -16,6 +16,7 @@ import analyticsRouter from './analytics.routes'
 import cashflowRouter from './cashflow.routes'
 import additionalsRouter from './additionals.routes'
 import conversationsRouter from './conversations.routes'
+import systemRouter from './system.routes'
 
 export const adminRouter = Router()
 
@@ -40,3 +41,5 @@ adminRouter.use('/cashflows', cashflowRouter)
 adminRouter.use('/additionals', additionalsRouter)
 // TASK-103/Epic 10: Conversas WhatsApp
 adminRouter.use('/whatsapp/conversations', conversationsRouter)
+// TASK-130: System (cota Google Geocoding etc.)
+adminRouter.use('/system', systemRouter)

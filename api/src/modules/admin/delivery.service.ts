@@ -79,10 +79,10 @@ export async function setStoreCoordinates(
   // Resolve o addressLabel em 3 cenários:
   // 1. Cliente mandou string → usa o que veio (fluxo "busca por endereço")
   // 2. Cliente mandou null → apaga o label (reset explícito)
-  // 3. Cliente não mandou (undefined) → tenta reverse-geocode.
+  // 3. Cliente não mandou (undefined) → tenta reverse-geocode no Google.
   //    Garante que coordenadas inseridas manualmente também ganhem endereço legível
-  //    para auditoria/conformidade. Falha silenciosa: se Nominatim estiver fora,
-  //    salva sem label — coords manuais continuam sendo aceitas.
+  //    para auditoria/conformidade. Falha silenciosa: se Google estiver fora ou
+  //    quota estourada, salva sem label — coords manuais continuam sendo aceitas.
   let addressLabel: string | null | undefined = input.addressLabel
   if (addressLabel === undefined) {
     try {

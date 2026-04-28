@@ -3,6 +3,7 @@ import { useStore } from '../hooks/useStore'
 
 import { AdminSidebar } from './AdminSidebar'
 import { AdminGuard } from './AdminGuard'
+import { GeocodingQuotaBanner } from './GeocodingQuotaBanner'
 import { SuspendedScreen } from './SuspendedScreen'
 import { WhatsAppOfflineAlert } from './WhatsAppOfflineAlert'
 
@@ -17,6 +18,7 @@ function AdminLayoutInner({ children }: AdminLayoutProps) {
     <div className="flex h-screen overflow-hidden">
       <AdminSidebar newOrdersCount={count} />
       <main className="flex-1 overflow-y-auto bg-gray-50 ml-60">
+        <GeocodingQuotaBanner />
         <WhatsAppOfflineAlert />
         {children}
       </main>
