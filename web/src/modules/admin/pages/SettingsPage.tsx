@@ -10,6 +10,7 @@ import {
   useUpdateWhatsapp,
 } from '../hooks/useStore'
 
+import { PasswordInput } from '@/shared/components/PasswordInput'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 type Tab = 'dados' | 'pagamentos' | 'assinatura'
@@ -226,8 +227,7 @@ function TabPagamentos() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Confirmar senha
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={phonePassword}
               onChange={(e) => setPhonePassword(e.target.value)}
               required
@@ -284,8 +284,7 @@ function TabPagamentos() {
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Confirmar senha
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={pixPassword}
               onChange={(e) => setPixPassword(e.target.value)}
               required

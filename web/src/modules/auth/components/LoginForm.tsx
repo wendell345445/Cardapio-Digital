@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Loader2 } from 'lucide-react'
 
+import { PasswordInput } from '../../../shared/components/PasswordInput'
 import { useAuthConfig } from '../hooks/useAuthConfig'
 import { useLogin } from '../hooks/useLogin'
 import type { LoginScope } from '../services/auth.service'
@@ -106,9 +107,8 @@ export function LoginForm({ onSuccess, scope = 'admin' }: LoginFormProps) {
           >
             Senha
           </label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="current-password"
             aria-describedby={errors.password ? 'password-error' : undefined}
             aria-invalid={errors.password ? 'true' : 'false'}

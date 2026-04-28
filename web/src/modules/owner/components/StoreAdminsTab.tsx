@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2, UserPlus } from 'lucide-react'
 
+import { PasswordInput } from '@/shared/components/PasswordInput'
 import { api } from '@/shared/lib/api'
 
 // ─── TASK-0910: Store Admins Tab ─────────────────────────────────────────────
@@ -124,8 +125,7 @@ export function StoreAdminsTab({ storeId }: StoreAdminsTabProps) {
               required
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <input
-              type="password"
+            <PasswordInput
               placeholder="Senha temporária (min. 6 caracteres)"
               value={form.password}
               onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}

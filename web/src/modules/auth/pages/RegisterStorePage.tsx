@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CheckCircle2, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
+import { PasswordInput } from '../../../shared/components/PasswordInput'
 import { maskCep, maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
 import { BENEFITS } from '../constants/benefits'
 import { BR_STATES } from '../constants/location'
@@ -83,9 +84,6 @@ type RegisterStoreFormValues = z.infer<typeof registerStoreFormSchema>
 export function RegisterStorePage() {
   const navigate = useNavigate()
   const { lookup: lookupCep } = useViaCep()
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-
   const {
     register,
     handleSubmit,
@@ -321,47 +319,23 @@ export function RegisterStorePage() {
               {/* Linha 3: Senha + Confirmar senha */}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <Field label="Senha" htmlFor="password" error={errors.password?.message}>
-                  <div className="relative">
-                    <input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('password')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="password"
+                    autoComplete="new-password"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('password')}
+                  />
                 </Field>
 
                 <Field label="Confirmar senha" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
-                  <div className="relative">
-                    <input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('confirmPassword')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword((v) => !v)}
-                      aria-label={showConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      tabIndex={-1}
-                    >
-                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <PasswordInput
+                    id="confirmPassword"
+                    autoComplete="new-password"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('confirmPassword')}
+                  />
                 </Field>
               </div>
 

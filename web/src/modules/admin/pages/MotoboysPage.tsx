@@ -9,6 +9,8 @@ import {
 } from '../hooks/useMotoboys'
 import type { Motoboy } from '../services/motoboys.service'
 
+import { PasswordInput } from '@/shared/components/PasswordInput'
+
 type MotoboyToast = { message: string; type: 'success' | 'error' } | null
 
 function MotoboyToastView({ toast, onClose }: { toast: MotoboyToast; onClose: () => void }) {
@@ -114,8 +116,7 @@ function EditMotoboyModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Nova senha <span className="text-xs text-gray-400">(deixe em branco para manter)</span>
             </label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               minLength={6}
@@ -247,8 +248,7 @@ export function MotoboysPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Senha <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required

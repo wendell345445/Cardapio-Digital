@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 
+import { PasswordInput } from '../../../shared/components/PasswordInput'
 import { reauth } from '../services/auth.service'
 
 interface ReauthModalProps {
@@ -99,11 +100,10 @@ export function ReauthModal({
             <label htmlFor="reauth-confirmation" className="block text-sm font-medium text-gray-700 mb-1">
               Senha
             </label>
-            <input
+            <PasswordInput
               ref={inputRef}
               id="reauth-confirmation"
               name="reauth-confirmation"
-              type="password"
               autoComplete="one-time-code"
               data-lpignore="true"
               data-1p-ignore="true"
