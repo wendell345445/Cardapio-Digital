@@ -45,6 +45,27 @@ function formatAddress(address: Record<string, string>): string {
   return parts.join(', ')
 }
 
+function describePaymentForMotoboy(method: string): string {
+  switch (method) {
+    case 'PIX':
+      return 'Pix — já pago'
+    case 'CREDIT_CARD':
+      return 'Cartão online — já pago'
+    case 'CASH_ON_DELIVERY':
+      return 'Dinheiro — cobrar na entrega'
+    case 'CREDIT_ON_DELIVERY':
+      return 'Crédito na maquininha — cobrar'
+    case 'DEBIT_ON_DELIVERY':
+      return 'Débito na maquininha — cobrar'
+    case 'PIX_ON_DELIVERY':
+      return 'Pix na entrega — cobrar'
+    case 'PENDING':
+      return 'Pagamento pendente'
+    default:
+      return method
+  }
+}
+
 function formatItems(items: OrderData['items']): string {
   return items.map(item => {
     let line = `• ${item.quantity}x ${item.productName}`
@@ -178,7 +199,7 @@ export async function sendMotoboyAssignedMessage(
 
   const clienteStr = `${order.clientName ?? 'N/A'} | ${order.clientWhatsapp}`
   const itemsStr = formatItems(order.items)
-  const paymentLabel = order.paymentMethod === 'PIX' ? 'Pix — já pago' : 'Cobrar na entrega'
+  const paymentLabel = describePaymentForMotoboy(order.paymentMethod)
   const totalStr = `${formatMoney(order.total)} (${paymentLabel})`
 
   const templateText = await getTemplate(storeId, 'MOTOBOY_ASSIGNED')
