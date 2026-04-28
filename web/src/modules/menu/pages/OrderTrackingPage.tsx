@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check, MessageCircle, ArrowLeft, ListOrdered } from 'lucide-react'
+import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check, MessageCircle, ArrowLeft, ListOrdered, XCircle } from 'lucide-react'
 
 import { createPublicApi } from '../../../shared/lib/publicApi'
 
@@ -241,8 +241,23 @@ export function OrderTrackingPage() {
           </div>
         </section>
 
-        {/* TASK-130: opt-in para receber atualizações por WhatsApp */}
-        <OptInCard order={order} />
+        {/* Pedido cancelado: mostra motivo no lugar do opt-in WhatsApp */}
+        {order.status === 'CANCELLED' ? (
+          <section className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+            <XCircle size={20} className="text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-semibold text-red-800">Pedido cancelado</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                {order.cancellationReason
+                  ? `Motivo: ${order.cancellationReason}`
+                  : 'Este pedido foi cancelado pela loja.'}
+              </p>
+            </div>
+          </section>
+        ) : (
+          /* TASK-130: opt-in para receber atualizações por WhatsApp */
+          <OptInCard order={order} />
+        )}
 
         {/* TABLE: navegação para comanda e menu */}
         {order.type === 'TABLE' && (

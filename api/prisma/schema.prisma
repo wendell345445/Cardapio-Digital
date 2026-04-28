@@ -274,6 +274,7 @@ model Order {
   dispatchedAt   DateTime?
   deliveredAt    DateTime?
   cancelledAt          DateTime?
+  cancellationReason   String?
   deliveryIssueReason  String?
   notifyOnStatusChange Boolean       @default(false)
   customerSessionId    String?

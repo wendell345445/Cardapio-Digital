@@ -205,7 +205,10 @@ export async function updateOrderStatus(
   if (newStatus === 'READY') timestamps.preparedAt = now
   if (newStatus === 'DISPATCHED') timestamps.dispatchedAt = now
   if (newStatus === 'DELIVERED') timestamps.deliveredAt = now
-  if (newStatus === 'CANCELLED') timestamps.cancelledAt = now
+  if (newStatus === 'CANCELLED') {
+    timestamps.cancelledAt = now
+    if (input.cancelReason) timestamps.cancellationReason = input.cancelReason
+  }
 
   // Quando admin aprova comprovante Pix (WAITING_PAYMENT_PROOF → CONFIRMED),
   // já registra que o pagamento foi recebido por esse admin.
