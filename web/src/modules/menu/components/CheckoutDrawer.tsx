@@ -40,7 +40,6 @@ function fmt(v: number) {
 
 const PAYMENT_METHODS = [
   'PIX',
-  'CREDIT_CARD',
   'CASH_ON_DELIVERY',
   'CREDIT_ON_DELIVERY',
   'DEBIT_ON_DELIVERY',
@@ -48,7 +47,7 @@ const PAYMENT_METHODS = [
   'PENDING',
 ] as const
 type PaymentMethod = (typeof PAYMENT_METHODS)[number]
-type PaymentGroup = 'PIX' | 'CREDIT_CARD' | 'ON_DELIVERY'
+type PaymentGroup = 'PIX' | 'ON_DELIVERY'
 
 const ON_DELIVERY_METHODS: PaymentMethod[] = [
   'CASH_ON_DELIVERY',
@@ -59,7 +58,6 @@ const ON_DELIVERY_METHODS: PaymentMethod[] = [
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   PIX: 'Pix (online)',
-  CREDIT_CARD: 'Cartão de Crédito (online)',
   CASH_ON_DELIVERY: 'Dinheiro na entrega',
   CREDIT_ON_DELIVERY: 'Cartão de Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Cartão de Débito na entrega',
@@ -108,7 +106,6 @@ function extractOrderErrorMessages(err: unknown): string[] {
 function paymentGroupFor(m: PaymentMethod | undefined): PaymentGroup | null {
   if (!m) return null
   if (m === 'PIX') return 'PIX'
-  if (m === 'CREDIT_CARD') return 'CREDIT_CARD'
   return 'ON_DELIVERY'
 }
 
@@ -248,7 +245,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   function selectPaymentGroup(group: PaymentGroup) {
     if (group === 'PIX') setValue('paymentMethod', 'PIX')
-    else if (group === 'CREDIT_CARD') setValue('paymentMethod', 'CREDIT_CARD')
     else setValue('paymentMethod', 'CREDIT_ON_DELIVERY')
   }
 
@@ -870,20 +866,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </button>
               )}
 
-              {store?.allowCreditCard && (
-                <button
-                  type="button"
-                  onClick={() => selectPaymentGroup('CREDIT_CARD')}
-                  className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 text-sm text-left transition-colors ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}
-                >
-                  <span className={`w-4 h-4 rounded-full border-2 mt-0.5 ${paymentGroup === 'CREDIT_CARD' ? 'border-red-500 bg-red-500' : 'border-gray-300'}`} />
-                  <span className="flex-1">
-                    <span className="font-medium block">💳 Cartão de Crédito (online)</span>
-                    <span className="text-xs text-gray-400">Integração com gateway em breve</span>
-                  </span>
-                </button>
-              )}
-
               {store?.allowCashOnDelivery && orderType === 'DELIVERY' && (
                 <div className={`rounded-lg border-2 transition-colors ${paymentGroup === 'ON_DELIVERY' ? 'border-red-500 bg-red-50' : 'border-gray-200'}`}>
                   <button
@@ -926,12 +908,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <div className="p-3 bg-yellow-50 rounded-lg text-xs text-yellow-800">
                   <p className="font-semibold">Chave Pix ({store.pixKeyType}): {store.pixKey}</p>
                   <p className="mt-0.5">Envie o comprovante via WhatsApp após o pedido.</p>
-                </div>
-              )}
-              {paymentMethod === 'CREDIT_CARD' && (
-                <div className="p-3 bg-blue-50 rounded-lg text-xs text-blue-800">
-                  O pagamento online por cartão ainda não está ativo. A loja confirmará o
-                  pagamento por WhatsApp após o pedido.
                 </div>
               )}
             </div>

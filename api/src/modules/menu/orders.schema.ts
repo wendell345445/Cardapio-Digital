@@ -11,7 +11,6 @@ export const createOrderSchema = z.object({
   type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum([
     'PIX',
-    'CREDIT_CARD',
     'CASH_ON_DELIVERY',
     'CREDIT_ON_DELIVERY',
     'DEBIT_ON_DELIVERY',

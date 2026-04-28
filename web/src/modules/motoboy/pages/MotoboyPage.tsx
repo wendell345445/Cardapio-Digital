@@ -207,15 +207,13 @@ function formatMoney(value: number): string {
 }
 
 // M-010: rótulo do pagamento com status (pago/cobrar)
-// PIX e CREDIT_CARD = pago online (admin já confirmou para liberar DISPATCHED).
+// PIX = pago online (admin já confirmou para liberar DISPATCHED).
 // *_ON_DELIVERY = cobrar na entrega.
 // PENDING = forma ainda não definida — admin precisa informar.
 function describePayment(method: string): { label: string; tone: 'paid' | 'cash' | 'pending' } {
   switch (method) {
     case 'PIX':
       return { label: '💳 Pix — pago', tone: 'paid' }
-    case 'CREDIT_CARD':
-      return { label: '💳 Cartão online — pago', tone: 'paid' }
     case 'CASH_ON_DELIVERY':
       return { label: '💵 Dinheiro — cobrar na entrega', tone: 'cash' }
     case 'CREDIT_ON_DELIVERY':

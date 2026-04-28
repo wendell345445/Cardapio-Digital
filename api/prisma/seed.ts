@@ -100,7 +100,6 @@ async function main() {
     update: {
       allowPickup: true,
       allowCashOnDelivery: true,
-      allowCreditCard: true,
       pixKey: 'maria@pizzariadonamaria.com',
       pixKeyType: 'EMAIL',
     },
@@ -113,7 +112,6 @@ async function main() {
       status: StoreStatus.ACTIVE,
       allowPickup: true,
       allowCashOnDelivery: true,
-      allowCreditCard: true,
       pixKey: 'maria@pizzariadonamaria.com',
       pixKeyType: 'EMAIL',
       features: {

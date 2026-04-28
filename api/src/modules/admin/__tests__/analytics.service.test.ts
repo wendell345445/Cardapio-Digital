@@ -303,13 +303,13 @@ describe('getPaymentBreakdown', () => {
     ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
       makeOrder({ total: 30, paymentMethod: 'CASH_ON_DELIVERY' }),
       makeOrder({ total: 200, paymentMethod: 'PIX' }),
-      makeOrder({ total: 90, paymentMethod: 'CREDIT_CARD' }),
+      makeOrder({ total: 90, paymentMethod: 'CREDIT_ON_DELIVERY' }),
     ])
 
     const result = await getPaymentBreakdown(STORE_ID, { period: 'week' })
 
     expect(result[0].method).toBe('PIX')
-    expect(result[1].method).toBe('CREDIT_CARD')
+    expect(result[1].method).toBe('CREDIT_ON_DELIVERY')
     expect(result[2].method).toBe('CASH_ON_DELIVERY')
   })
 

@@ -89,9 +89,6 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.type === 'DELIVERY' && !store.allowCashOnDelivery && isOnDeliveryPayment) {
     throw new AppError('Pagamento na entrega não permitido nesta loja', 422)
   }
-  if (data.paymentMethod === 'CREDIT_CARD' && !store.allowCreditCard) {
-    throw new AppError('Pagamento em cartão de crédito não permitido nesta loja', 422)
-  }
   if (data.paymentMethod === 'PENDING' && data.type !== 'TABLE') {
     throw new AppError('Pagamento pendente só é permitido para pedidos de mesa', 422)
   }

@@ -300,7 +300,7 @@ describe('getCustomerOrders', () => {
       number: 38,
       type: 'PICKUP',
       status: 'CONFIRMED',
-      paymentMethod: 'CREDIT_CARD',
+      paymentMethod: 'CREDIT_ON_DELIVERY',
       subtotal: 50,
       deliveryFee: 0,
       discount: 5,

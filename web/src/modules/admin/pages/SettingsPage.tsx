@@ -149,7 +149,6 @@ function TabPagamentos() {
   const [allowCashOnDelivery, setAllowCashOnDelivery] = useState(false)
   const [allowPix, setAllowPix] = useState(false)
   const [allowPickup, setAllowPickup] = useState(false)
-  const [allowCreditCard, setAllowCreditCard] = useState(false)
   const [serviceChargePercent, setServiceChargePercent] = useState(0)
   const [settingsInitialized, setSettingsInitialized] = useState(false)
 
@@ -160,7 +159,6 @@ function TabPagamentos() {
     setAllowCashOnDelivery(store.allowCashOnDelivery)
     setAllowPix(store.allowPix)
     setAllowPickup(store.allowPickup)
-    setAllowCreditCard(store.allowCreditCard ?? false)
     setServiceChargePercent(store.serviceChargePercent)
     setSettingsInitialized(true)
   }
@@ -192,7 +190,7 @@ function TabPagamentos() {
   function handleSavePaymentSettings(e: React.FormEvent) {
     e.preventDefault()
     updatePaymentMutation.mutate(
-      { allowCashOnDelivery, allowPix, allowPickup, allowCreditCard, serviceChargePercent },
+      { allowCashOnDelivery, allowPix, allowPickup, serviceChargePercent },
       { onError: () => alert('Erro ao salvar configurações de pagamento.') }
     )
   }
@@ -322,21 +320,6 @@ function TabPagamentos() {
             <div>
               <span className="text-sm font-medium text-gray-800">Pix</span>
               <p className="text-xs text-gray-500">Aceitar pagamento via Pix</p>
-            </div>
-          </label>
-
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={allowCreditCard}
-              onChange={(e) => setAllowCreditCard(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <div>
-              <span className="text-sm font-medium text-gray-800">Cartão de Crédito (online)</span>
-              <p className="text-xs text-gray-500">
-                Exibir a opção no checkout. Integração com gateway será habilitada em breve.
-              </p>
             </div>
           </label>
 

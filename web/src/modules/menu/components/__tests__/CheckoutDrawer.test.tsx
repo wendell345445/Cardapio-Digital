@@ -11,7 +11,6 @@ vi.mock('../../hooks/useMenu', () => ({
         pixKey: 'loja@test.com',
         pixKeyType: 'EMAIL',
         allowPickup: true,
-        allowCreditCard: false,
         allowCashOnDelivery: true,
       },
       categories: [],

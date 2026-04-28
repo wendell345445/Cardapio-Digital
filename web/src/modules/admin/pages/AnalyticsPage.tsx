@@ -245,7 +245,6 @@ function PeakHoursGrid({
 
 const PAYMENT_LABELS: Record<string, string> = {
   PIX: 'Pix',
-  CREDIT_CARD: 'Cartão (online)',
   CASH_ON_DELIVERY: 'Dinheiro na entrega',
   CREDIT_ON_DELIVERY: 'Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Débito na entrega',

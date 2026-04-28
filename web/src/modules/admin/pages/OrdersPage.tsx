@@ -36,7 +36,6 @@ const TYPE_COLORS: Record<string, string> = {
 
 const PAYMENT_LABELS: Record<string, string> = {
   PIX: 'Pix',
-  CREDIT_CARD: 'Cartão crédito',
   CASH_ON_DELIVERY: 'Dinheiro',
   CREDIT_ON_DELIVERY: 'Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Débito na entrega',
@@ -310,7 +309,7 @@ function OrderCard({
             Pagar na comanda
           </span>
         )}
-        {order.paymentMethod !== 'PIX' && order.paymentMethod !== 'PENDING' && order.paymentMethod !== 'CREDIT_CARD' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
+        {order.paymentMethod !== 'PIX' && order.paymentMethod !== 'PENDING' && order.status !== 'WAITING_PAYMENT_PROOF' && order.status !== 'DELIVERED' && order.status !== 'CANCELLED' && (
           <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700">
             Pagar na entrega
           </span>

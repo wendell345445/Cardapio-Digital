@@ -19,7 +19,6 @@ export interface OrderItem {
 
 export type PaymentMethod =
   | 'PIX'
-  | 'CREDIT_CARD'
   | 'CASH_ON_DELIVERY'
   | 'CREDIT_ON_DELIVERY'
   | 'DEBIT_ON_DELIVERY'

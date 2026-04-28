@@ -50,8 +50,6 @@ function describePaymentForMotoboy(method: string): string {
   switch (method) {
     case 'PIX':
       return 'Pix — já pago'
-    case 'CREDIT_CARD':
-      return 'Cartão online — já pago'
     case 'CASH_ON_DELIVERY':
       return 'Dinheiro — cobrar na entrega'
     case 'CREDIT_ON_DELIVERY':
