@@ -132,14 +132,31 @@ describe('tryHandleOptIn', () => {
     expect(where.clientWhatsapp).toBeUndefined()
   })
 
-  it('aplica janela de 24h e filtra status abertos', async () => {
+  it('aplica janela de 24h e filtra status abertos com valores válidos do enum', async () => {
     mockFindFirst.mockResolvedValue(null)
     await tryHandleOptIn('store-1', '5511900000000', '#42')
     const where = mockFindFirst.mock.calls[0][0].where
     expect(where.createdAt?.gte).toBeInstanceOf(Date)
-    expect(where.status?.in).toEqual(expect.arrayContaining(['CONFIRMED', 'PREPARING', 'READY']))
-    expect(where.status?.in).not.toContain('DELIVERED')
-    expect(where.status?.in).not.toContain('CANCELLED')
+
+    // Regression: todos os status do `in` precisam existir no enum OrderStatus
+    // do Prisma — valores inventados (ex: 'WAITING_PAYMENT' que não existe)
+    // quebram a query toda em runtime e o opt-in falha silenciosamente.
+    const validEnumValues = [
+      'WAITING_PAYMENT_PROOF',
+      'WAITING_CONFIRMATION',
+      'CONFIRMED',
+      'PREPARING',
+      'READY',
+      'DISPATCHED',
+      'DELIVERED',
+      'CANCELLED',
+    ]
+    for (const status of where.status.in as string[]) {
+      expect(validEnumValues).toContain(status)
+    }
+    expect(where.status.in).toEqual(expect.arrayContaining(['CONFIRMED', 'PREPARING', 'READY']))
+    expect(where.status.in).not.toContain('DELIVERED')
+    expect(where.status.in).not.toContain('CANCELLED')
   })
 
   it('tira conversa do modo humano quando opt-in casa', async () => {
