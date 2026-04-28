@@ -11,6 +11,7 @@ import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { validateCouponPublic } from '../services/orders.service'
 import { saveAddress } from '../lib/customerAddresses'
+import { getCustomerName, saveCustomerName } from '../lib/customerName'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
@@ -72,7 +73,12 @@ export function CheckoutPage() {
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(checkoutSchema),
     // C-022: se entrou via QR de mesa, força type=TABLE
-    defaultValues: { type: tableNumber ? 'TABLE' : 'DELIVERY', paymentMethod: 'PIX', scheduleOrder: false },
+    defaultValues: {
+      type: tableNumber ? 'TABLE' : 'DELIVERY',
+      paymentMethod: 'PIX',
+      scheduleOrder: false,
+      clientName: getCustomerName(),
+    },
   })
 
   const orderType = watch('type')
@@ -148,6 +154,8 @@ export function CheckoutPage() {
 
     try {
       const result = await mutation.mutateAsync(dto)
+      // Persiste nome do cliente pra próximos pedidos.
+      saveCustomerName(dto.clientName)
       // TASK-130 (parte 3): persiste endereço usado pra próximos pedidos.
       if (dto.address) {
         saveAddress({

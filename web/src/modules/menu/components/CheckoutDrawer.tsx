@@ -21,6 +21,7 @@ import {
   removeAddress,
   type SavedAddress,
 } from '../lib/customerAddresses'
+import { getCustomerName, saveCustomerName } from '../lib/customerName'
 
 import { AddressPicker } from './AddressPicker'
 
@@ -186,6 +187,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [couponValidating, setCouponValidating] = useState(false)
   const [itemsOpen, setItemsOpen] = useState(true)
   const [deliveryFee, setDeliveryFee] = useState(0)
+  const [deliveryDistance, setDeliveryDistance] = useState<number | null>(null)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
   const [deliveryFeeError, setDeliveryFeeError] = useState('')
   const errorRef = useRef<HTMLDivElement>(null)
@@ -214,6 +216,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     // C-022: se entrou via QR de mesa, força type=TABLE e pula pagamento
     defaultValues: {
       type: tableNumber ? 'TABLE' : 'DELIVERY',
+      clientName: getCustomerName(),
       ...(tableNumber ? { paymentMethod: 'PENDING' as const } : {}),
     },
   })
@@ -290,11 +293,21 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         const coords = await fetchGeocode(payload)
         const result = await fetchDeliveryFee(coords.latitude, coords.longitude)
         setDeliveryFee(result.fee)
+        setDeliveryDistance(result.distance ?? null)
       } catch (err: unknown) {
         const axiosErr = err as { response?: { data?: { error?: string } } }
-        const msg = axiosErr?.response?.data?.error ?? 'Erro ao calcular taxa'
+        const raw = axiosErr?.response?.data?.error ?? ''
+        // O backend devolve "Endereço não encontrado" quando o geocoding falha
+        // — mas o endereço pode estar correto, é só o provider que não localizou
+        // o ponto. Mostrar isso como erro de endereço confunde o cliente; a taxa
+        // será confirmada pela loja.
+        const isGeocodeMiss = /endere[çc]o n[ãa]o encontrado/i.test(raw)
+        const msg = isGeocodeMiss
+          ? 'Não foi possível calcular a taxa automaticamente. A loja confirmará o valor.'
+          : raw || 'Erro ao calcular taxa'
         setDeliveryFeeError(msg)
         setDeliveryFee(0)
+        setDeliveryDistance(null)
       } finally {
         setDeliveryFeeLoading(false)
       }
@@ -313,6 +326,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     const numberT = (streetNumber ?? '').trim()
     if (!streetT || !numberT) {
       setDeliveryFee(0)
+      setDeliveryDistance(null)
       setDeliveryFeeError('')
       return
     }
@@ -334,6 +348,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   useEffect(() => {
     if (orderType !== 'DELIVERY') {
       setDeliveryFee(0)
+      setDeliveryDistance(null)
       setDeliveryFeeError('')
       return
     }
@@ -420,6 +435,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           additionalIds: i.additionals.map(a => a.id),
         })),
       })
+      // Persiste nome do cliente pra próximos pedidos.
+      saveCustomerName(form.clientName)
       // Persiste endereço usado: refresca lastUsedAt do salvo, ou cria novo
       // a partir do form. Dedup é responsabilidade do helper.
       if (orderAddress) {
@@ -651,7 +668,21 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                       addresses={savedAddresses}
                       selectedId={selectedAddressId}
                       onSelect={setSelectedAddressId}
-                      onUseNew={() => setAddressMode('new')}
+                      onUseNew={() => {
+                        // Limpa os campos do form pra o cliente digitar do zero
+                        // — senão ficam com os valores do endereço selecionado.
+                        setValue('zipCode', '', { shouldValidate: false })
+                        setValue('street', '', { shouldValidate: false })
+                        setValue('number', '', { shouldValidate: false })
+                        setValue('complement', '', { shouldValidate: false })
+                        setValue('neighborhood', '', { shouldValidate: false })
+                        setValue('city', '', { shouldValidate: false })
+                        setValue('state', '', { shouldValidate: false })
+                        setDeliveryFee(0)
+                        setDeliveryDistance(null)
+                        setDeliveryFeeError('')
+                        setAddressMode('new')
+                      }}
                       onRemove={(id) => {
                         removeAddress(id)
                         const next = listAddresses()
@@ -669,8 +700,13 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     {deliveryFeeLoading && (
                       <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
                     )}
+                    {!deliveryFeeLoading && !deliveryFeeError && deliveryDistance !== null && (
+                      <p className="text-gray-500 text-xs mt-1">
+                        Taxa de entrega ({deliveryDistance.toFixed(2).replace('.', ',')} km): {fmt(deliveryFee)}
+                      </p>
+                    )}
                     {deliveryFeeError && (
-                      <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                      <p className="text-amber-600 text-xs mt-1">{deliveryFeeError}</p>
                     )}
                   </>
                 ) : (
@@ -739,16 +775,19 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                         type="text"
                         placeholder="Bairro"
                         {...register('neighborhood')}
-                        className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
-                          deliveryFeeError ? 'border-red-400' : 'border-gray-200'
-                        }`}
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                         style={{ fontSize: 16 }}
                       />
                       {deliveryFeeLoading && (
                         <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
                       )}
+                      {!deliveryFeeLoading && !deliveryFeeError && deliveryDistance !== null && (
+                        <p className="text-gray-500 text-xs mt-1">
+                          Taxa de entrega ({deliveryDistance.toFixed(2).replace('.', ',')} km): {fmt(deliveryFee)}
+                        </p>
+                      )}
                       {deliveryFeeError && (
-                        <p className="text-red-500 text-xs mt-1">{deliveryFeeError}</p>
+                        <p className="text-amber-600 text-xs mt-1">{deliveryFeeError}</p>
                       )}
                       {errors.neighborhood && !deliveryFeeError && (
                         <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>
