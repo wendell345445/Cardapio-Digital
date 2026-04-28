@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Info, MapPin, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import { Info, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react'
 
-
+import { AddressAutocomplete, type AddressSelection } from '../delivery/AddressAutocomplete'
+import { AddressConfirmModal } from '../delivery/AddressConfirmModal'
 import {
   useCreateDistance,
   useDeleteDistance,
@@ -12,11 +13,8 @@ import {
   useSetStoreCoordinates,
   useUpdateDistance,
 } from '../hooks/useDelivery'
-import { geocodeAddress } from '../services/delivery.service'
 import type { DistanceRange } from '../services/delivery.service'
 
-import { maskCep } from '@/shared/lib/masks'
-import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -215,71 +213,37 @@ export function DeliveryPage() {
   const [coordLabel, setCoordLabel] = useState<string | null>(null)
   const [editingCoords, setEditingCoords] = useState(false)
 
-  // Campos do formulário de busca por endereço (ViaCEP + Nominatim)
-  const [addrCep, setAddrCep] = useState('')
-  const [addrStreet, setAddrStreet] = useState('')
-  const [addrNumber, setAddrNumber] = useState('')
-  const [addrNeighborhood, setAddrNeighborhood] = useState('')
-  const [addrCity, setAddrCity] = useState('')
-  const [addrState, setAddrState] = useState('')
-  const [geocodeLoading, setGeocodeLoading] = useState(false)
+  // Selecao do Places aguardando confirmacao no modal com mapa.
+  const [pendingSelection, setPendingSelection] = useState<AddressSelection | null>(null)
   const [manualModalOpen, setManualModalOpen] = useState(false)
-  const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
-
-  async function handleCepBlur() {
-    const digits = addrCep.replace(/\D/g, '')
-    if (digits.length !== 8) return
-    const result = await cepLookup(digits)
-    if (!result) return
-    if (result.street) setAddrStreet(result.street)
-    if (result.neighborhood) setAddrNeighborhood(result.neighborhood)
-    if (result.city) setAddrCity(result.city)
-    if (result.state) setAddrState(result.state)
-  }
-
-  async function handleSearchAddress() {
-    if (!addrStreet.trim() && !addrCep.trim()) {
-      showToast('Informe o CEP ou a rua antes de buscar.', 'error')
-      return
-    }
-    setGeocodeLoading(true)
-    try {
-      const result = await geocodeAddress({
-        cep: addrCep.trim() || undefined,
-        street: addrStreet.trim() || undefined,
-        number: addrNumber.trim() || undefined,
-        neighborhood: addrNeighborhood.trim() || undefined,
-        city: addrCity.trim() || undefined,
-        state: addrState.trim() || undefined,
-      })
-      setCoordLat(String(result.latitude))
-      setCoordLng(String(result.longitude))
-      setCoordLabel(result.displayName ?? null)
-      setEditingCoords(true)
-      showToast(
-        result.displayName
-          ? `Endereço encontrado: ${result.displayName}`
-          : 'Endereço encontrado!',
-        'success'
-      )
-    } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { error?: string } } }
-      const msg = axiosErr?.response?.data?.error ?? 'Endereço não encontrado'
-      showToast(msg, 'error')
-      // Quando Google não acha, oferece input manual via Google Maps —
-      // crítico aqui porque a coord da loja é base do cálculo de TODAS as
-      // taxas de entrega; sem ela, nenhum delivery funciona.
-      if (msg === 'Endereço não encontrado') {
-        setManualModalOpen(true)
-      }
-    } finally {
-      setGeocodeLoading(false)
-    }
-  }
 
   function showToast(message: string, type: 'success' | 'error') {
     setToast({ message, type })
     setTimeout(() => setToast(null), 3500)
+  }
+
+  // useCallback porque AddressAutocomplete usa onSelect em useEffect — referencia
+  // estavel evita reinicializar o widget Google a cada render.
+  const handlePlaceSelected = useCallback((selection: AddressSelection) => {
+    setPendingSelection(selection)
+  }, [])
+
+  async function handleConfirmSelection(selection: AddressSelection) {
+    try {
+      await setCoordsMutation.mutateAsync({
+        latitude: selection.latitude,
+        longitude: selection.longitude,
+        addressLabel: selection.formattedAddress || null,
+      })
+      setPendingSelection(null)
+      setEditingCoords(false)
+      setCoordLat('')
+      setCoordLng('')
+      setCoordLabel(null)
+      showToast('Localização salva!', 'success')
+    } catch {
+      showToast('Erro ao salvar localização.', 'error')
+    }
   }
 
   async function handleDelete() {
@@ -385,111 +349,23 @@ export function DeliveryPage() {
                     </p>
                   </div>
 
-                  {/* Busca por endereço (opcional) — ViaCEP preenche rua/bairro/cidade;
-                      Nominatim converte em lat/lng quando você clica "Buscar". */}
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+                  {/* Busca por endereco via Google Places. Selecionar uma sugestao
+                      abre um modal com mapa pra confirmacao visual antes de salvar. */}
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-2">
                     <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      Buscar por endereço
+                      Buscar endereço
                     </p>
-                    <div className="grid grid-cols-6 gap-2">
-                      <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          CEP
-                        </label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={addrCep}
-                          onChange={(e) => setAddrCep(maskCep(e.target.value))}
-                          onBlur={handleCepBlur}
-                          placeholder="00000-000"
-                          maxLength={9}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {cepLoading && (
-                          <p className="text-xs text-gray-400 mt-1">Buscando CEP…</p>
-                        )}
-                        {cepError && !cepLoading && (
-                          <p className="text-xs text-red-500 mt-1">{cepError}</p>
-                        )}
-                      </div>
-                      <div className="col-span-3">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Rua
-                        </label>
-                        <input
-                          type="text"
-                          value={addrStreet}
-                          onChange={(e) => setAddrStreet(e.target.value)}
-                          placeholder="Av. Paulista"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Número
-                        </label>
-                        <input
-                          type="text"
-                          value={addrNumber}
-                          onChange={(e) => setAddrNumber(e.target.value)}
-                          placeholder="1000"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-6 gap-2">
-                      <div className="col-span-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Bairro
-                        </label>
-                        <input
-                          type="text"
-                          value={addrNeighborhood}
-                          onChange={(e) => setAddrNeighborhood(e.target.value)}
-                          placeholder="Bela Vista"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="col-span-3">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          Cidade
-                        </label>
-                        <input
-                          type="text"
-                          value={addrCity}
-                          onChange={(e) => setAddrCity(e.target.value)}
-                          placeholder="São Paulo"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">
-                          UF
-                        </label>
-                        <input
-                          type="text"
-                          value={addrState}
-                          onChange={(e) => setAddrState(e.target.value.toUpperCase().slice(0, 2))}
-                          placeholder="SP"
-                          maxLength={2}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-end gap-2">
-                      <p className="flex-1 text-xs text-gray-400">
-                        Preenche lat/lng automaticamente. Você pode ajustar manualmente
-                        nos campos abaixo.
+                    <AddressAutocomplete onSelect={handlePlaceSelected} />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-gray-500">
+                        Digite e selecione uma sugestão. Você confirma no mapa antes de salvar.
                       </p>
                       <button
                         type="button"
-                        onClick={handleSearchAddress}
-                        disabled={geocodeLoading || (!addrStreet.trim() && !addrCep.trim())}
-                        className="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-medium text-white hover:bg-gray-900 disabled:opacity-50 transition-colors"
+                        onClick={() => setManualModalOpen(true)}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium whitespace-nowrap"
                       >
-                        <Search size={15} />
-                        {geocodeLoading ? 'Buscando...' : 'Buscar coordenadas'}
+                        Inserir manualmente
                       </button>
                     </div>
                   </div>
@@ -647,7 +523,7 @@ export function DeliveryPage() {
       <ManualCoordinatesModal
         isOpen={manualModalOpen}
         onClose={() => setManualModalOpen(false)}
-        title="Não conseguimos localizar este endereço"
+        title="Inserir coordenadas manualmente"
         description="Abra o Google Maps, encontre o endereço exato da loja e cole as coordenadas."
         onConfirm={(coords) => {
           setCoordLat(String(coords.latitude))
@@ -655,8 +531,14 @@ export function DeliveryPage() {
           setCoordLabel(null)
           setEditingCoords(true)
           setManualModalOpen(false)
-          showToast('Coordenadas preenchidas. Clique em "Salvar coordenadas" para confirmar.', 'success')
+          showToast('Coordenadas preenchidas. Clique em "Salvar" para confirmar.', 'success')
         }}
+      />
+
+      <AddressConfirmModal
+        selection={pendingSelection}
+        onClose={() => setPendingSelection(null)}
+        onConfirm={handleConfirmSelection}
       />
     </div>
   )
