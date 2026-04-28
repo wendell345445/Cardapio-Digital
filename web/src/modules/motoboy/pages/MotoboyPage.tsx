@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { useAuthConfig } from '../../auth/hooks/useAuthConfig'
 import { fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
 
+import { PasswordInput } from '@/shared/components/PasswordInput'
 import { api } from '@/shared/lib/api'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 
@@ -115,8 +116,7 @@ function LoginForm({ onSuccess, slug }: { onSuccess: () => void; slug: string | 
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Senha</label>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
