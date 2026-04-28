@@ -9,16 +9,9 @@ import { validateCoupon } from '../admin/coupons.service'
 import { calculateDeliverySchema, geocodeAddressSchema } from '../admin/delivery.schema'
 import { calculateDeliveryFee } from '../admin/delivery.service'
 
-import {
-  checkCustomerController,
-  requestOtpController,
-  verifyOtpController,
-  customerMeController,
-  customerLogoutController,
-} from './customer-verify.controller'
 import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
-import { createOrderController } from './orders.controller'
+import { createOrderController, listOrdersBySessionController } from './orders.controller'
 import { getCustomerComandaController, requestCheckController } from './comanda.controller'
 import { getOrderTrackingController } from './tracking.controller'
 
@@ -35,14 +28,8 @@ menuRouter.use(publicTenantMiddleware)
 
 menuRouter.get('/', getMenuController)
 menuRouter.post('/orders', createOrderController)
+menuRouter.get('/orders/by-session/:sessionId', listOrdersBySessionController)
 menuRouter.get('/pedido/:token', getOrderTrackingController)
-
-// ─── Verificação de cliente (WhatsApp + OTP) ────────────────────────────────
-menuRouter.get('/customer/check', checkCustomerController)
-menuRouter.post('/customer/otp/request', requestOtpController)
-menuRouter.post('/customer/otp/verify', verifyOtpController)
-menuRouter.get('/customer/me', customerMeController)
-menuRouter.post('/customer/logout', customerLogoutController)
 
 // ─── A-056: Comanda pública do cliente ──────────────────────────────────────
 menuRouter.get('/comanda', getCustomerComandaController)

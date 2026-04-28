@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useLocation } from 'react-router-dom'
+import { useParams, useLocation, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
-import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check } from 'lucide-react'
+import { CheckCircle, Clock, ChefHat, Bike, Package, Copy, Check, MessageCircle, ArrowLeft, ListOrdered } from 'lucide-react'
 
 import { createPublicApi } from '../../../shared/lib/publicApi'
 
@@ -241,6 +241,9 @@ export function OrderTrackingPage() {
           </div>
         </section>
 
+        {/* TASK-130: opt-in para receber atualizações por WhatsApp */}
+        <OptInCard order={order} />
+
         {/* TABLE: navegação para comanda e menu */}
         {order.type === 'TABLE' && (
           <section className="space-y-2">
@@ -258,7 +261,75 @@ export function OrderTrackingPage() {
             </a>
           </section>
         )}
+
+        {/* TASK-130: navegação geral pós-pedido */}
+        <section className="grid grid-cols-2 gap-2 pt-1">
+          <Link
+            to="/"
+            className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
+          >
+            <ArrowLeft size={14} />
+            Cardápio
+          </Link>
+          <Link
+            to="/meus-pedidos"
+            className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
+          >
+            <ListOrdered size={14} />
+            Meus pedidos
+          </Link>
+        </section>
       </div>
     </div>
+  )
+}
+
+// Card de opt-in para notificações via WhatsApp.
+// Some quando notifyOnStatusChange já é true (cliente já fez opt-in).
+// O número da loja vem do tracking endpoint; sem número, escondemos o card.
+function OptInCard({ order }: { order: { number: number; notifyOnStatusChange?: boolean; store?: { phone?: string | null } } }) {
+  if (order.notifyOnStatusChange) {
+    return (
+      <section className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-start gap-3">
+        <MessageCircle size={20} className="text-green-600 mt-0.5 flex-shrink-0" />
+        <div className="text-sm text-green-800">
+          <p className="font-semibold">Notificações ativas</p>
+          <p className="text-xs text-green-700 mt-0.5">
+            Você receberá atualizações deste pedido pelo WhatsApp.
+          </p>
+        </div>
+      </section>
+    )
+  }
+
+  const storePhone = (order.store?.phone ?? '').replace(/\D/g, '')
+  if (!storePhone) return null
+
+  // Brasil: prefixo 55 + DDD + número. O campo phone da loja já vem só com dígitos.
+  const waNumber = storePhone.startsWith('55') ? storePhone : `55${storePhone}`
+  const message = `Olá, quero receber status do meu pedido #${order.number}`
+  const waLink = `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`
+
+  return (
+    <section className="bg-white border border-green-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <MessageCircle size={20} className="text-green-600 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="font-semibold text-gray-800 text-sm">Acompanhar pelo WhatsApp?</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Toque no botão abaixo, vamos abrir o WhatsApp com uma mensagem pronta —
+            é só enviar e você recebe cada atualização do pedido.
+          </p>
+        </div>
+      </div>
+      <a
+        href={waLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
+      >
+        Receber atualizações pelo WhatsApp
+      </a>
+    </section>
   )
 }

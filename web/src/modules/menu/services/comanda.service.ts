@@ -1,8 +1,15 @@
 // ─── A-056: Comanda pública do cliente — Service ─────────────────────────────
 
+import { getCustomerSessionId } from '../lib/customerSession'
+
 import { createPublicApi } from '@/shared/lib/publicApi'
 
-const api = createPublicApi({ withCredentials: true })
+
+const api = createPublicApi()
+
+function sessionHeader() {
+  return { 'x-customer-session-id': getCustomerSessionId() }
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,10 +49,13 @@ export interface CustomerComanda {
 // ─── API calls ───────────────────────────────────────────────────────────────
 
 export async function fetchCustomerComanda(tableNumber: number): Promise<CustomerComanda> {
-  const { data } = await api.get('/menu/comanda', { params: { tableNumber } })
+  const { data } = await api.get('/menu/comanda', {
+    params: { tableNumber },
+    headers: sessionHeader(),
+  })
   return data.data
 }
 
 export async function requestCheck(tableNumber: number): Promise<void> {
-  await api.post('/menu/comanda/check', { tableNumber })
+  await api.post('/menu/comanda/check', { tableNumber }, { headers: sessionHeader() })
 }

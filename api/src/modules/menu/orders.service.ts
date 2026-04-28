@@ -7,7 +7,6 @@ import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
-import { sendOrderCreatedMessage } from '../whatsapp/messages.service'
 import { getPaymentMethodsForClient } from '../admin/payment-access.service'
 
 import { geocodeAddress } from './geocoding.service'
@@ -325,6 +324,8 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         tableId: resolvedTableId,
         couponId,
         scheduledFor: data.scheduledFor,
+        customerSessionId: data.customerSessionId ?? null,
+        notifyOnStatusChange: false,
         items: {
           create: orderItemsData.map((item) => ({
             productId: item.productId,
@@ -374,32 +375,10 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     enqueueScheduledOrderAlert(order.id, data.scheduledFor).catch(() => void 0)
   }
 
-  // 13. WhatsApp: mensagem automática para o cliente (fire-and-forget)
-  setImmediate(async () => {
-    try {
-      const orderWithStore = await prisma.order.findUnique({
-        where: { id: order.id },
-        include: {
-          items: { include: { additionals: true } },
-          store: { select: { id: true, name: true, slug: true, pixKey: true, pixKeyType: true } },
-        },
-      })
-      if (orderWithStore) {
-        await sendOrderCreatedMessage({
-          ...orderWithStore,
-          type: orderWithStore.type as string,
-          status: orderWithStore.status as string,
-          paymentMethod: orderWithStore.paymentMethod as string,
-          address: orderWithStore.address as Record<string, string> | null,
-          store: orderWithStore.store,
-        })
-      }
-    } catch (err) {
-      console.error('[WhatsApp] Error sending order created message:', err)
-    }
-  })
-
-  // 14. Gera token JWT para acompanhamento (magic link)
+  // 13. Gera token JWT para acompanhamento (magic link)
+  // TASK-130: pedido nasce com notifyOnStatusChange=false. Cliente faz opt-in
+  // mandando "#<numero>" pro WhatsApp da loja — handler inbound seta a flag
+  // e responde com confirmação + status atual.
   const token = sign(
     { orderId: order.id, storeId: store.id },
     process.env.JWT_SECRET!,
@@ -434,4 +413,30 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     pixQrCode: pixData?.qrCodeBase64,
     pixCopyPaste: pixData?.copyPaste,
   }
+}
+
+// TASK-130: lista resumida dos pedidos da sessão do navegador (sem login).
+// Retorna campos suficientes pra a página /meus-pedidos renderizar tabela
+// + magic link de acompanhamento de cada pedido.
+export async function listOrdersBySession(storeId: string, sessionId: string) {
+  const orders = await prisma.order.findMany({
+    where: { storeId, customerSessionId: sessionId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      type: true,
+      total: true,
+      paymentMethod: true,
+      notifyOnStatusChange: true,
+      createdAt: true,
+    },
+    take: 50,
+  })
+
+  return orders.map((o) => ({
+    ...o,
+    token: sign({ orderId: o.id, storeId }, process.env.JWT_SECRET!, { expiresIn: '24h' }),
+  }))
 }

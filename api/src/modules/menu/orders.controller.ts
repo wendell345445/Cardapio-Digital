@@ -1,17 +1,9 @@
 import { NextFunction, Request, Response } from 'express'
 
-import { AppError } from '../../shared/middleware/error.middleware'
-
-import {
-  checkCustomer,
-  verifyCustomerToken,
-  getCookieValue,
-  COOKIE_NAME,
-} from './customer-verify.service'
 import { createOrderSchema } from './orders.schema'
-import { createOrder } from './orders.service'
+import { createOrder, listOrdersBySession } from './orders.service'
 
-// ─── TASK-065: Pedidos Públicos ───────────────────────────────────────────────
+// ─── TASK-065 / TASK-130: Pedidos Públicos ────────────────────────────────────
 // ─── TASK-122: slug vem de req.store (subdomain middleware) ──────────────────
 
 export async function createOrderController(
@@ -23,28 +15,31 @@ export async function createOrderController(
     const store = req.store!
     const data = createOrderSchema.parse(req.body)
 
-    // Verificação de cliente: cookie válido OU cliente já existente
-    const cookieValue = getCookieValue(req.headers.cookie, COOKIE_NAME)
-    let verified = false
-
-    if (cookieValue) {
-      const payload = verifyCustomerToken(cookieValue)
-      if (payload && payload.storeId === store.id && payload.whatsapp === data.clientWhatsapp) {
-        verified = true
-      }
-    }
-
-    if (!verified) {
-      const check = await checkCustomer(store.id, data.clientWhatsapp)
-      verified = check.exists
-    }
-
-    if (!verified) {
-      throw new AppError('Número não verificado. Faça a verificação por WhatsApp.', 403, 'VERIFICATION_REQUIRED')
-    }
-
     const result = await createOrder(store.slug, data)
     res.status(201).json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// GET /menu/orders/by-session/:sessionId
+// Lista pedidos da sessão do navegador (sem login). O sessionId é gerado
+// no client (UUID em localStorage) e enviado no createOrder; quem tiver o ID
+// vê os pedidos — equivalente a um magic link de "minha lista".
+export async function listOrdersBySessionController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const store = req.store!
+    const { sessionId } = req.params
+    if (!sessionId || sessionId.length < 8) {
+      res.status(400).json({ success: false, error: 'sessionId inválido' })
+      return
+    }
+    const orders = await listOrdersBySession(store.id, sessionId)
+    res.json({ success: true, data: orders })
   } catch (err) {
     next(err)
   }

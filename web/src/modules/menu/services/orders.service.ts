@@ -22,6 +22,8 @@ export type PaymentMethod =
 
 export interface CreateOrderDto {
   clientWhatsapp: string; clientName?: string
+  /** TASK-130: id por navegador (UUID em localStorage) — usado em /meus-pedidos */
+  customerSessionId?: string
   type: 'DELIVERY' | 'PICKUP' | 'TABLE'
   paymentMethod: PaymentMethod
   notes?: string; couponCode?: string
@@ -39,6 +41,23 @@ export interface OrderResult {
 
 export async function submitOrder(dto: CreateOrderDto): Promise<OrderResult> {
   const { data } = await menuApi.post('/menu/orders', dto)
+  return data.data
+}
+
+export interface SessionOrderSummary {
+  id: string
+  number: number
+  status: string
+  type: 'DELIVERY' | 'PICKUP' | 'TABLE'
+  total: number
+  paymentMethod: string
+  notifyOnStatusChange: boolean
+  createdAt: string
+  token: string
+}
+
+export async function listOrdersBySession(sessionId: string): Promise<SessionOrderSummary[]> {
+  const { data } = await menuApi.get(`/menu/orders/by-session/${encodeURIComponent(sessionId)}`)
   return data.data
 }
 

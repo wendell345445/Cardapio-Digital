@@ -6,6 +6,10 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     whatsAppTemplate: {
       findUnique: jest.fn(),
     },
+    // TASK-130: sendStatusUpdateMessage consulta o pedido pra checar a flag
+    order: {
+      findFirst: jest.fn(),
+    },
   },
 }))
 
@@ -78,6 +82,9 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     ;(mockPrisma.whatsAppTemplate.findUnique as jest.Mock).mockResolvedValue(null)
+    // TASK-130: simula pedido com opt-in ativo para os testes existentes
+    // continuarem cobrindo o disparo universal por evento.
+    ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue({ notifyOnStatusChange: true })
   })
 
   const PHONE = '5548999990001'

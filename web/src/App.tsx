@@ -32,6 +32,7 @@ import { ComandaPage } from '@/modules/menu/pages/ComandaPage'
 import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
 import { OrderTrackingPage } from '@/modules/menu/pages/OrderTrackingPage'
+import { MyOrdersPage } from '@/modules/menu/pages/MyOrdersPage'
 import { MotoboyPage } from '@/modules/motoboy/pages/MotoboyPage'
 import { OwnerGuard } from '@/modules/owner/components/OwnerGuard'
 import { DashboardPage } from '@/modules/owner/pages/DashboardPage'
@@ -125,6 +126,7 @@ export function App() {
           <Route path="/produto/:productId" element={<ItemPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/pedido/:token" element={<OrderTrackingPage />} />
+          <Route path="/meus-pedidos" element={<MyOrdersPage />} />
           <Route path="/comanda" element={<ComandaPage />} />
 
           {/* Admin — login e redirect base */}

@@ -247,6 +247,18 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             continue
           }
 
+          // TASK-130: opt-in para notificações de pedido — antes de tudo
+          try {
+            const { tryHandleOptIn } = await import('./opt-in.service')
+            const handled = await tryHandleOptIn(storeId, from, text)
+            if (handled) {
+              logger.info({ storeId, from }, '[WhatsApp] Opt-in de pedido processado')
+              continue
+            }
+          } catch (err) {
+            logger.error({ storeId, err }, '[WhatsApp] Erro no opt-in handler')
+          }
+
           // 2. Resolver JID para envio via onWhatsApp (chamada de rede, pode demorar)
           let sendJid = replyJid
           try {
