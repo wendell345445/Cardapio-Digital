@@ -101,6 +101,21 @@ export async function tryHandleOptIn(
     emit.orderStatus(storeId, { orderId: order.id, status: order.status })
   }
 
+  // Cliente mandou "#N" pra acompanhar o pedido — quer interagir com o fluxo
+  // automático. Tira a conversa do modo humano (se estava). O atendente
+  // humano pode reassumir manualmente clicando "Atender" depois.
+  const conversation = await prisma.conversation.findUnique({
+    where: { storeId_customerPhone: { storeId, customerPhone: senderPhone } },
+    select: { id: true, isHumanMode: true },
+  })
+  if (conversation?.isHumanMode) {
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { isHumanMode: false },
+    })
+    emit.conversationUpdated(storeId, { conversationId: conversation.id, isHumanMode: false })
+  }
+
   const statusLabel = STATUS_LABEL[order.status] ?? order.status
   const confirmationText =
     `✅ Pronto! Você receberá atualizações do pedido *#${order.number}* aqui no WhatsApp.\n\n` +
