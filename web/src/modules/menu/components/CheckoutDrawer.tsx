@@ -855,7 +855,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 Pagamento
               </h3>
 
-              {store?.features?.allowPix !== false && store?.pixKey && (
+              {store?.features?.allowPix === true && store?.pixKey && (
                 <button
                   type="button"
                   onClick={() => selectPaymentGroup('PIX')}
@@ -904,7 +904,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <p className="text-amber-600 text-xs font-medium">Selecione uma forma de pagamento</p>
               )}
 
-              {paymentMethod === 'PIX' && store?.features?.allowPix !== false && store?.pixKey && (
+              {paymentMethod === 'PIX' && store?.features?.allowPix === true && store?.pixKey && (
                 <div className="p-3 bg-yellow-50 rounded-lg text-xs text-yellow-800">
                   <p className="font-semibold">Chave Pix ({store.pixKeyType}): {store.pixKey}</p>
                   <p className="mt-0.5">Envie o comprovante via WhatsApp após o pedido.</p>

@@ -17,11 +17,10 @@ export interface StoreData {
   pixKey?: string
   pixKeyType?: string
   allowCashOnDelivery: boolean
-  allowPix: boolean
   allowPickup: boolean
   allowDelivery: boolean
   serviceChargePercent: number
-  features: Record<string, boolean>
+  features: { allowPix?: boolean } & Record<string, boolean>
   plan?: string
   status?: string
   stripeTrialEndsAt?: string | null

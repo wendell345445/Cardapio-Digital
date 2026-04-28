@@ -214,12 +214,12 @@ export async function reauth(userId: string, password: string): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } })
 
   if (!user || !user.passwordHash) {
-    throw new AppError('Credenciais inválidas', 401)
+    throw new AppError('Senha incorreta', 422, 'INVALID_PASSWORD')
   }
 
   const valid = await compare(password, user.passwordHash)
   if (!valid) {
-    throw new AppError('Senha incorreta', 401)
+    throw new AppError('Senha incorreta', 422, 'INVALID_PASSWORD')
   }
 }
 

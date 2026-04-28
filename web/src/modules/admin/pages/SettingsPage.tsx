@@ -157,7 +157,7 @@ function TabPagamentos() {
     setPixKey(store.pixKey ?? '')
     setPixKeyType(store.pixKeyType ?? 'EVP')
     setAllowCashOnDelivery(store.allowCashOnDelivery)
-    setAllowPix(store.allowPix)
+    setAllowPix(store.features?.allowPix === true)
     setAllowPickup(store.allowPickup)
     setServiceChargePercent(store.serviceChargePercent)
     setSettingsInitialized(true)
@@ -318,8 +318,10 @@ function TabPagamentos() {
               className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
             <div>
-              <span className="text-sm font-medium text-gray-800">Pix</span>
-              <p className="text-xs text-gray-500">Aceitar pagamento via Pix</p>
+              <span className="text-sm font-medium text-gray-800">Pix (online)</span>
+              <p className="text-xs text-gray-500">
+                Cliente paga via chave Pix antes da entrega e envia comprovante
+              </p>
             </div>
           </label>
 

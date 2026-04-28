@@ -187,10 +187,10 @@ describe('reauth', () => {
     await expect(reauth('user-1', 'correct-password')).resolves.toBeUndefined()
   })
 
-  it('throws 401 on wrong password', async () => {
+  it('throws 422 on wrong password', async () => {
     ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser)
 
-    await expect(reauth('user-1', 'wrong')).rejects.toMatchObject({ status: 401 })
+    await expect(reauth('user-1', 'wrong')).rejects.toMatchObject({ status: 422 })
   })
 })
 

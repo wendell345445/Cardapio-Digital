@@ -354,13 +354,13 @@ describe('updateWhatsapp', () => {
     expect(mockCache.del).toHaveBeenCalledWith(`menu:${STORE_ID}`)
   })
 
-  it('lança erro de reauth (403) sem atualizar a loja', async () => {
-    const authError = Object.assign(new Error('Senha incorreta'), { status: 403 })
+  it('lança erro de reauth (422) sem atualizar a loja', async () => {
+    const authError = Object.assign(new Error('Senha incorreta'), { status: 422 })
     mockReauth.mockRejectedValue(authError)
 
     await expect(
       updateWhatsapp(STORE_ID, { phone: '5548900000000', password: 'errada' }, USER_ID)
-    ).rejects.toMatchObject({ status: 403 })
+    ).rejects.toMatchObject({ status: 422 })
 
     expect(mockPrisma.store.findUnique).not.toHaveBeenCalled()
     expect(mockPrisma.store.update).not.toHaveBeenCalled()
@@ -412,13 +412,13 @@ describe('updatePix', () => {
     )
   })
 
-  it('lança erro de reauth (403) sem alterar Pix', async () => {
-    const authError = Object.assign(new Error('Senha incorreta'), { status: 403 })
+  it('lança erro de reauth (422) sem alterar Pix', async () => {
+    const authError = Object.assign(new Error('Senha incorreta'), { status: 422 })
     mockReauth.mockRejectedValue(authError)
 
     await expect(
       updatePix(STORE_ID, { pixKey: 'x', pixKeyType: 'EVP', password: 'errada' }, USER_ID)
-    ).rejects.toMatchObject({ status: 403 })
+    ).rejects.toMatchObject({ status: 422 })
 
     expect(mockPrisma.store.update).not.toHaveBeenCalled()
   })

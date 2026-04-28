@@ -165,7 +165,7 @@ describe('POST /api/v1/auth/reauth', () => {
     expect(res.body.success).toBe(true)
   })
 
-  it('returns 401 with valid JWT and wrong password', async () => {
+  it('returns 422 with valid JWT and wrong password', async () => {
     const { sign } = require('jsonwebtoken')
     const token = sign({ userId: 'user-1', role: 'ADMIN', storeId: 'store-1' }, 'test-secret')
     ;(mockPrisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser())
@@ -175,7 +175,8 @@ describe('POST /api/v1/auth/reauth', () => {
       .set('Authorization', `Bearer ${token}`)
       .send({ password: 'wrong-password' })
 
-    expect(res.status).toBe(401)
+    expect(res.status).toBe(422)
+    expect(res.body.code).toBe('INVALID_PASSWORD')
   })
 })
 

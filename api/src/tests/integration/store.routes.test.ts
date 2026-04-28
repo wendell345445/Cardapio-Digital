@@ -336,8 +336,8 @@ describe('PATCH /api/v1/admin/store/whatsapp', () => {
     expect(res.body.data.phone).toBe('5548988880000')
   })
 
-  it('retorna 403 ao alterar whatsapp com senha incorreta', async () => {
-    const authError = Object.assign(new Error('Senha incorreta'), { status: 403 })
+  it('retorna 422 ao alterar whatsapp com senha incorreta', async () => {
+    const authError = Object.assign(new Error('Senha incorreta'), { status: 422 })
     mockReauth.mockRejectedValue(authError)
 
     const res = await request(app)
@@ -345,7 +345,7 @@ describe('PATCH /api/v1/admin/store/whatsapp', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ phone: '5548988880000', password: 'errada' })
 
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(422)
   })
 
   it('retorna 400 quando phone tem formato inválido', async () => {
@@ -398,8 +398,8 @@ describe('PATCH /api/v1/admin/store/pix', () => {
     expect(res.body.data.pixKeyType).toBe('EMAIL')
   })
 
-  it('retorna 403 ao alterar Pix sem senha correta', async () => {
-    const authError = Object.assign(new Error('Senha incorreta'), { status: 403 })
+  it('retorna 422 ao alterar Pix sem senha correta', async () => {
+    const authError = Object.assign(new Error('Senha incorreta'), { status: 422 })
     mockReauth.mockRejectedValue(authError)
 
     const res = await request(app)
@@ -407,7 +407,7 @@ describe('PATCH /api/v1/admin/store/pix', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ pixKey: 'x', pixKeyType: 'EVP', password: 'errada' })
 
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(422)
   })
 
   it('retorna 400 quando pixKeyType é inválido', async () => {

@@ -44,6 +44,7 @@ export async function getStore(storeId: string) {
       allowPickup: true,
       allowDelivery: true,
       serviceChargePercent: true,
+      features: true,
       plan: true,
       status: true,
       stripeTrialEndsAt: true,
