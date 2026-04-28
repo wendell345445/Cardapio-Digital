@@ -2,9 +2,17 @@ import { z } from 'zod'
 
 // ─── TASK-065: Pedidos Públicos ───────────────────────────────────────────────
 
+// Aceita 11 dígitos no padrão de celular brasileiro: DDD (11–99) + 9 + 8 dígitos.
+// Não valida que o número está cadastrado no WhatsApp — só formato.
+const brMobileRegex = /^[1-9][0-9]9[0-9]{8}$/
+
 export const createOrderSchema = z.object({
-  clientWhatsapp: z.string().length(11, 'WhatsApp deve ter 11 dígitos'),
+  clientWhatsapp: z
+    .string()
+    .length(11, 'WhatsApp deve ter 11 dígitos')
+    .regex(brMobileRegex, 'Informe um celular brasileiro válido (DDD + 9 + 8 dígitos)'),
   clientName: z.string().min(1).optional(),
+  customerSessionId: z.string().uuid().optional(),
   type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum([
     'PIX',

@@ -11,7 +11,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     coupon: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     deliveryDistance: { findMany: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
-    order: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn() },
+    order: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
     customer: { findUnique: jest.fn() },
     // C-027: getPaymentMethodsForClient consulta blacklist por loja
     clientPaymentAccess: { findFirst: jest.fn() },
@@ -678,5 +678,104 @@ describe('POST /api/v1/menu/delivery/geocode', () => {
       .send({})
 
     expect(res.status).toBe(422)
+  })
+})
+
+// ─── TASK-130: customerSessionId + flag de notificação ───────────────────────
+
+describe('POST /api/v1/menu/orders — TASK-130', () => {
+  it('rejeita 400 quando WhatsApp não casa com regex de celular BR', async () => {
+    setupOrderMocks()
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({ ...validOrderBody, clientWhatsapp: '11111111111' })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('persiste customerSessionId e notifyOnStatusChange=false ao criar', async () => {
+    setupOrderMocks()
+    const sessionId = '11111111-2222-4333-8444-555566667777'
+
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({ ...validOrderBody, customerSessionId: sessionId })
+
+    expect(res.status).toBe(201)
+    const orderCreateCall = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(orderCreateCall.data).toMatchObject({
+      customerSessionId: sessionId,
+      notifyOnStatusChange: false,
+    })
+  })
+
+  it('rejeita 400 quando customerSessionId não é UUID', async () => {
+    setupOrderMocks()
+    const res = await request(app)
+      .post('/api/v1/menu/orders')
+      .set('Host', menuHost())
+      .send({ ...validOrderBody, customerSessionId: 'not-a-uuid' })
+
+    expect(res.status).toBe(400)
+  })
+})
+
+describe('GET /api/v1/menu/orders/by-session/:sessionId — TASK-130', () => {
+  const SESSION_ID = '11111111-2222-4333-8444-555566667777'
+
+  it('retorna lista de pedidos da sessão com token de tracking', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(require('jsonwebtoken').sign as jest.Mock).mockReturnValue('mock-tracking-token')
+    ;(mockPrisma.order.findMany as jest.Mock) = jest.fn().mockResolvedValue([
+      {
+        id: 'order-a',
+        number: 1,
+        status: 'PREPARING',
+        type: 'DELIVERY',
+        total: 50,
+        paymentMethod: 'PIX',
+        notifyOnStatusChange: true,
+        createdAt: new Date('2026-04-28T10:00:00Z'),
+      },
+    ])
+
+    const res = await request(app)
+      .get(`/api/v1/menu/orders/by-session/${SESSION_ID}`)
+      .set('Host', menuHost())
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toHaveLength(1)
+    expect(res.body.data[0]).toMatchObject({
+      id: 'order-a',
+      number: 1,
+      status: 'PREPARING',
+      token: 'mock-tracking-token',
+    })
+    const findManyCall = (mockPrisma.order.findMany as jest.Mock).mock.calls[0][0]
+    expect(findManyCall.where).toEqual({ storeId: STORE_ID, customerSessionId: SESSION_ID })
+  })
+
+  it('retorna 400 quando sessionId é muito curto', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+
+    const res = await request(app)
+      .get('/api/v1/menu/orders/by-session/short')
+      .set('Host', menuHost())
+
+    expect(res.status).toBe(400)
+  })
+
+  it('retorna 200 com lista vazia quando sessão não tem pedidos', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.findMany as jest.Mock) = jest.fn().mockResolvedValue([])
+
+    const res = await request(app)
+      .get(`/api/v1/menu/orders/by-session/${SESSION_ID}`)
+      .set('Host', menuHost())
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual([])
   })
 })

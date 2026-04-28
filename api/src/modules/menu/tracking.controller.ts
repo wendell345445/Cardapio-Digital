@@ -19,7 +19,7 @@ export async function getOrderTrackingController(req: Request, res: Response, ne
       include: {
         items: { include: { additionals: true } },
         motoboy: { select: { name: true, whatsapp: true } },
-        store: { select: { slug: true } },
+        store: { select: { slug: true, name: true, phone: true } },
         table: { select: { number: true } },
       },
     })

@@ -264,6 +264,8 @@ model Order {
   deliveredAt    DateTime?
   cancelledAt          DateTime?
   deliveryIssueReason  String?
+  notifyOnStatusChange Boolean       @default(false)
+  customerSessionId    String?
   createdAt            DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -281,6 +283,7 @@ model Order {
   @@index([storeId, createdAt])
   @@index([clientId])
   @@index([tableId])
+  @@index([storeId, customerSessionId])
 }
 
 model OrderItem {

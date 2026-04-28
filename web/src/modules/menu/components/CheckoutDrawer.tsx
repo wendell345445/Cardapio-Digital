@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
@@ -13,7 +14,7 @@ import {
   geocodeAddress as fetchGeocode,
   validateCouponPublic,
 } from '../services/orders.service'
-import { useCustomerAuth } from '../hooks/useCustomerAuth'
+import { getCustomerSessionId } from '../lib/customerSession'
 
 import { useViaCep } from '@/modules/auth/hooks/useViaCep'
 import { maskCep } from '@/shared/lib/masks'
@@ -111,10 +112,17 @@ function paymentGroupFor(m: PaymentMethod | undefined): PaymentGroup | null {
   return 'ON_DELIVERY'
 }
 
+// TASK-130: validação só de formato — celular BR com 11 dígitos (DDD + 9 + 8).
+// Sem OTP / sem checagem de WhatsApp real.
+const BR_MOBILE_REGEX = /^[1-9][0-9]9[0-9]{8}$/
+
 const schema = z
   .object({
-    clientWhatsapp: z.string().length(11, 'Informe 11 dígitos (com DDD)'),
-    clientName: z.string().min(1, 'Informe seu nome').optional(),
+    clientWhatsapp: z
+      .string()
+      .length(11, 'Informe 11 dígitos (com DDD)')
+      .regex(BR_MOBILE_REGEX, 'Informe um celular brasileiro válido'),
+    clientName: z.string().min(1, 'Informe seu nome'),
     type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
     paymentMethod: z.enum(PAYMENT_METHODS),
     zipCode: z.string().optional(),
@@ -178,7 +186,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [deliveryFeeLoading, setDeliveryFeeLoading] = useState(false)
   const [deliveryFeeError, setDeliveryFeeError] = useState('')
-  const [otpInput, setOtpInput] = useState('')
   const errorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -187,8 +194,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     }
   }, [mutation.error])
   const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
-
-  const auth = useCustomerAuth()
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(schema),
@@ -222,24 +227,6 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       setValue('paymentMethod', 'PIX')
     }
   }, [orderType, paymentMethod, setValue])
-
-  // Prefill form quando cliente é verificado
-  useEffect(() => {
-    if (auth.step !== 'verified' || !auth.customerData) return
-    setValue('clientWhatsapp', auth.customerData.whatsapp, { shouldValidate: true })
-    if (auth.customerData.name) {
-      setValue('clientName', auth.customerData.name, { shouldValidate: true })
-    }
-    if (auth.customerData.address) {
-      const addr = auth.customerData.address
-      if (addr.zipCode) setValue('zipCode', addr.zipCode)
-      if (addr.street) setValue('street', addr.street)
-      if (addr.number) setValue('number', addr.number)
-      if (addr.complement) setValue('complement', addr.complement)
-      if (addr.neighborhood) setValue('neighborhood', addr.neighborhood)
-      if (addr.city) setValue('city', addr.city)
-    }
-  }, [auth.step, auth.customerData, setValue])
 
   function selectPaymentGroup(group: PaymentGroup) {
     if (group === 'PIX') setValue('paymentMethod', 'PIX')
@@ -348,6 +335,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       const result = await mutation.mutateAsync({
         clientWhatsapp: form.clientWhatsapp,
         clientName: form.clientName,
+        customerSessionId: getCustomerSessionId(),
         type: form.type,
         paymentMethod: form.paymentMethod,
         notes: form.notes,
@@ -525,8 +513,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             </ul>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="p-5 space-y-5">
-            {/* Tipo de entrega — só após verificação */}
-            {auth.step !== 'verified' ? null : tableNumber ? (
+            {/* Tipo de entrega */}
+            {tableNumber ? (
               <div className="p-3 rounded-lg border-2 border-blue-500 bg-blue-50 text-blue-700 text-sm font-medium text-center">
                 <input type="hidden" value="TABLE" {...register('type')} />
                 🍽️ Pedido para Mesa {tableNumber}
@@ -552,129 +540,47 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
             )}
 
-            {/* Seus dados — fluxo de verificação */}
+            {/* Seus dados */}
             <div className="space-y-3">
               <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Seus dados
               </h3>
 
-              {/* Step: loading */}
-              {auth.step === 'loading' && (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
-                  <span className="ml-2 text-sm text-gray-400">Verificando...</span>
-                </div>
-              )}
+              <div>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="WhatsApp (DDD + 9 + 8 dígitos)"
+                  {...register('clientWhatsapp', {
+                    onChange: (e) => {
+                      e.target.value = e.target.value.replace(/\D/g, '').slice(0, 11)
+                    },
+                  })}
+                  maxLength={11}
+                  autoComplete="tel-national"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  style={{ fontSize: 16 }}
+                />
+                {errors.clientWhatsapp && (
+                  <p className="text-red-500 text-xs mt-1">{errors.clientWhatsapp.message}</p>
+                )}
+              </div>
 
-              {/* Step: phone — digitar WhatsApp */}
-              {auth.step === 'phone' && (
-                <div className="space-y-2">
-                  <div>
-                    <input
-                      type="tel"
-                      placeholder="Seu WhatsApp (com DDD)"
-                      value={auth.whatsapp}
-                      onChange={(e) => auth.setWhatsapp(e.target.value.replace(/\D/g, '').slice(0, 11))}
-                      maxLength={11}
-                      autoComplete="off"
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                      style={{ fontSize: 16 }}
-                    />
-                  </div>
-                  {auth.error && (
-                    <p className="text-red-500 text-xs">{auth.error}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={auth.submitPhone}
-                    disabled={auth.whatsapp.length !== 11}
-                    className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
-                  >
-                    Continuar
-                  </button>
-                </div>
-              )}
-
-              {/* Step: otp — código de verificação */}
-              {auth.step === 'otp' && (
-                <div className="space-y-3">
-                  <div className="p-3 bg-blue-50 rounded-lg text-xs text-blue-800">
-                    Enviamos um código de 4 dígitos para <strong>{auth.whatsapp}</strong> via WhatsApp.
-                  </div>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="Digite o código"
-                    value={otpInput}
-                    onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                    maxLength={4}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-center tracking-[0.5em] font-mono focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 20 }}
-                  />
-                  {auth.error && (
-                    <p className="text-red-500 text-xs">{auth.error}</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => auth.submitOtp(otpInput)}
-                    disabled={otpInput.length !== 4}
-                    className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-sm transition-colors"
-                  >
-                    Verificar
-                  </button>
-                  <div className="flex justify-between text-xs">
-                    <button
-                      type="button"
-                      onClick={auth.resendOtp}
-                      disabled={auth.otpCountdown > 0}
-                      className="text-red-500 disabled:text-gray-400"
-                    >
-                      {auth.otpCountdown > 0 ? `Reenviar em ${auth.otpCountdown}s` : 'Reenviar código'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { auth.reset(); setOtpInput('') }}
-                      className="text-gray-500"
-                    >
-                      Usar outro número
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Step: verified — dados confirmados */}
-              {auth.step === 'verified' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-200 rounded-lg">
-                    <span className="text-sm text-green-800">
-                      WhatsApp verificado: <strong>{auth.whatsapp}</strong>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={auth.reset}
-                      className="text-xs text-green-600 hover:text-green-800"
-                    >
-                      Trocar
-                    </button>
-                  </div>
-                  <input type="hidden" {...register('clientWhatsapp')} />
-                  <input
-                    type="text"
-                    placeholder="Seu nome"
-                    {...register('clientName')}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{ fontSize: 16 }}
-                  />
-                </div>
-              )}
+              <div>
+                <input
+                  type="text"
+                  placeholder="Seu nome"
+                  autoComplete="name"
+                  {...register('clientName')}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  style={{ fontSize: 16 }}
+                />
+                {errors.clientName && (
+                  <p className="text-red-500 text-xs mt-1">{errors.clientName.message}</p>
+                )}
+              </div>
             </div>
 
-            {/* Seções visíveis somente após verificação do WhatsApp */}
-            {auth.step !== 'verified' ? (
-              <p className="text-xs text-gray-400 text-center py-2">
-                Verifique seu WhatsApp acima para continuar.
-              </p>
-            ) : (
             <>
 
             {/* Endereço delivery */}
@@ -935,29 +841,26 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             )}
 
             </>
-            )}
           </form>
         </div>
 
-        {/* Footer — só aparece quando verificado */}
-        {auth.step === 'verified' && (
-          <div className="p-5 border-t border-gray-100 space-y-2">
-            <button
-              onClick={handleSubmit(onSubmit)}
-              disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || !paymentMethod}
-              className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
-            >
-              {mutation.isPending ? 'Enviando...' : tableNumber ? `Enviar pedido › ${fmt(total)}` : `Finalizar pedido › ${fmt(total)}`}
-            </button>
-            <button
-              type="button"
-              onClick={() => { clearCart(); onClose() }}
-              className="w-full text-sm text-gray-400 hover:text-gray-600 py-1"
-            >
-              Limpar carrinho
-            </button>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="p-5 border-t border-gray-100 space-y-2">
+          <button
+            onClick={handleSubmit(onSubmit)}
+            disabled={mutation.isPending || items.length === 0 || !!deliveryFeeError || !paymentMethod}
+            className="w-full bg-amber-800 hover:bg-amber-900 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
+          >
+            {mutation.isPending ? 'Enviando...' : tableNumber ? `Enviar pedido › ${fmt(total)}` : `Finalizar pedido › ${fmt(total)}`}
+          </button>
+          <button
+            type="button"
+            onClick={() => { clearCart(); onClose() }}
+            className="w-full text-sm text-gray-400 hover:text-gray-600 py-1"
+          >
+            Limpar carrinho
+          </button>
+        </div>
       </div>
     </>
   )

@@ -1,4 +1,5 @@
 import { getTemplate } from '../admin/whatsapp-messages.service'
+import { prisma } from '../../shared/prisma/prisma'
 
 import { enqueueWhatsApp } from './whatsapp.queue'
 
@@ -76,21 +77,26 @@ export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
   await enqueueWhatsApp({ storeId: store.id, to: order.clientWhatsapp, text: message, type: 'ORDER' })
 }
 
-export async function sendStatusUpdateMessage(
+interface StatusMessageExtra {
+  total?: number
+  items?: Array<{ quantity: number; productName: string }>
+  /** C-040: motivo do cancelamento — preenche {{motivo}} no template CANCELLED */
+  cancelReason?: string
+}
+
+// Render + enqueue de mensagem de status SEM checar a flag notifyOnStatusChange.
+// Usado pelo opt-in (TASK-130): quando o cliente faz opt-in via WhatsApp, queremos
+// mandar o status atual junto com a confirmação independentemente da flag (que
+// está sendo setada no mesmo passo). Para envio reativo a mudança de status,
+// use sendStatusUpdateMessage que respeita a flag.
+export async function renderAndEnqueueStatusMessage(
   storeId: string,
   phone: string,
   orderNumber: number,
   status: string,
   storeName: string,
-  /** Pass order type so READY maps to READY_FOR_PICKUP for pickup orders */
   orderType?: string,
-  /** Extra data to fill template variables {{total}}, {{itens}}, {{motivo}} */
-  extra?: {
-    total?: number
-    items?: Array<{ quantity: number; productName: string }>
-    /** C-040: motivo do cancelamento — preenche {{motivo}} no template CANCELLED */
-    cancelReason?: string
-  }
+  extra?: StatusMessageExtra
 ): Promise<void> {
   // Map DB status → WhatsApp event type
   // READY dispatches READY_FOR_PICKUP for pickup orders; delivery uses MOTOBOY_ASSIGNED separately
@@ -126,6 +132,28 @@ export async function sendStatusUpdateMessage(
     .replace(/\{\{horario\}\}/g, '')
 
   await enqueueWhatsApp({ storeId, to: phone, text, type: 'ORDER' })
+}
+
+export async function sendStatusUpdateMessage(
+  storeId: string,
+  phone: string,
+  orderNumber: number,
+  status: string,
+  storeName: string,
+  /** Pass order type so READY maps to READY_FOR_PICKUP for pickup orders */
+  orderType?: string,
+  /** Extra data to fill template variables {{total}}, {{itens}}, {{motivo}} */
+  extra?: StatusMessageExtra
+): Promise<void> {
+  // TASK-130: só envia automático quando o cliente fez opt-in via WhatsApp
+  // (mensagem "#<numero>" no número da loja). Pedidos novos nascem com flag false.
+  const order = await prisma.order.findFirst({
+    where: { storeId, number: orderNumber },
+    select: { notifyOnStatusChange: true },
+  })
+  if (!order?.notifyOnStatusChange) return
+
+  await renderAndEnqueueStatusMessage(storeId, phone, orderNumber, status, storeName, orderType, extra)
 }
 
 export async function sendWaitingPaymentMessage(
