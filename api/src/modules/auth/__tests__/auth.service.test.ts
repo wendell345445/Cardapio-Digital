@@ -131,8 +131,8 @@ describe('validateCredentials / loginWithPassword', () => {
   })
 })
 
-describe('generateTokens (access expires 15min for non-motoboy)', () => {
-  it('access token expires in 15min for ADMIN', async () => {
+describe('generateTokens (access expires 24h for non-motoboy)', () => {
+  it('access token expires in 24h for ADMIN', async () => {
     ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(mockUser)
     ;(mockPrisma.user.update as jest.Mock).mockResolvedValue(mockUser)
     ;(mockPrisma.refreshToken.create as jest.Mock).mockResolvedValue({})
@@ -141,9 +141,9 @@ describe('generateTokens (access expires 15min for non-motoboy)', () => {
 
     const decoded = verify(result.accessToken, 'test-secret') as { exp: number; iat: number }
     const durationSeconds = decoded.exp - decoded.iat
-    // 15min = 900s
-    expect(durationSeconds).toBeGreaterThanOrEqual(899)
-    expect(durationSeconds).toBeLessThanOrEqual(901)
+    // 24h = 86400s
+    expect(durationSeconds).toBeGreaterThanOrEqual(86399)
+    expect(durationSeconds).toBeLessThanOrEqual(86401)
   })
 })
 

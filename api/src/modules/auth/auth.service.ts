@@ -10,13 +10,14 @@ import { prisma } from '../../shared/prisma/prisma'
 import { getRedis } from '../../shared/redis/redis'
 
 const SALT_ROUNDS = 12
-const ACCESS_TOKEN_EXPIRY = '15m' as const
+const ACCESS_TOKEN_EXPIRY = '24h' as const
 const REFRESH_TOKEN_EXPIRY = '7d'
 const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000
 
-// Sessão única: blacklist expira um pouco além do maior access token em uso.
-// Admin/Owner = 15min; cobrimos até 1h pra folga (ex: clock drift).
-const REVOKED_SESSION_TTL_SECONDS = 60 * 60
+// Sessão única: blacklist precisa cobrir o maior access token em circulação,
+// senão um jti revogado pode voltar a ser aceito quando a entrada Redis cai
+// antes do token expirar. Admin/Owner = 24h; +1h de folga p/ clock drift.
+const REVOKED_SESSION_TTL_SECONDS = 25 * 60 * 60
 
 export interface TokenPayload {
   userId: string
