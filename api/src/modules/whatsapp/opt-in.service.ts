@@ -8,6 +8,8 @@
 // `clientWhatsapp = senderPhone` + `notifyOnStatusChange = true` e responde
 // com confirmação + status atual.
 
+import { OrderStatus } from '@prisma/client'
+
 import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
 
@@ -22,19 +24,21 @@ const OPT_IN_WINDOW_HOURS = 24
 
 // Status considerados "abertos" pra opt-in. Pedido entregue/cancelado não
 // recebe mais notificações — opt-in nesse momento não tem sentido.
-const OPEN_STATUSES = [
-  'WAITING_PAYMENT',
-  'WAITING_PAYMENT_PROOF',
-  'WAITING_CONFIRMATION',
-  'CONFIRMED',
-  'PREPARING',
-  'READY',
-  'DISPATCHED',
+// Tipado como OrderStatus[] para TypeScript pegar valores que não existem
+// no enum do schema Prisma — sem isso, valores inválidos escapavam até virar
+// erro de runtime no findFirst (pego pelo try/catch e logado, mas opt-in
+// silenciosamente nunca casava o pedido).
+const OPEN_STATUSES: OrderStatus[] = [
+  OrderStatus.WAITING_PAYMENT_PROOF,
+  OrderStatus.WAITING_CONFIRMATION,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PREPARING,
+  OrderStatus.READY,
+  OrderStatus.DISPATCHED,
 ]
 
 const STATUS_LABEL: Record<string, string> = {
   WAITING_CONFIRMATION: 'Aguardando confirmação',
-  WAITING_PAYMENT: 'Aguardando pagamento',
   WAITING_PAYMENT_PROOF: 'Aguardando comprovante de pagamento',
   CONFIRMED: 'Confirmado',
   PREPARING: 'Em preparo',
@@ -70,7 +74,7 @@ export async function tryHandleOptIn(
       storeId,
       number: orderNumber,
       createdAt: { gte: cutoff },
-      status: { in: OPEN_STATUSES as any },
+      status: { in: OPEN_STATUSES },
     },
     select: {
       id: true,
