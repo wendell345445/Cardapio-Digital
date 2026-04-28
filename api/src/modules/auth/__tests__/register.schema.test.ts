@@ -7,12 +7,6 @@ const validInput = {
   password: 'senha1234',
   confirmPassword: 'senha1234',
   whatsapp: '48999990000',
-  cep: '88010000',
-  street: 'Rua das Flores',
-  number: '123',
-  neighborhood: 'Centro',
-  city: 'Florianópolis',
-  state: 'SC' as const,
 }
 
 describe('registerStoreSchema', () => {
@@ -38,21 +32,6 @@ describe('registerStoreSchema', () => {
       expect(issue).toBeDefined()
       expect(issue?.message).toBe('As senhas não coincidem')
     }
-  })
-
-  it('fails when state is not a valid BR UF', () => {
-    const result = registerStoreSchema.safeParse({ ...validInput, state: 'XX' as never })
-    expect(result.success).toBe(false)
-  })
-
-  it('fails when CEP has fewer than 8 digits', () => {
-    const result = registerStoreSchema.safeParse({ ...validInput, cep: '123' })
-    expect(result.success).toBe(false)
-  })
-
-  it('fails when CEP has non-digit chars (with hyphen)', () => {
-    const result = registerStoreSchema.safeParse({ ...validInput, cep: '88010-000' })
-    expect(result.success).toBe(false)
   })
 
   it('fails when whatsapp does not have 11 digits', () => {

@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Loader2 } from 'lucide-react'
@@ -6,14 +5,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { PasswordInput } from '../../../shared/components/PasswordInput'
-import { maskCep, maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
+import { maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
 import { BENEFITS } from '../constants/benefits'
-import { BR_STATES } from '../constants/location'
 import { SEGMENT_OPTIONS } from '../constants/segments'
 import { useRegisterStore } from '../hooks/useRegisterStore'
-import { useViaCep } from '../hooks/useViaCep'
 
-const STATE_VALUES = BR_STATES.map((s) => s.value) as [string, ...string[]]
 const SEGMENT_VALUES = SEGMENT_OPTIONS.map((s) => s.value) as [string, ...string[]]
 
 type PlanId = 'PROFESSIONAL' | 'PREMIUM'
@@ -55,6 +51,8 @@ const PLAN_OPTIONS: PlanOption[] = [
   },
 ]
 
+// Endereco e validado fora do form (vem do Places via state). Mantemos so
+// campos digitados pelo user no schema do form.
 const registerStoreFormSchema = z
   .object({
     storeName: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').max(100),
@@ -66,12 +64,6 @@ const registerStoreFormSchema = z
     email: z.string().email('E-mail inválido'),
     password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres'),
     confirmPassword: z.string().min(8, 'Confirme a senha'),
-    cep: z.string().refine((v) => onlyDigits(v).length === 8, 'CEP deve ter 8 dígitos'),
-    street: z.string().min(2, 'Rua obrigatória').max(120),
-    number: z.string().min(1, 'Número obrigatório').max(10),
-    neighborhood: z.string().min(2, 'Bairro obrigatório').max(80),
-    city: z.string().min(2, 'Cidade obrigatória').max(80),
-    state: z.enum(STATE_VALUES, { errorMap: () => ({ message: 'UF obrigatória' }) }),
     plan: z.enum(['PROFESSIONAL', 'PREMIUM']),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -83,7 +75,6 @@ type RegisterStoreFormValues = z.infer<typeof registerStoreFormSchema>
 
 export function RegisterStorePage() {
   const navigate = useNavigate()
-  const { lookup: lookupCep } = useViaCep()
   const {
     register,
     handleSubmit,
@@ -98,29 +89,6 @@ export function RegisterStorePage() {
   })
 
   const selectedPlan = watch('plan')
-
-  const cepValue = watch('cep')
-  const lastLookedUpCepRef = useRef<string>('')
-
-  // Auto-completa endereço quando CEP tem 8 dígitos.
-  // Ref impede re-fetch do mesmo CEP em cada re-render (setValue dispara re-renders e
-  // este efeito rodaria de novo com o mesmo cepValue → loop de requests pro ViaCEP).
-  useEffect(() => {
-    const digits = onlyDigits(cepValue ?? '')
-    if (digits.length !== 8) return
-    if (digits === lastLookedUpCepRef.current) return
-
-    lastLookedUpCepRef.current = digits
-    void lookupCep(digits).then((result) => {
-      if (result) {
-        if (result.street) setValue('street', result.street, { shouldValidate: false })
-        if (result.neighborhood)
-          setValue('neighborhood', result.neighborhood, { shouldValidate: false })
-        if (result.city) setValue('city', result.city, { shouldValidate: false })
-        if (result.state) setValue('state', result.state, { shouldValidate: false })
-      }
-    })
-  }, [cepValue, lookupCep, setValue])
 
   const { register: submitRegister, isLoading, error } = useRegisterStore({
     onSuccess: () => {
@@ -143,12 +111,6 @@ export function RegisterStorePage() {
       password: values.password,
       confirmPassword: values.confirmPassword,
       whatsapp: onlyDigits(values.whatsapp),
-      cep: onlyDigits(values.cep),
-      street: values.street,
-      number: values.number,
-      neighborhood: values.neighborhood,
-      city: values.city,
-      state: values.state,
       plan: values.plan,
     })
   }
@@ -339,107 +301,6 @@ export function RegisterStorePage() {
                 </Field>
               </div>
 
-              {/* Divider compacto — Endereço */}
-              <div className="flex items-center gap-2">
-                <div className="h-px flex-1 bg-gray-200" />
-                <span className="text-[9px] font-semibold uppercase tracking-wider text-gray-500">
-                  Endereço
-                </span>
-                <div className="h-px flex-1 bg-gray-200" />
-              </div>
-
-              {/* Linha 4: CEP + Rua + Número (grid 6) */}
-              <div className="grid grid-cols-6 gap-2">
-                <div className="col-span-2">
-                  <Field label="CEP" htmlFor="cep" error={errors.cep?.message}>
-                    <input
-                      id="cep"
-                      type="text"
-                      inputMode="numeric"
-                      autoComplete="postal-code"
-                      placeholder="00000-000"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('cep', {
-                        onChange: (e) => {
-                          e.target.value = maskCep(e.target.value)
-                        },
-                      })}
-                    />
-                  </Field>
-                </div>
-                <div className="col-span-3">
-                  <Field label="Rua / Logradouro" htmlFor="street" error={errors.street?.message}>
-                    <input
-                      id="street"
-                      type="text"
-                      autoComplete="address-line1"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('street')}
-                    />
-                  </Field>
-                </div>
-                <div className="col-span-1">
-                  <Field label="Nº" htmlFor="number" error={errors.number?.message}>
-                    <input
-                      id="number"
-                      type="text"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('number')}
-                    />
-                  </Field>
-                </div>
-              </div>
-
-              {/* Linha 5: Bairro + Cidade + UF (grid 6) */}
-              <div className="grid grid-cols-6 gap-2">
-                <div className="col-span-2">
-                  <Field label="Bairro" htmlFor="neighborhood" error={errors.neighborhood?.message}>
-                    <input
-                      id="neighborhood"
-                      type="text"
-                      autoComplete="address-level3"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('neighborhood')}
-                    />
-                  </Field>
-                </div>
-                <div className="col-span-3">
-                  <Field label="Cidade" htmlFor="city" error={errors.city?.message}>
-                    <input
-                      id="city"
-                      type="text"
-                      autoComplete="address-level2"
-                      disabled={submitting}
-                      className={inputClass}
-                      {...register('city')}
-                    />
-                  </Field>
-                </div>
-                <div className="col-span-1">
-                  <Field label="UF" htmlFor="state" error={errors.state?.message}>
-                    <select
-                      id="state"
-                      disabled={submitting}
-                      className={inputClass}
-                      defaultValue=""
-                      {...register('state')}
-                    >
-                      <option value="" disabled>
-                        —
-                      </option>
-                      {BR_STATES.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.value}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-              </div>
 
               {error && error.kind === 'RATE_LIMIT' && (
                 <div

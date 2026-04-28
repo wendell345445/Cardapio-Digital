@@ -1,39 +1,5 @@
 import { z } from 'zod'
 
-/**
- * 27 unidades federativas do Brasil — usadas para validar o campo `state`
- * no formulário de auto-cadastro de loja (v2.5+).
- */
-export const BR_STATES = [
-  'AC',
-  'AL',
-  'AP',
-  'AM',
-  'BA',
-  'CE',
-  'DF',
-  'ES',
-  'GO',
-  'MA',
-  'MT',
-  'MS',
-  'MG',
-  'PA',
-  'PB',
-  'PR',
-  'PE',
-  'PI',
-  'RJ',
-  'RN',
-  'RS',
-  'RO',
-  'RR',
-  'SC',
-  'SP',
-  'SE',
-  'TO',
-] as const
-
 export const STORE_SEGMENTS = [
   'RESTAURANT',
   'PIZZERIA',
@@ -66,26 +32,8 @@ export const registerStoreSchema = z
     whatsapp: z
       .string()
       .regex(/^\d{11}$/, 'WhatsApp deve conter 11 dígitos (DDD + número)'),
-    cep: z.string().regex(/^\d{8}$/, 'CEP deve conter 8 dígitos'),
-    street: z
-      .string()
-      .min(2, 'Rua/logradouro deve ter ao menos 2 caracteres')
-      .max(120, 'Rua/logradouro deve ter no máximo 120 caracteres'),
-    number: z
-      .string()
-      .min(1, 'Informe o número')
-      .max(10, 'Número deve ter no máximo 10 caracteres'),
-    neighborhood: z
-      .string()
-      .min(2, 'Bairro deve ter ao menos 2 caracteres')
-      .max(80, 'Bairro deve ter no máximo 80 caracteres'),
-    city: z
-      .string()
-      .min(2, 'Cidade deve ter ao menos 2 caracteres')
-      .max(80, 'Cidade deve ter no máximo 80 caracteres'),
-    state: z.enum(BR_STATES, {
-      errorMap: () => ({ message: 'UF inválida' }),
-    }),
+    // Endereco da loja e configurado depois em Entregas (Places autocomplete +
+    // mapa). Cadastro nao pede endereco pra reduzir atrito de conversao.
     plan: z
       .enum(STORE_PLANS, { errorMap: () => ({ message: 'Plano inválido' }) })
       .default('PROFESSIONAL'),

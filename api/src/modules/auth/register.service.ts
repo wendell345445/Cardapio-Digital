@@ -125,12 +125,8 @@ export async function registerStore(
           name: input.storeName,
           slug,
           segment: input.segment,
-          cep: input.cep,
-          street: input.street,
-          number: input.number,
-          neighborhood: input.neighborhood,
-          city: input.city,
-          state: input.state,
+          // Endereco/coords da loja sao configurados depois em Entregas
+          // (Places autocomplete + mapa). Cadastro nao pede endereco.
           phone: input.whatsapp,
           plan,
           status: 'TRIAL',

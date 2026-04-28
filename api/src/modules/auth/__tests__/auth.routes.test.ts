@@ -192,12 +192,6 @@ describe('POST /api/v1/auth/register-store', () => {
     password: 'senha1234',
     confirmPassword: 'senha1234',
     whatsapp: '48999990000',
-    cep: '88010000',
-    street: 'Rua das Flores',
-    number: '123',
-    neighborhood: 'Centro',
-    city: 'Florianópolis',
-    state: 'SC',
   }
 
   beforeEach(() => {

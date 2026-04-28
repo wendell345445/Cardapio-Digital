@@ -73,12 +73,6 @@ export interface RegisterStorePayload {
   password: string
   confirmPassword: string
   whatsapp: string
-  cep: string
-  street: string
-  number: string
-  neighborhood: string
-  city: string
-  state: string
   plan: 'PROFESSIONAL' | 'PREMIUM'
 }
 
