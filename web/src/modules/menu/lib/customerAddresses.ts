@@ -17,6 +17,12 @@ export interface SavedAddress {
   neighborhood: string
   city: string
   state?: string
+  // Coords vindas do Google Places (quando o endereco foi escolhido via
+  // autocomplete). Permite pular geocode no backend em pedidos futuros.
+  // Opcionais pra compat com registros antigos salvos antes do Places.
+  latitude?: number
+  longitude?: number
+  formattedAddress?: string
   lastUsedAt: number
 }
 

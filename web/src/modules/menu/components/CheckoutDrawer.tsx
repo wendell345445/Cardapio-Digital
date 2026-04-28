@@ -25,11 +25,14 @@ import { getCustomerName, saveCustomerName } from '../lib/customerName'
 
 import { AddressPicker } from './AddressPicker'
 
-import { useViaCep } from '@/modules/auth/hooks/useViaCep'
-import { maskCep } from '@/shared/lib/masks'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
+import {
+  AddressAutocomplete,
+  type AddressSelection,
+} from '@/shared/components/places/AddressAutocomplete'
+import { AddressConfirmModal } from '@/shared/components/places/AddressConfirmModal'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -59,21 +62,6 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   DEBIT_ON_DELIVERY: 'Cartão de Débito na entrega',
   PIX_ON_DELIVERY: 'Pix na entrega',
   PENDING: 'Pagamento na comanda',
-}
-
-// ViaCEP devolve só a UF (2 letras). Mapa pra mostrar o nome completo no checkout.
-const UF_TO_STATE: Record<string, string> = {
-  AC: 'Acre', AL: 'Alagoas', AM: 'Amazonas', AP: 'Amapá', BA: 'Bahia',
-  CE: 'Ceará', DF: 'Distrito Federal', ES: 'Espírito Santo', GO: 'Goiás',
-  MA: 'Maranhão', MG: 'Minas Gerais', MS: 'Mato Grosso do Sul', MT: 'Mato Grosso',
-  PA: 'Pará', PB: 'Paraíba', PE: 'Pernambuco', PI: 'Piauí', PR: 'Paraná',
-  RJ: 'Rio de Janeiro', RN: 'Rio Grande do Norte', RO: 'Rondônia', RR: 'Roraima',
-  RS: 'Rio Grande do Sul', SC: 'Santa Catarina', SE: 'Sergipe', SP: 'São Paulo',
-  TO: 'Tocantins',
-}
-
-function ufToStateName(uf: string): string {
-  return UF_TO_STATE[uf.toUpperCase()] ?? uf
 }
 
 // Traduz paths de erros Zod pra nomes amigáveis no checkout público.
@@ -209,12 +197,17 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   )
   const selectedAddress = savedAddresses.find((a) => a.id === selectedAddressId) ?? null
 
+  // Places: selecao aguardando confirmacao no modal com mapa.
+  const [pendingPlaceSelection, setPendingPlaceSelection] = useState<AddressSelection | null>(null)
+  // Endereco confirmado via Places no modo "new" (preenche o form e fica
+  // visivel como card com lat/lng — botao "Trocar" volta pro autocomplete).
+  const [confirmedPlace, setConfirmedPlace] = useState<AddressSelection | null>(null)
+
   useEffect(() => {
     if (mutation.error && errorRef.current) {
       errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [mutation.error])
-  const { lookup: cepLookup, isLoading: cepLoading, error: cepError } = useViaCep()
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(schema),
@@ -397,33 +390,50 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     setValue('state', selectedAddress.state ?? '', { shouldValidate: false })
   }, [addressMode, selectedAddress, setValue])
 
-  // Quando cliente edita rua/número/bairro depois de colar coords manuais,
-  // descarta as coords antigas — o endereço novo precisa ser re-geocodado.
-  // CEP/cidade/UF não disparam reset porque costumam vir junto da rua via auto-fill.
-  // (manualCoordinates fora das deps de propósito: o efeito reage só a mudanças
-  // do endereço; incluir manualCoordinates causaria loop pós-reset.)
-  useEffect(() => {
-    setManualCoordinates((current) => (current ? null : current))
-  }, [street, streetNumber, neighborhood])
+  const handlePlaceSelected = useCallback((selection: AddressSelection) => {
+    setPendingPlaceSelection(selection)
+  }, [])
 
-  async function handleCepBlur() {
-    const digits = (zipCode ?? '').replace(/\D/g, '')
-    if (digits.length !== 8) return
-    const result = await cepLookup(digits)
-    if (!result) return
-    if (result.street) setValue('street', result.street, { shouldValidate: true })
-    if (result.neighborhood) {
-      setValue('neighborhood', result.neighborhood, { shouldValidate: true })
-    }
-    if (result.city) setValue('city', result.city, { shouldValidate: true })
-    if (result.state) setValue('state', ufToStateName(result.state))
+  function handleConfirmPlace(selection: AddressSelection) {
+    setValue('zipCode', selection.cep, { shouldValidate: false })
+    setValue('street', selection.street, { shouldValidate: true })
+    setValue('number', selection.number, { shouldValidate: true })
+    setValue('neighborhood', selection.neighborhood, { shouldValidate: true })
+    setValue('city', selection.city, { shouldValidate: true })
+    setValue('state', selection.state, { shouldValidate: false })
+    setManualCoordinates({ latitude: selection.latitude, longitude: selection.longitude })
+    setConfirmedPlace(selection)
+    setPendingPlaceSelection(null)
+  }
+
+  function handleResetPlace() {
+    setConfirmedPlace(null)
+    setManualCoordinates(null)
+    setValue('zipCode', '', { shouldValidate: false })
+    setValue('street', '', { shouldValidate: false })
+    setValue('number', '', { shouldValidate: false })
+    setValue('neighborhood', '', { shouldValidate: false })
+    setValue('city', '', { shouldValidate: false })
+    setValue('state', '', { shouldValidate: false })
+    setDeliveryFee(0)
+    setDeliveryDistance(null)
+    setDeliveryFeeError('')
   }
 
   const onSubmit = async (form: CheckoutForm) => {
     setCouponError('')
-    // TASK-130 (parte 3): se usuário escolheu um endereço salvo, manda ele;
-    // senão usa o que está no form e persiste após sucesso.
+    // Coords pra mandar no pedido. Prioridade:
+    //   1. endereco salvo com lat/lng (vindo do Places em pedido anterior)
+    //   2. confirmedPlace (selecionou no Places agora)
+    //   3. manualCoordinates (fallback Google Maps)
+    // Backend pula geocode quando recebe coords.
     const useSaved = form.type === 'DELIVERY' && addressMode === 'saved' && selectedAddress
+    const savedCoords =
+      useSaved && selectedAddress.latitude != null && selectedAddress.longitude != null
+        ? { latitude: selectedAddress.latitude, longitude: selectedAddress.longitude }
+        : null
+    const orderCoords = savedCoords ?? manualCoordinates
+
     const orderAddress =
       form.type !== 'DELIVERY'
         ? undefined
@@ -436,9 +446,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               neighborhood: selectedAddress.neighborhood,
               city: selectedAddress.city,
               state: selectedAddress.state,
-              // Coords manuais quando o cliente colou do Google Maps (modal de
-              // fallback). Backend confia, pula geocode, calcula taxa direto.
-              manualCoordinates: manualCoordinates ?? undefined,
+              manualCoordinates: orderCoords ?? undefined,
             }
           : {
               zipCode: form.zipCode,
@@ -448,7 +456,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               neighborhood: form.neighborhood!,
               city: form.city!,
               state: form.state,
-              manualCoordinates: manualCoordinates ?? undefined,
+              manualCoordinates: orderCoords ?? undefined,
             }
     try {
       const result = await mutation.mutateAsync({
@@ -481,6 +489,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           neighborhood: orderAddress.neighborhood,
           city: orderAddress.city,
           state: orderAddress.state,
+          // Persiste lat/lng + endereco formatado quando veio do Places, pra
+          // pedidos futuros desse mesmo endereco pularem o geocode.
+          latitude: confirmedPlace?.latitude ?? selectedAddress?.latitude,
+          longitude: confirmedPlace?.longitude ?? selectedAddress?.longitude,
+          formattedAddress:
+            confirmedPlace?.formattedAddress ?? selectedAddress?.formattedAddress,
         })
       }
       clearCart()
@@ -702,18 +716,8 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                       selectedId={selectedAddressId}
                       onSelect={setSelectedAddressId}
                       onUseNew={() => {
-                        // Limpa os campos do form pra o cliente digitar do zero
-                        // — senão ficam com os valores do endereço selecionado.
-                        setValue('zipCode', '', { shouldValidate: false })
-                        setValue('street', '', { shouldValidate: false })
-                        setValue('number', '', { shouldValidate: false })
+                        handleResetPlace()
                         setValue('complement', '', { shouldValidate: false })
-                        setValue('neighborhood', '', { shouldValidate: false })
-                        setValue('city', '', { shouldValidate: false })
-                        setValue('state', '', { shouldValidate: false })
-                        setDeliveryFee(0)
-                        setDeliveryDistance(null)
-                        setDeliveryFeeError('')
                         setAddressMode('new')
                       }}
                       onRemove={(id) => {
@@ -762,121 +766,79 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     {savedAddresses.length > 0 && (
                       <button
                         type="button"
-                        onClick={() => setAddressMode('saved')}
+                        onClick={() => {
+                          setAddressMode('saved')
+                          handleResetPlace()
+                        }}
                         className="text-xs text-red-500 hover:text-red-600"
                       >
                         ← Usar endereço salvo
                       </button>
                     )}
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="CEP"
-                        inputMode="numeric"
-                        value={zipCode ?? ''}
-                        onChange={(e) => setValue('zipCode', maskCep(e.target.value))}
-                        onBlur={handleCepBlur}
-                        maxLength={9}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                        style={{ fontSize: 16 }}
+
+                    {!confirmedPlace ? (
+                      <AddressAutocomplete
+                        onSelect={handlePlaceSelected}
+                        placeholder="Digite seu endereço de entrega…"
                       />
-                      {cepLoading && (
-                        <p className="text-gray-400 text-xs mt-1">Buscando endereço…</p>
-                      )}
-                      {cepError && !cepLoading && (
-                        <p className="text-red-500 text-xs mt-1">{cepError}</p>
-                      )}
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Rua"
-                        {...register('street')}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                        style={{ fontSize: 16 }}
-                      />
-                      {errors.street && (
-                        <p className="text-red-500 text-xs mt-1">{errors.street.message}</p>
-                      )}
-                    </div>
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Número *"
-                        {...register('number')}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                        style={{ fontSize: 16 }}
-                      />
-                      {errors.number && (
-                        <p className="text-red-500 text-xs mt-1">{errors.number.message}</p>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Complemento (opcional)"
-                      {...register('complement')}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                      style={{ fontSize: 16 }}
-                    />
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="Bairro"
-                        {...register('neighborhood')}
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                        style={{ fontSize: 16 }}
-                      />
-                      {deliveryFeeLoading && (
-                        <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
-                      )}
-                      {!deliveryFeeLoading && !deliveryFeeError && deliveryDistance !== null && (
-                        <p className="text-gray-500 text-xs mt-1">
-                          Taxa de entrega ({deliveryDistance.toFixed(2).replace('.', ',')} km): {fmt(deliveryFee)}
-                        </p>
-                      )}
-                      {deliveryFeeError && (
-                        <div className="mt-1">
-                          <p className="text-amber-600 text-xs">{deliveryFeeError}</p>
+                    ) : (
+                      <div className="border-2 border-red-500 rounded-lg p-3 bg-red-50/40 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 break-words">
+                              {confirmedPlace.formattedAddress}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              📍 {confirmedPlace.latitude.toFixed(5)},{' '}
+                              {confirmedPlace.longitude.toFixed(5)}
+                            </p>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setManualModalOpen(true)}
-                            className="text-xs text-blue-600 hover:text-blue-800 underline mt-0.5"
+                            onClick={handleResetPlace}
+                            className="text-xs font-medium text-red-500 hover:text-red-600 whitespace-nowrap"
                           >
-                            Marcar localização no Google Maps
+                            Trocar
                           </button>
                         </div>
-                      )}
-                      {manualCoordinates && !deliveryFeeError && (
-                        <p className="text-green-600 text-xs mt-1">
-                          📍 Localização confirmada manualmente ({manualCoordinates.latitude.toFixed(4)},{' '}
-                          {manualCoordinates.longitude.toFixed(4)})
-                        </p>
-                      )}
-                      {errors.neighborhood && !deliveryFeeError && (
-                        <p className="text-red-500 text-xs mt-1">{errors.neighborhood.message}</p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <input
-                          type="text"
-                          placeholder="Cidade"
-                          {...register('city')}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-                          style={{ fontSize: 16 }}
-                        />
-                        {errors.city && (
-                          <p className="text-red-500 text-xs mt-1">{errors.city.message}</p>
-                        )}
                       </div>
+                    )}
+
+                    {confirmedPlace && (
                       <input
                         type="text"
-                        placeholder="Estado"
-                        {...register('state')}
+                        placeholder="Complemento (apto, bloco, referência)"
+                        {...register('complement')}
                         className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                         style={{ fontSize: 16 }}
                       />
-                    </div>
+                    )}
+
+                    {deliveryFeeLoading && (
+                      <p className="text-gray-400 text-xs mt-1">Calculando taxa de entrega…</p>
+                    )}
+                    {!deliveryFeeLoading && !deliveryFeeError && deliveryDistance !== null && (
+                      <p className="text-gray-500 text-xs mt-1">
+                        Taxa de entrega ({deliveryDistance.toFixed(2).replace('.', ',')} km): {fmt(deliveryFee)}
+                      </p>
+                    )}
+                    {deliveryFeeError && (
+                      <div className="mt-1">
+                        <p className="text-amber-600 text-xs">{deliveryFeeError}</p>
+                        <button
+                          type="button"
+                          onClick={() => setManualModalOpen(true)}
+                          className="text-xs text-blue-600 hover:text-blue-800 underline mt-0.5"
+                        >
+                          Marcar localização no Google Maps
+                        </button>
+                      </div>
+                    )}
+                    {(errors.street || errors.number || errors.neighborhood || errors.city) && !confirmedPlace && (
+                      <p className="text-red-500 text-xs mt-1">
+                        Selecione um endereço da lista de sugestões para continuar.
+                      </p>
+                    )}
                   </>
                 )}
               </div>
@@ -1070,6 +1032,12 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           setManualModalOpen(false)
           setDeliveryFeeError('')
         }}
+      />
+
+      <AddressConfirmModal
+        selection={pendingPlaceSelection}
+        onClose={() => setPendingPlaceSelection(null)}
+        onConfirm={handleConfirmPlace}
       />
     </>
   )

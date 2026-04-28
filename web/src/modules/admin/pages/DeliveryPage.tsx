@@ -4,8 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Info, MapPin, Pencil, Plus, Trash2, X } from 'lucide-react'
 
-import { AddressAutocomplete, type AddressSelection } from '../delivery/AddressAutocomplete'
-import { AddressConfirmModal } from '../delivery/AddressConfirmModal'
 import {
   useCreateDistance,
   useDeleteDistance,
@@ -16,6 +14,8 @@ import {
 import type { DistanceRange } from '../services/delivery.service'
 
 import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
+import { AddressAutocomplete, type AddressSelection } from '@/shared/components/places/AddressAutocomplete'
+import { AddressConfirmModal } from '@/shared/components/places/AddressConfirmModal'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
