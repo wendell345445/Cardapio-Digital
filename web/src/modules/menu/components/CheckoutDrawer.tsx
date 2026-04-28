@@ -41,6 +41,7 @@ function fmt(v: number) {
 const PAYMENT_METHODS = [
   'PIX',
   'CREDIT_CARD',
+  'CASH_ON_DELIVERY',
   'CREDIT_ON_DELIVERY',
   'DEBIT_ON_DELIVERY',
   'PIX_ON_DELIVERY',
@@ -50,6 +51,7 @@ type PaymentMethod = (typeof PAYMENT_METHODS)[number]
 type PaymentGroup = 'PIX' | 'CREDIT_CARD' | 'ON_DELIVERY'
 
 const ON_DELIVERY_METHODS: PaymentMethod[] = [
+  'CASH_ON_DELIVERY',
   'CREDIT_ON_DELIVERY',
   'DEBIT_ON_DELIVERY',
   'PIX_ON_DELIVERY',
@@ -58,6 +60,7 @@ const ON_DELIVERY_METHODS: PaymentMethod[] = [
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   PIX: 'Pix (online)',
   CREDIT_CARD: 'Cartão de Crédito (online)',
+  CASH_ON_DELIVERY: 'Dinheiro na entrega',
   CREDIT_ON_DELIVERY: 'Cartão de Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Cartão de Débito na entrega',
   PIX_ON_DELIVERY: 'Pix na entrega',
