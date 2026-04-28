@@ -50,6 +50,8 @@ export interface Order {
   deliveredAt?: string | null
   cancelledAt?: string | null
   deliveryIssueReason?: string | null
+  paymentReceivedAt?: string | null
+  paymentReceivedBy?: { id: string; name?: string | null; role?: string } | null
 }
 
 export interface ListOrdersParams {
@@ -96,6 +98,13 @@ export async function updateOrderAddress(id: string, address: OrderAddress): Pro
   const { data } = await api.patch(`/admin/orders/${id}/address`, address)
   return data.data
 }
+
+// M-012: admin confirma recebimento do pagamento
+export async function confirmOrderPayment(id: string): Promise<Order> {
+  const { data } = await api.patch(`/admin/orders/${id}/confirm-payment`)
+  return data.data
+}
+
 
 // TASK-084/A-050: Buscar recibo formatado para impressão
 export async function fetchOrderReceipt(id: string): Promise<string> {

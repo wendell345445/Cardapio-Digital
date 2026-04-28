@@ -4,7 +4,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { SiGooglemaps, SiWaze } from 'react-icons/si'
 
 import { useAuthConfig } from '../../auth/hooks/useAuthConfig'
-import { fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
+import { confirmPayment, fetchMotoboyOrders, markDelivered, reportDeliveryProblem, type MotoboyOrder } from '../services/motoboy.service'
 
 import { PasswordInput } from '@/shared/components/PasswordInput'
 import { api } from '@/shared/lib/api'
@@ -350,12 +350,30 @@ function OrderCard({
     },
   })
 
+  const confirmPaymentMutation = useMutation({
+    mutationFn: () => confirmPayment(order.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['motoboy-orders'] })
+    },
+  })
+
   function handleDeliver() {
     const confirmed = window.confirm(`Confirmar entrega do pedido #${order.number}?`)
     if (confirmed) {
       deliverMutation.mutate()
     }
   }
+
+  function handleConfirmPayment() {
+    const confirmed = window.confirm(
+      `Confirmar que você recebeu ${formatMoney(order.total)} do cliente?\n\nEssa ação fica registrada com seu nome.`
+    )
+    if (confirmed) {
+      confirmPaymentMutation.mutate()
+    }
+  }
+
+  const paymentReceived = !!order.paymentReceivedAt
 
   const addressStr = formatAddress(order.address)
 
@@ -454,32 +472,65 @@ function OrderCard({
           ))}
         </div>
 
-        {/* Total + payment */}
-        {(() => {
-          const payment = describePayment(order.paymentMethod)
-          const toneClass =
-            payment.tone === 'paid'
-              ? 'bg-green-50 text-green-700'
-              : payment.tone === 'cash'
-                ? 'bg-amber-50 text-amber-700'
-                : 'bg-gray-100 text-gray-600'
-          return (
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100 gap-2">
-              <span className="font-bold text-gray-900">{formatMoney(order.total)}</span>
-              <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${toneClass}`}>
-                {payment.label}
-              </span>
+        {/* Total + payment + recebimento */}
+        <div className="space-y-2 pt-2 border-t border-gray-100">
+          {(() => {
+            const payment = describePayment(order.paymentMethod)
+            const toneClass =
+              payment.tone === 'paid'
+                ? 'bg-green-50 text-green-700'
+                : payment.tone === 'cash'
+                  ? 'bg-amber-50 text-amber-700'
+                  : 'bg-gray-100 text-gray-600'
+            return (
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-bold text-gray-900">{formatMoney(order.total)}</span>
+                <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${toneClass}`}>
+                  {payment.label}
+                </span>
+              </div>
+            )
+          })()}
+
+          {/* M-012: Status do recebimento */}
+          {paymentReceived ? (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+              <span className="text-green-700 text-sm">✅</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-green-800">Pagamento recebido</p>
+                <p className="text-xs text-green-700 truncate">
+                  {order.paymentReceivedBy?.name ?? 'Confirmado'} · {formatTime(order.paymentReceivedAt)}
+                </p>
+              </div>
             </div>
-          )
-        })()}
+          ) : order.status === 'DISPATCHED' && order.paymentMethod !== 'PENDING' && (
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <span className="text-amber-600 text-sm">⏳</span>
+              <p className="text-xs text-amber-800 font-medium">
+                Confirme o recebimento antes de marcar como entregue
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Action buttons — only for DISPATCHED in active tab */}
         {order.status === 'DISPATCHED' && (
           <div className="space-y-2 mt-2">
+            {/* M-012: botão de confirmar recebimento (oculto se já recebido) */}
+            {!paymentReceived && order.paymentMethod !== 'PENDING' && (
+              <button
+                onClick={handleConfirmPayment}
+                disabled={confirmPaymentMutation.isPending || deliverMutation.isPending}
+                className="w-full bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-60 text-white font-bold rounded-xl py-3.5 text-base transition-colors"
+              >
+                {confirmPaymentMutation.isPending ? 'Confirmando...' : '💵 Confirmar recebimento'}
+              </button>
+            )}
             <button
               onClick={handleDeliver}
-              disabled={deliverMutation.isPending}
-              className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-60 text-white font-bold rounded-xl py-4 text-base transition-colors"
+              disabled={deliverMutation.isPending || (!paymentReceived && order.paymentMethod !== 'PENDING')}
+              className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl py-4 text-base transition-colors"
+              title={!paymentReceived && order.paymentMethod !== 'PENDING' ? 'Confirme o recebimento do pagamento primeiro' : undefined}
             >
               {deliverMutation.isPending ? 'Registrando...' : 'Marcar como Entregue'}
             </button>
@@ -495,7 +546,13 @@ function OrderCard({
 
         {deliverMutation.isError && (
           <p className="text-red-600 text-sm text-center">
-            Erro ao marcar entrega. Tente novamente.
+            {(deliverMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error
+              ?? 'Erro ao marcar entrega. Tente novamente.'}
+          </p>
+        )}
+        {confirmPaymentMutation.isError && (
+          <p className="text-red-600 text-sm text-center">
+            Erro ao confirmar pagamento. Tente novamente.
           </p>
         )}
       </div>

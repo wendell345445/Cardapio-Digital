@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 
-import { useOrders, usePrintOrder } from '../hooks/useOrders'
+import { useConfirmOrderPayment, useOrders, usePrintOrder } from '../hooks/useOrders'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -262,15 +262,20 @@ function OrderCard({
   readonly?: boolean
 }) {
   const nextStatus = NEXT_STATUS[order.status]
-  // A-053: DISPATCHED + PIX deve usar "Pix Pago" (não pode ir para DELIVERED sem confirmar pgto).
-  const isPixDispatched = order.status === 'DISPATCHED' && order.paymentMethod === 'PIX'
+  // M-012: DISPATCHED com pagamento não recebido precisa "Confirmar recebimento"
+  // antes de mover para DELIVERED. Vale para todos os métodos pagos (online ou na entrega).
+  const needsPaymentConfirm =
+    order.status === 'DISPATCHED' &&
+    order.paymentMethod !== 'PENDING' &&
+    !order.paymentReceivedAt
   const canAdvanceDirect = !readonly && nextStatus
     && !(order.status === 'READY' && order.type === 'DELIVERY')
-    && !isPixDispatched
+    && !needsPaymentConfirm
 
-  // A-053: Botão "Pix Pago" — só DISPATCHED + PIX (motoboy retornou)
-  const showPixPagoButton = !readonly && isPixDispatched
+  // M-012: Botão "Confirmar recebimento" — DISPATCHED com pagamento não confirmado
+  const showConfirmPaymentButton = !readonly && needsPaymentConfirm
 
+  const confirmPaymentMutation = useConfirmOrderPayment()
   const printOrderMutation = usePrintOrder()
 
   return (
@@ -310,12 +315,23 @@ function OrderCard({
             Pagar na entrega
           </span>
         )}
-        {order.status === 'DELIVERED' && (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
-            Pago
+        {/* M-012: Pago — exibido sempre que paymentReceivedAt existir, com tooltip de auditoria */}
+        {order.paymentReceivedAt && (
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700"
+            title={`Pago — confirmado por ${order.paymentReceivedBy?.name ?? 'usuário'} em ${formatTime(order.paymentReceivedAt)}`}
+          >
+            ✅ Pago
           </span>
         )}
       </div>
+
+      {/* M-012: detalhe do recebimento (auditoria) */}
+      {order.paymentReceivedAt && order.paymentReceivedBy && (
+        <div className="text-xs text-green-700 truncate">
+          Recebido por <span className="font-medium">{order.paymentReceivedBy.name}</span> · {formatTime(order.paymentReceivedAt)}
+        </div>
+      )}
 
       <div className="text-xs text-gray-600 truncate">
         {order.clientName ?? order.client?.name ?? order.clientWhatsapp}
@@ -366,16 +382,16 @@ function OrderCard({
             )}
           </div>
 
-          {/* A-053: Botão "Pix Pago" — motoboy retornou, confirmar pagamento */}
-          {showPixPagoButton && (
+          {/* M-012: "Confirmar recebimento" — motoboy retornou ou admin recebeu na loja */}
+          {showConfirmPaymentButton && (
             <button
-              onClick={() => onAdvanceStatus(order.id, 'DELIVERED')}
-              disabled={advancing}
+              onClick={() => confirmPaymentMutation.mutate(order.id)}
+              disabled={confirmPaymentMutation.isPending}
               className="w-full flex items-center justify-center gap-1 rounded-md border border-indigo-500 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 py-1 text-xs font-semibold transition-colors disabled:opacity-50"
-              title="Motoboy retornou — confirmar que o Pix foi recebido"
+              title="Confirma que o pagamento foi recebido — fica registrado em seu nome"
             >
               <CheckCircle className="w-3 h-3" />
-              {advancing ? 'Confirmando...' : 'Confirmar Pix recebido'}
+              {confirmPaymentMutation.isPending ? 'Confirmando...' : 'Confirmar recebimento'}
             </button>
           )}
         </div>
@@ -620,11 +636,12 @@ export function OrdersPage() {
     // Validate transition
     if (!canTransition(order.status, targetStatus)) return
 
-    // A-053: DISPATCHED + PIX não pode ir para DELIVERED via drag (deve usar "Pix Pago")
+    // M-012: bloqueia DELIVERED via drag se pagamento ainda não foi confirmado
+    // (vale para todos os métodos pagos, não só PIX). Use "Confirmar recebimento".
     if (
-      order.paymentMethod === 'PIX' &&
-      order.status === 'DISPATCHED' &&
-      targetStatus === 'DELIVERED'
+      targetStatus === 'DELIVERED' &&
+      order.paymentMethod !== 'PENDING' &&
+      !order.paymentReceivedAt
     ) return
 
     if (requiresMotoboyConfirmation(order, targetStatus)) {

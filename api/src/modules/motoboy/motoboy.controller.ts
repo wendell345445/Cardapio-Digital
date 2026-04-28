@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { listMotoboyOrders, markDelivered, reportDeliveryProblem } from './motoboy.service'
+import { confirmMotoboyPayment, listMotoboyOrders, markDelivered, reportDeliveryProblem } from './motoboy.service'
 
 // ─── TASK-083: Controllers do Motoboy ────────────────────────────────────────
 
@@ -58,6 +58,23 @@ export async function reportProblemController(req: Request, res: Response, next:
     }
 
     const order = await reportDeliveryProblem(storeId, id, userId, reason.trim(), userId, req.ip)
+    res.json({ success: true, data: order })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * PATCH /motoboy/orders/:id/confirm-payment
+ * M-012: motoboy confirma que recebeu o pagamento na entrega.
+ */
+export async function confirmPaymentController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+
+    const order = await confirmMotoboyPayment(storeId, id, userId, req.ip)
     res.json({ success: true, data: order })
   } catch (err) {
     next(err)

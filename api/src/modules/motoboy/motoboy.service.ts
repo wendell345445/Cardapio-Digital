@@ -1,6 +1,8 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
+import { isPaymentOnDelivery } from '../../shared/utils/payment'
+import { confirmOrderPayment } from '../admin/orders.service'
 import { sendStatusUpdateMessage } from '../whatsapp/messages.service'
 
 // ─── TASK-083: Serviço do Motoboy ────────────────────────────────────────────
@@ -50,6 +52,7 @@ export async function listMotoboyOrders(
       items: { include: { additionals: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
       store: { select: { id: true, name: true, slug: true } },
+      paymentReceivedBy: { select: { id: true, name: true, role: true } },
     },
   })
 
@@ -90,6 +93,17 @@ export async function markDelivered(
     throw new AppError('O pedido precisa estar com status DISPATCHED para marcar como entregue', 422)
   }
 
+  // M-012: pagamento (online ou na entrega) precisa ter sido confirmado.
+  if (order.paymentMethod !== 'PENDING' && !order.paymentReceivedAt) {
+    const onDelivery = isPaymentOnDelivery(order.paymentMethod)
+    throw new AppError(
+      onDelivery
+        ? 'Confirme o recebimento do pagamento antes de marcar como entregue'
+        : 'Pagamento ainda não foi confirmado pelo administrador',
+      422
+    )
+  }
+
   const store = await prisma.store.findUnique({
     where: { id: storeId },
     select: { id: true, name: true },
@@ -107,6 +121,7 @@ export async function markDelivered(
       items: { include: { additionals: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
       store: { select: { id: true, name: true, slug: true } },
+      paymentReceivedBy: { select: { id: true, name: true, role: true } },
     },
   })
 
@@ -196,4 +211,32 @@ export async function reportDeliveryProblem(
   })
 
   return updated
+}
+
+// ─── M-012: Motoboy confirma recebimento do pagamento ────────────────────────
+
+/**
+ * Wrapper que valida ownership (motoboy só confirma pedido próprio)
+ * e delega pra `confirmOrderPayment` compartilhado.
+ */
+export async function confirmMotoboyPayment(
+  storeId: string,
+  orderId: string,
+  motoboyId: string,
+  ip?: string
+) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: { storeId: true, motoboyId: true },
+  })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  if (order.motoboyId !== motoboyId) {
+    throw new AppError('Este pedido não está atribuído a você', 422)
+  }
+
+  return confirmOrderPayment(storeId, orderId, motoboyId, ip)
 }

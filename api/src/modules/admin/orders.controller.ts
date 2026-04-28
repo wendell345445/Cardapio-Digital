@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from 'express'
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
 import { assignMotoboySchema, listOrdersSchema, updateOrderAddressSchema, updateOrderStatusSchema } from './orders.schema'
-import { assignMotoboy, getOrder, listOrders, updateOrderAddress, updateOrderStatus } from './orders.service'
+import { assignMotoboy, confirmOrderPayment, getOrder, listOrders, updateOrderAddress, updateOrderStatus } from './orders.service'
 import { getOrderReceipt } from './print.service'
 
 // ─── TASK-080: Controllers de Pedidos Admin ──────────────────────────────────
@@ -75,6 +75,20 @@ export async function getOrderReceiptController(req: Request, res: Response, nex
     const { id } = req.params
     const receipt = await getOrderReceipt(storeId, id)
     res.json({ success: true, data: { receipt } })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ─── M-012: Controller — Confirmar Recebimento de Pagamento ─────────────────
+
+export async function confirmPaymentController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const result = await confirmOrderPayment(storeId, id, userId, req.ip)
+    res.json({ success: true, data: result })
   } catch (err) {
     next(err)
   }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import {
   assignMotoboy,
+  confirmOrderPayment,
   fetchOrder,
   fetchOrderReceipt,
   fetchOrders,
@@ -77,3 +78,14 @@ export function usePrintOrder() {
   })
 }
 
+// M-012: admin confirma recebimento do pagamento
+export function useConfirmOrderPayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => confirmOrderPayment(id),
+    onSuccess: (updatedOrder) => {
+      qc.invalidateQueries({ queryKey: ['orders'] })
+      qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })
+    },
+  })
+}

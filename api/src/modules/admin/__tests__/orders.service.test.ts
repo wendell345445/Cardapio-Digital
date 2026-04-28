@@ -37,7 +37,7 @@ jest.mock('../analytics.service', () => ({
 
 import { prisma } from '../../../shared/prisma/prisma'
 import { emit } from '../../../shared/socket/socket'
-import { listOrders, getOrder, updateOrderStatus, assignMotoboy } from '../orders.service'
+import { listOrders, getOrder, updateOrderStatus, assignMotoboy, confirmOrderPayment } from '../orders.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockEmit = emit as jest.Mocked<typeof emit>
@@ -61,6 +61,8 @@ const mockOrder = {
   deliveryFee: 0,
   discount: 0,
   paymentMethod: 'CASH_ON_DELIVERY',
+  paymentReceivedAt: new Date(),
+  paymentReceivedById: USER_ID,
   address: { street: 'Rua A', number: '100', neighborhood: 'Centro', city: 'Joinville', complement: null },
   notes: null,
   motoboyId: null,
@@ -700,3 +702,114 @@ describe('A-051: Coluna "Confirmado" do Kanban', () => {
   })
 })
 
+// ─── M-012: confirmOrderPayment ──────────────────────────────────────────────
+
+describe('confirmOrderPayment', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  function buildOrder(overrides: Record<string, unknown> = {}) {
+    return { ...mockOrder, paymentReceivedAt: null, paymentReceivedById: null, ...overrides }
+  }
+
+  it('grava paymentReceivedAt e paymentReceivedById quando ainda não confirmado', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(buildOrder())
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue(buildOrder())
+
+    await confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID, IP)
+
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: ORDER_ID },
+        data: expect.objectContaining({
+          paymentReceivedAt: expect.any(Date),
+          paymentReceivedById: USER_ID,
+        }),
+      })
+    )
+  })
+
+  it('é idempotente: não re-grava quando já confirmado', async () => {
+    const already = buildOrder({ paymentReceivedAt: new Date(), paymentReceivedById: 'someone' })
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(already)
+
+    await confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID)
+
+    expect(mockPrisma.order.update).not.toHaveBeenCalled()
+  })
+
+  it('rejeita 404 quando pedido não existe', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
+    await expect(confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('rejeita 422 quando pedido cancelado', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(buildOrder({ status: 'CANCELLED' }))
+    await expect(confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID)).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('rejeita 422 quando paymentMethod ainda é PENDING', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(buildOrder({ paymentMethod: 'PENDING' }))
+    await expect(confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID)).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('registra AuditLog com action order.payment_received', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(buildOrder())
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue(buildOrder())
+
+    await confirmOrderPayment(STORE_ID, ORDER_ID, USER_ID, IP)
+
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'order.payment_received',
+        entityId: ORDER_ID,
+        userId: USER_ID,
+      }),
+    })
+  })
+})
+
+describe('updateOrderStatus → DELIVERED guard (M-012)', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  it('bloqueia 422 quando paymentReceivedAt ainda é null', async () => {
+    const order = { ...mockOrder, status: 'DISPATCHED', paymentReceivedAt: null, paymentReceivedById: null }
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(order)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      id: STORE_ID, name: 'Loja', slug: 'loja', phone: null,
+    })
+
+    await expect(
+      updateOrderStatus(STORE_ID, ORDER_ID, { status: 'DELIVERED' }, USER_ID)
+    ).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/recebimento do pagamento/i),
+    })
+  })
+
+  it('grava paymentReceivedBy quando admin aprova comprovante PIX (WAITING_PAYMENT_PROOF → CONFIRMED)', async () => {
+    const order = {
+      ...mockOrder,
+      status: 'WAITING_PAYMENT_PROOF',
+      paymentMethod: 'PIX',
+      paymentReceivedAt: null,
+      paymentReceivedById: null,
+    }
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(order)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      id: STORE_ID, name: 'Loja', slug: 'loja', phone: null,
+    })
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...order, status: 'CONFIRMED' })
+
+    await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
+
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          paymentReceivedAt: expect.any(Date),
+          paymentReceivedById: USER_ID,
+        }),
+      })
+    )
+  })
+})

@@ -27,6 +27,8 @@ export interface MotoboyOrder {
   paymentMethod: string
   dispatchedAt?: string | null
   createdAt: string
+  paymentReceivedAt?: string | null
+  paymentReceivedBy?: { id: string; name: string; role: string } | null
 }
 
 export async function fetchMotoboyOrders(
@@ -46,5 +48,11 @@ export async function reportDeliveryProblem(
   reason: string
 ): Promise<MotoboyOrder> {
   const { data } = await api.patch(`/motoboy/orders/${orderId}/report-problem`, { reason })
+  return data.data as MotoboyOrder
+}
+
+// M-012: motoboy confirma recebimento do pagamento
+export async function confirmPayment(orderId: string): Promise<MotoboyOrder> {
+  const { data } = await api.patch(`/motoboy/orders/${orderId}/confirm-payment`)
   return data.data as MotoboyOrder
 }

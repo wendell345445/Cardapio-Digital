@@ -10,6 +10,7 @@ import {
 
 import {
   assignMotoboyController,
+  confirmPaymentController,
   getOrderController,
   getOrderReceiptController,
   listOrdersController,
@@ -31,5 +32,7 @@ router.get('/:id/receipt', getOrderReceiptController)
 router.patch('/:id/status', updateOrderStatusController)
 router.patch('/:id/address', updateOrderAddressController)
 router.patch('/:id/motoboy', assignMotoboyController)
+// M-012: Confirmar recebimento de pagamento (admin)
+router.patch('/:id/confirm-payment', confirmPaymentController)
 
 export default router

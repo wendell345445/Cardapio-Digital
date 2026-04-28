@@ -8,6 +8,7 @@ import {
   sendStatusUpdateMessage,
 } from '../whatsapp/messages.service'
 import { geocodeAddress } from '../menu/geocoding.service'
+import { isPaymentOnDelivery } from '../../shared/utils/payment'
 
 import { invalidateAnalyticsCache } from './analytics.service'
 import { calculateDeliveryFee } from './delivery.service'
@@ -79,6 +80,7 @@ export async function getOrder(storeId: string, orderId: string) {
       motoboy: { select: { id: true, name: true, whatsapp: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
       coupon: { select: { id: true, code: true } },
+      paymentReceivedBy: { select: { id: true, name: true, role: true } },
     },
   })
 
@@ -186,14 +188,35 @@ export async function updateOrderStatus(
     throw new AppError('Status DISPATCHED é válido apenas para pedidos de entrega', 422)
   }
 
+  // M-012: bloqueia DELIVERED se pagamento ainda não foi confirmado.
+  // Cobre todos os métodos pagos (online ou na entrega) — confirmação registra
+  // quem recebeu o pagamento (paymentReceivedBy) para auditoria.
+  if (newStatus === 'DELIVERED' && order.paymentMethod !== 'PENDING' && !order.paymentReceivedAt) {
+    throw new AppError(
+      'É necessário confirmar o recebimento do pagamento antes de marcar como entregue',
+      422
+    )
+  }
+
   // Build timestamp fields
   const now = new Date()
-  const timestamps: Record<string, Date> = {}
+  const timestamps: Record<string, Date | string> = {}
   if (newStatus === 'CONFIRMED') timestamps.confirmedAt = now
   if (newStatus === 'READY') timestamps.preparedAt = now
   if (newStatus === 'DISPATCHED') timestamps.dispatchedAt = now
   if (newStatus === 'DELIVERED') timestamps.deliveredAt = now
   if (newStatus === 'CANCELLED') timestamps.cancelledAt = now
+
+  // Quando admin aprova comprovante Pix (WAITING_PAYMENT_PROOF → CONFIRMED),
+  // já registra que o pagamento foi recebido por esse admin.
+  if (
+    order.status === 'WAITING_PAYMENT_PROOF' &&
+    newStatus === 'CONFIRMED' &&
+    !order.paymentReceivedAt
+  ) {
+    timestamps.paymentReceivedAt = now
+    timestamps.paymentReceivedById = userId
+  }
 
   const updated = await prisma.order.update({
     where: { id: orderId },
@@ -206,6 +229,7 @@ export async function updateOrderStatus(
       motoboy: { select: { id: true, name: true } },
       client: { select: { id: true, name: true, whatsapp: true } },
       coupon: { select: { id: true, code: true } },
+      paymentReceivedBy: { select: { id: true, name: true, role: true } },
     },
   })
 
@@ -346,6 +370,80 @@ export async function assignMotoboy(
       entity: 'Order',
       entityId: orderId,
       data: { motoboyId: motoboy.id, motoboyName: motoboy.name },
+      ip,
+    },
+  })
+
+  return updated
+}
+
+// ─── M-012: Confirmação de Recebimento de Pagamento ──────────────────────────
+
+/**
+ * Registra que o pagamento do pedido foi recebido por `userId`.
+ * Usado por admin (após motoboy retornar) e pelo próprio motoboy no app.
+ *
+ * Idempotente: se já estava confirmado, retorna o pedido sem alterar.
+ * Não altera o status do pedido — apenas marca o recebimento.
+ */
+export async function confirmOrderPayment(
+  storeId: string,
+  orderId: string,
+  userId: string,
+  ip?: string
+) {
+  const order = await prisma.order.findUnique({ where: { id: orderId } })
+
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  if (order.status === 'CANCELLED') {
+    throw new AppError('Não é possível confirmar pagamento de pedido cancelado', 422)
+  }
+
+  if (order.paymentMethod === 'PENDING') {
+    throw new AppError('Defina a forma de pagamento antes de confirmar o recebimento', 422)
+  }
+
+  if (order.paymentReceivedAt) {
+    // Idempotente: já confirmado
+    return prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { additionals: true } },
+        motoboy: { select: { id: true, name: true } },
+        client: { select: { id: true, name: true, whatsapp: true } },
+        paymentReceivedBy: { select: { id: true, name: true, role: true } },
+      },
+    })
+  }
+
+  const now = new Date()
+  const updated = await prisma.order.update({
+    where: { id: orderId },
+    data: {
+      paymentReceivedAt: now,
+      paymentReceivedById: userId,
+    },
+    include: {
+      items: { include: { additionals: true } },
+      motoboy: { select: { id: true, name: true } },
+      client: { select: { id: true, name: true, whatsapp: true } },
+      paymentReceivedBy: { select: { id: true, name: true, role: true } },
+    },
+  })
+
+  emit.orderStatus(storeId, { orderId, status: order.status })
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'order.payment_received',
+      entity: 'Order',
+      entityId: orderId,
+      data: { paymentMethod: order.paymentMethod, onDelivery: isPaymentOnDelivery(order.paymentMethod) },
       ip,
     },
   })
