@@ -241,7 +241,28 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                 <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-700">
                   {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
                 </span>
+                {order.paymentReceivedAt && (
+                  <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-green-100 text-green-700">
+                    ✅ Pago
+                  </span>
+                )}
               </div>
+
+              {/* M-012: Auditoria de recebimento de pagamento */}
+              {order.paymentReceivedAt && order.paymentReceivedBy && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm">
+                  <p className="font-semibold text-green-800">Pagamento recebido</p>
+                  <p className="text-green-700">
+                    Confirmado por <span className="font-medium">{order.paymentReceivedBy.name}</span>
+                    {' em '}
+                    {new Date(order.paymentReceivedAt).toLocaleString('pt-BR', {
+                      day: '2-digit', month: '2-digit', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit',
+                      timeZone: 'America/Sao_Paulo',
+                    })}
+                  </p>
+                </div>
+              )}
 
               {/* Cliente */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-1">

@@ -94,6 +94,7 @@ model User {
   refreshTokens     RefreshToken[]
   ordersAsClient    Order[]               @relation("ClientOrders")
   ordersAsMotoboy   Order[]               @relation("MotoboyOrders")
+  paymentsReceived  Order[]               @relation("PaymentReceivedBy")
   clientAccessLists ClientPaymentAccess[]
   auditLogs         AuditLog[]
 
@@ -270,12 +271,15 @@ model Order {
   deliveryIssueReason  String?
   notifyOnStatusChange Boolean       @default(false)
   customerSessionId    String?
+  paymentReceivedAt    DateTime?
+  paymentReceivedById  String?
   createdAt            DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  store        Store         @relation(fields: [storeId], references: [id])
-  client       User?         @relation("ClientOrders", fields: [clientId], references: [id])
-  motoboy      User?         @relation("MotoboyOrders", fields: [motoboyId], references: [id])
+  store              Store  @relation(fields: [storeId], references: [id])
+  client             User?  @relation("ClientOrders", fields: [clientId], references: [id])
+  motoboy            User?  @relation("MotoboyOrders", fields: [motoboyId], references: [id])
+  paymentReceivedBy  User?  @relation("PaymentReceivedBy", fields: [paymentReceivedById], references: [id])
   table        Table?        @relation(fields: [tableId], references: [id])
   coupon       Coupon?       @relation(fields: [couponId], references: [id])
   items        OrderItem[]

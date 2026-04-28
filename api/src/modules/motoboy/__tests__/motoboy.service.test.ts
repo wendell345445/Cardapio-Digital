@@ -21,9 +21,14 @@ jest.mock('../../whatsapp/messages.service', () => ({
   sendStatusUpdateMessage: jest.fn().mockResolvedValue(undefined),
 }))
 
+jest.mock('../../admin/orders.service', () => ({
+  confirmOrderPayment: jest.fn(),
+}))
+
 import { prisma } from '../../../shared/prisma/prisma'
 import { emit } from '../../../shared/socket/socket'
-import { listMotoboyOrders, markDelivered } from '../motoboy.service'
+import { confirmOrderPayment } from '../../admin/orders.service'
+import { confirmMotoboyPayment, listMotoboyOrders, markDelivered } from '../motoboy.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 const mockEmit = emit as jest.Mocked<typeof emit>
@@ -45,6 +50,8 @@ const mockDispatchedOrder = {
   clientName: 'João Cliente',
   total: 50.0,
   paymentMethod: 'CASH_ON_DELIVERY',
+  paymentReceivedAt: new Date(),
+  paymentReceivedById: MOTOBOY_ID,
   address: { street: 'Rua A', number: '100', neighborhood: 'Centro', city: 'Joinville', complement: null },
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -251,5 +258,89 @@ describe('markDelivered', () => {
       'DELIVERED',
       mockStore.name
     )
+  })
+
+  // M-012: guard de pagamento
+  it('bloqueia entrega quando pagamento na entrega ainda não foi confirmado (422)', async () => {
+    const orderUnpaid = { ...mockDispatchedOrder, paymentReceivedAt: null, paymentReceivedById: null }
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderUnpaid)
+
+    await expect(
+      markDelivered(STORE_ID, ORDER_ID, MOTOBOY_ID, USER_ID)
+    ).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/recebimento do pagamento/i),
+    })
+  })
+
+  it('mensagem diferente quando pagamento online ainda nao foi confirmado pelo admin', async () => {
+    const orderUnpaid = {
+      ...mockDispatchedOrder,
+      paymentMethod: 'PIX',
+      paymentReceivedAt: null,
+      paymentReceivedById: null,
+    }
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderUnpaid)
+
+    await expect(
+      markDelivered(STORE_ID, ORDER_ID, MOTOBOY_ID, USER_ID)
+    ).rejects.toMatchObject({
+      status: 422,
+      message: expect.stringMatching(/administrador/i),
+    })
+  })
+
+  it('PENDING não exige confirmação prévia (raro, mas permitido)', async () => {
+    const orderPending = {
+      ...mockDispatchedOrder,
+      paymentMethod: 'PENDING',
+      paymentReceivedAt: null,
+      paymentReceivedById: null,
+    }
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderPending)
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...orderPending, status: 'DELIVERED' })
+
+    const result = await markDelivered(STORE_ID, ORDER_ID, MOTOBOY_ID, USER_ID)
+    expect(result.status).toBe('DELIVERED')
+  })
+})
+
+// ─── confirmMotoboyPayment ────────────────────────────────────────────────────
+
+describe('confirmMotoboyPayment', () => {
+  it('valida ownership e delega para confirmOrderPayment', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      storeId: STORE_ID,
+      motoboyId: MOTOBOY_ID,
+    })
+    const fakeUpdated = { id: ORDER_ID, paymentReceivedAt: new Date() }
+    ;(confirmOrderPayment as jest.Mock).mockResolvedValue(fakeUpdated)
+
+    const result = await confirmMotoboyPayment(STORE_ID, ORDER_ID, MOTOBOY_ID, IP)
+
+    expect(confirmOrderPayment).toHaveBeenCalledWith(STORE_ID, ORDER_ID, MOTOBOY_ID, IP)
+    expect(result).toBe(fakeUpdated)
+  })
+
+  it('rejeita quando pedido nao pertence ao motoboy (422)', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      storeId: STORE_ID,
+      motoboyId: 'outro-motoboy',
+    })
+
+    await expect(
+      confirmMotoboyPayment(STORE_ID, ORDER_ID, MOTOBOY_ID)
+    ).rejects.toMatchObject({ status: 422 })
+
+    expect(confirmOrderPayment).not.toHaveBeenCalled()
+  })
+
+  it('rejeita quando pedido nao existe (404)', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
+
+    await expect(
+      confirmMotoboyPayment(STORE_ID, ORDER_ID, MOTOBOY_ID)
+    ).rejects.toMatchObject({ status: 404 })
   })
 })
