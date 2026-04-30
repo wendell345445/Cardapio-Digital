@@ -7,15 +7,24 @@ import { getActiveProductPromos } from '../admin/coupons.service'
 
 type StoreStatus = 'open' | 'closed' | 'suspended'
 
+type BusinessHour = {
+  dayOfWeek: number
+  openTime: string | null
+  closeTime: string | null
+  isClosed: boolean
+}
+
+const DAY_LABELS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+
+function nowBrt(): Date {
+  const now = new Date()
+  return new Date(now.getTime() - 3 * 60 * 60 * 1000)
+}
+
 function calcStoreStatus(store: {
   status: string
   manualOpen: boolean | null
-  businessHours: Array<{
-    dayOfWeek: number
-    openTime: string | null
-    closeTime: string | null
-    isClosed: boolean
-  }>
+  businessHours: BusinessHour[]
 }): StoreStatus {
   if (store.status === 'SUSPENDED') return 'suspended'
 
@@ -23,8 +32,7 @@ function calcStoreStatus(store: {
   if (store.manualOpen === true) return 'open'
 
   // manualOpen === null → verifica horário de funcionamento (UTC-3 = BRT)
-  const now = new Date()
-  const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000)
+  const brt = nowBrt()
   const dayOfWeek = brt.getUTCDay()
   const hh = String(brt.getUTCHours()).padStart(2, '0')
   const mm = String(brt.getUTCMinutes()).padStart(2, '0')
@@ -40,6 +48,37 @@ function calcStoreStatus(store: {
   }
 
   return 'closed'
+}
+
+// Procura o próximo horário de abertura nos próximos 7 dias e devolve label
+// pronto pro frontend ("hoje às 18:00", "amanhã às 18:00", "sexta às 18:00").
+// Retorna null se manualOpen === false (fechado manualmente, sem ETA) ou se
+// nenhum dia da semana tem horário válido.
+function calcNextOpenLabel(
+  manualOpen: boolean | null,
+  businessHours: BusinessHour[],
+): string | null {
+  if (manualOpen === false) return null
+  if (businessHours.length === 0) return null
+
+  const brt = nowBrt()
+  const todayDow = brt.getUTCDay()
+  const currentTime = `${String(brt.getUTCHours()).padStart(2, '0')}:${String(brt.getUTCMinutes()).padStart(2, '0')}`
+
+  for (let offset = 0; offset < 7; offset++) {
+    const dow = (todayDow + offset) % 7
+    const bh = businessHours.find((h) => h.dayOfWeek === dow)
+    if (!bh || bh.isClosed || !bh.openTime || !bh.closeTime) continue
+
+    // Hoje, mas o horário de abertura ainda não chegou → conta.
+    // Hoje, mas já passou da abertura → pula (ou já estaria aberta, ou fechou).
+    if (offset === 0 && currentTime >= bh.openTime) continue
+
+    const prefix = offset === 0 ? 'hoje' : offset === 1 ? 'amanhã' : DAY_LABELS[dow]
+    return `${prefix} às ${bh.openTime}`
+  }
+
+  return null
 }
 
 export async function getMenu(slug: string) {
@@ -88,6 +127,9 @@ export async function getMenu(slug: string) {
     businessHours: store.businessHours,
   })
 
+  const nextOpenLabel =
+    storeStatus === 'closed' ? calcNextOpenLabel(store.manualOpen, store.businessHours) : null
+
   // Busca categorias ativas com produtos ativos
   const categories = await prisma.category.findMany({
     where: {
@@ -133,7 +175,7 @@ export async function getMenu(slug: string) {
   }))
 
   const result = {
-    store: { ...storeData, storeStatus },
+    store: { ...storeData, storeStatus, nextOpenLabel },
     categories: categoriesWithPromos,
   }
 

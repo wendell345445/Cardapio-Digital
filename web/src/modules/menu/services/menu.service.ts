@@ -20,6 +20,7 @@ export interface StoreInfo {
   allowCashOnDelivery: boolean; allowPickup: boolean; allowDelivery: boolean
   features?: { allowPix?: boolean } | null
   storeStatus: 'open' | 'closed' | 'suspended'
+  nextOpenLabel?: string | null
   businessHours?: Array<{ dayOfWeek: number; openTime: string; closeTime: string; isClosed: boolean }>
   facebookPixelId?: string // TASK-096
 }

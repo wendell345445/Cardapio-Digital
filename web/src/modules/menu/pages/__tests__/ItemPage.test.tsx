@@ -39,13 +39,17 @@ const baseProduct = {
   additionals: [],
 }
 
-function buildMenuData(storeStatus: 'open' | 'closed' | 'suspended') {
+function buildMenuData(
+  storeStatus: 'open' | 'closed' | 'suspended',
+  opts: { nextOpenLabel?: string | null } = {},
+) {
   return {
     store: {
       name: 'Loja Teste',
       slug: 'loja-teste',
       logo: null,
       storeStatus,
+      nextOpenLabel: opts.nextOpenLabel ?? null,
       businessHours: [],
     },
     categories: [
@@ -110,5 +114,20 @@ describe('ItemPage — bloqueio de loja fechada', () => {
 
     const warning = screen.getByRole('alert')
     expect(warning.textContent).toMatch(/Loja fechada no momento/)
+  })
+
+  it('quando há nextOpenLabel, o aviso anuncia a próxima abertura', () => {
+    useMenuMock.mockReturnValue({
+      data: buildMenuData('closed', { nextOpenLabel: 'amanhã às 18:00' }),
+      isLoading: false,
+    })
+
+    render(<ItemPage />, { wrapper })
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar/ }))
+
+    const warning = screen.getByRole('alert')
+    expect(warning.textContent).toMatch(/Loja fechada no momento/)
+    expect(warning.textContent).toMatch(/Abrimos amanhã às 18:00/)
   })
 })

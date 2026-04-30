@@ -143,7 +143,11 @@ export function MenuPage() {
                       : 'bg-gray-100 text-gray-500'
                   }`}
                 >
-                  {isOpen ? '● Aberto agora' : '● Fechado'}
+                  {isOpen
+                    ? '● Aberto agora'
+                    : store.nextOpenLabel
+                      ? `● Fechado · abrimos ${store.nextOpenLabel}`
+                      : '● Fechado'}
                 </span>
                 {tableNumber && (
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">

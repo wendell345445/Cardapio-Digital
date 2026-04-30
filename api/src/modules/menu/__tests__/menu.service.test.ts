@@ -249,4 +249,111 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     expect(result.store.storeStatus).toBe('open')
   })
+
+  // ─── nextOpenLabel ───────────────────────────────────────────────────────────
+  // Hoje (FIXED_DAY_OF_WEEK=2 = terça) está 15:00 BRT.
+
+  it('nextOpenLabel é null quando loja está aberta', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: null,
+      businessHours: openAllWeekHours,
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.nextOpenLabel).toBeNull()
+  })
+
+  it('nextOpenLabel = "hoje às HH:MM" quando hoje ainda vai abrir mais tarde', async () => {
+    // Terça abre só às 18:00 (são 15:00 agora); demais dias fechados.
+    const onlyTodayLater = Array.from({ length: 7 }, (_, i) => ({
+      dayOfWeek: i,
+      openTime: i === FIXED_DAY_OF_WEEK ? '18:00' : null,
+      closeTime: i === FIXED_DAY_OF_WEEK ? '23:00' : null,
+      isClosed: i !== FIXED_DAY_OF_WEEK,
+    }))
+
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: null,
+      businessHours: onlyTodayLater,
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.storeStatus).toBe('closed')
+    expect(result.store.nextOpenLabel).toBe('hoje às 18:00')
+  })
+
+  it('nextOpenLabel = "amanhã às HH:MM" quando hoje já passou da abertura', async () => {
+    // Terça abriu 08:00 e fechou 12:00 (já são 15:00); quarta abre 09:00.
+    const past = [
+      { dayOfWeek: 0, openTime: null, closeTime: null, isClosed: true },
+      { dayOfWeek: 1, openTime: null, closeTime: null, isClosed: true },
+      { dayOfWeek: 2, openTime: '08:00', closeTime: '12:00', isClosed: false },
+      { dayOfWeek: 3, openTime: '09:00', closeTime: '18:00', isClosed: false },
+      { dayOfWeek: 4, openTime: null, closeTime: null, isClosed: true },
+      { dayOfWeek: 5, openTime: null, closeTime: null, isClosed: true },
+      { dayOfWeek: 6, openTime: null, closeTime: null, isClosed: true },
+    ]
+
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: null,
+      businessHours: past,
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.storeStatus).toBe('closed')
+    expect(result.store.nextOpenLabel).toBe('amanhã às 09:00')
+  })
+
+  it('nextOpenLabel usa nome do dia quando próxima abertura é dali a 2+ dias', async () => {
+    // Hoje terça 15:00, fechado; só sexta (dayOfWeek=5) abre 18:00.
+    const onlyFriday = Array.from({ length: 7 }, (_, i) => ({
+      dayOfWeek: i,
+      openTime: i === 5 ? '18:00' : null,
+      closeTime: i === 5 ? '23:00' : null,
+      isClosed: i !== 5,
+    }))
+
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: null,
+      businessHours: onlyFriday,
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.storeStatus).toBe('closed')
+    expect(result.store.nextOpenLabel).toBe('sexta às 18:00')
+  })
+
+  it('nextOpenLabel é null quando manualOpen=false (sem ETA)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: false,
+      businessHours: openAllWeekHours,
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.storeStatus).toBe('closed')
+    expect(result.store.nextOpenLabel).toBeNull()
+  })
+
+  it('nextOpenLabel é null quando nenhum dia da semana tem horário válido', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      manualOpen: null,
+      businessHours: [],
+    })
+
+    const result = await getMenu(SLUG) as any
+
+    expect(result.store.storeStatus).toBe('closed')
+    expect(result.store.nextOpenLabel).toBeNull()
+  })
 })

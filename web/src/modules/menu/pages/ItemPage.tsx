@@ -111,7 +111,11 @@ export function ItemPage() {
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Detalhes do item</span>
               <span className={`text-xs px-2 py-0.5 rounded-full ${isOpen ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                {isOpen ? '● Aberto agora' : '● Fechado'}
+                {isOpen
+                  ? '● Aberto agora'
+                  : store?.nextOpenLabel
+                    ? `● Fechado · abrimos ${store.nextOpenLabel}`
+                    : '● Fechado'}
               </span>
             </div>
             <p className="font-bold text-gray-900 truncate">{store?.name}</p>
@@ -275,7 +279,8 @@ export function ItemPage() {
                 role="alert"
                 className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 -mt-2"
               >
-                Loja fechada no momento
+                Loja fechada no momento.
+                {store?.nextOpenLabel ? ` Abrimos ${store.nextOpenLabel}.` : ''}
               </div>
             )}
           </div>
