@@ -389,6 +389,21 @@ export async function evictPriorPairings(currentStoreId: string, pairedJid: stri
     return
   }
 
+  // Defesa: se a store atual não existe mais (sessão órfã em disco apontando pra
+  // store deletada), o update final da transação estouraria com P2025 e faria
+  // rollback do updateMany — deixando outras lojas com pairedNumber preso.
+  const currentExists = await prisma.store.findUnique({
+    where: { id: currentStoreId },
+    select: { id: true },
+  })
+  if (!currentExists) {
+    logger.warn(
+      { currentStoreId, pairedNumber },
+      '[WhatsApp] evictPriorPairings: store atual não existe no banco (sessão órfã), skip'
+    )
+    return
+  }
+
   const conflicting = await prisma.store.findMany({
     where: { whatsappPairedNumber: pairedNumber, NOT: { id: currentStoreId } },
     select: { id: true, name: true },
@@ -452,6 +467,14 @@ export async function restoreAllSessions(): Promise<void> {
     // Seria inútil: sem credenciais, só serviria pra pedir novo QR.
     if (!hasValidSessionOnDisk(storeId)) {
       logger.info({ storeId }, '[WhatsApp] skip restore — session folder exists but has no creds.json')
+      continue
+    }
+    // Sessão órfã: pasta no disco mas store removida do banco. Limpa o disco
+    // pra evitar que evictPriorPairings caia em P2025 num pareamento futuro.
+    const exists = await prisma.store.findUnique({ where: { id: storeId }, select: { id: true } })
+    if (!exists) {
+      logger.warn({ storeId }, '[WhatsApp] skip restore — store não existe no banco, limpando sessão órfã')
+      clearSession(storeId)
       continue
     }
     try {

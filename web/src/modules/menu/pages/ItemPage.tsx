@@ -30,6 +30,7 @@ export function ItemPage() {
   const [selectedAdditionals, setSelectedAdditionals] = useState<ProductAdditional[]>([])
   const [quantity, setQuantity] = useState(1)
   const [notes, setNotes] = useState('')
+  const [closedWarning, setClosedWarning] = useState(false)
 
   const product = data?.categories.flatMap(c => c.products).find(p => p.id === productId)
   const store = data?.store
@@ -74,6 +75,10 @@ export function ItemPage() {
   }
 
   function handleAdd() {
+    if (!isOpen) {
+      setClosedWarning(true)
+      return
+    }
     addItem({
       productId: product!.id,
       productName: product!.name,
@@ -264,6 +269,15 @@ export function ItemPage() {
                 <span>Adicionar · {fmt(total)}</span>
               </button>
             </div>
+
+            {closedWarning && !isOpen && (
+              <div
+                role="alert"
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 -mt-2"
+              >
+                Loja fechada no momento
+              </div>
+            )}
           </div>
         </div>
       </div>
