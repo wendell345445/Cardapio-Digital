@@ -19,6 +19,7 @@ import {
   listClosedSessionsController,
   listTablesController,
   setTablesCountController,
+  settleTableController,
   updateItemStatusController,
 } from './tables.controller'
 
@@ -37,6 +38,7 @@ router.get('/:id/qrcode/pdf', getQRCodePDFController)
 router.get('/:id/comanda', getComandaController)
 router.patch('/:id/close', closeTableController)
 router.post('/:id/payment', confirmTablePaymentController)
+router.post('/:id/settle', settleTableController)
 router.patch('/:tableId/items/:itemId/status', updateItemStatusController)
 
 export default router

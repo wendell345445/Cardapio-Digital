@@ -8,9 +8,11 @@ import {
   fetchComanda,
   fetchTables,
   setTablesCount,
+  settleTable,
   updateItemStatus,
   type CloseTableDto,
   type CreateTableDto,
+  type SettleTableDto,
   type TablePaymentMethod,
 } from '../services/tables.service'
 
@@ -93,6 +95,18 @@ export function useConfirmTablePayment() {
       tableId: string
       paymentMethod: TablePaymentMethod
     }) => confirmTablePayment(tableId, paymentMethod),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['comanda', variables.tableId] })
+      qc.invalidateQueries({ queryKey: ['tables'] })
+    },
+  })
+}
+
+export function useSettleTable() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ tableId, dto }: { tableId: string; dto: SettleTableDto }) =>
+      settleTable(tableId, dto),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['comanda', variables.tableId] })
       qc.invalidateQueries({ queryKey: ['tables'] })

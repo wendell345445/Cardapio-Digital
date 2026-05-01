@@ -10,12 +10,12 @@ import {
 } from '@dnd-kit/core'
 import { useDraggable } from '@dnd-kit/core'
 import { isAxiosError } from 'axios'
-import { CheckCircle2, ChefHat, Clock, X } from 'lucide-react'
+import { Banknote, CheckCircle2, ChefHat, Clock, CreditCard, QrCode, Smartphone, X } from 'lucide-react'
 
 import {
   useCloseTable,
   useComanda,
-  useConfirmTablePayment,
+  useSettleTable,
   useUpdateItemStatus,
 } from '../../hooks/useTables'
 import type {
@@ -23,8 +23,6 @@ import type {
   TablePaymentMethod,
   TableWithComanda,
 } from '../../services/tables.service'
-
-import { PaymentMethodPicker } from './PaymentMethodPicker'
 
 import { toast } from '@/shared/lib/toast'
 
@@ -127,12 +125,15 @@ export function MesaDetailDrawer({ table, onClose }: Props) {
   const { data: comanda, isLoading, isError } = useComanda(table.id)
   const updateStatus = useUpdateItemStatus()
   const closeTableMutation = useCloseTable()
-  const confirmPaymentMutation = useConfirmTablePayment()
+  const settleTableMutation = useSettleTable()
 
-  const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+  // Painel "Fechar conta" — taxa de serviço + escolha do método numa só tela.
+  // Para sessão JÁ paga (caso raro: alguém usou o /payment antigo), entra no
+  // fluxo simplificado de close (sem método de pagamento, só taxa).
+  const [settleOpen, setSettleOpen] = useState(false)
+  const [closePaidOpen, setClosePaidOpen] = useState(false)
   const [applyServiceCharge, setApplyServiceCharge] = useState(false)
   const [serviceChargePercent, setServiceChargePercent] = useState(10)
-  const [showPaymentPicker, setShowPaymentPicker] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
@@ -168,16 +169,25 @@ export function MesaDetailDrawer({ table, onClose }: Props) {
     )
   }
 
-  function handleConfirmPayment(method: TablePaymentMethod) {
-    setShowPaymentPicker(false)
-    confirmPaymentMutation.mutate(
-      { tableId: table.id, paymentMethod: method },
+  function handleSettle(method: TablePaymentMethod) {
+    settleTableMutation.mutate(
       {
-        onSuccess: () => toast.success(`Pagamento confirmado via ${methodLabel(method)}`),
+        tableId: table.id,
+        dto: {
+          paymentMethod: method,
+          applyServiceCharge,
+          serviceChargePercent: applyServiceCharge ? serviceChargePercent : undefined,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Mesa ${table.number} fechada · ${methodLabel(method)}`)
+          onClose()
+        },
         onError: (err) => {
           const msg = isAxiosError(err)
-            ? err.response?.data?.error ?? 'Erro ao confirmar pagamento'
-            : 'Erro ao confirmar pagamento'
+            ? err.response?.data?.error ?? 'Erro ao fechar conta'
+            : 'Erro ao fechar conta'
           toast.error(msg)
         },
       }
@@ -292,8 +302,7 @@ export function MesaDetailDrawer({ table, onClose }: Props) {
           </div>
 
           {items.length === 0 ? (
-            // Mesa aberta sem pedido — não há o que cobrar. Libera direto sem
-            // passar pelo fluxo "Receber pagamento" → "Fechar sessão".
+            // Mesa aberta sem pedido — não há o que cobrar. Libera direto.
             <button
               type="button"
               onClick={handleCloseTable}
@@ -302,82 +311,189 @@ export function MesaDetailDrawer({ table, onClose }: Props) {
             >
               {closeTableMutation.isPending ? 'Encerrando...' : 'Encerrar mesa'}
             </button>
-          ) : !isPaid ? (
+          ) : isPaid ? (
+            // Sessão já paga via /payment antigo (compat). Fluxo só de close +
+            // taxa de serviço, sem reescolher método.
+            !closePaidOpen ? (
+              <button
+                type="button"
+                onClick={() => setClosePaidOpen(true)}
+                className="w-full rounded-lg bg-red-600 hover:bg-red-700 text-white py-2.5 text-sm font-semibold transition-colors"
+              >
+                Fechar sessão
+              </button>
+            ) : (
+              <ServiceChargePanel
+                applyServiceCharge={applyServiceCharge}
+                onToggleServiceCharge={setApplyServiceCharge}
+                serviceChargePercent={serviceChargePercent}
+                onChangeServiceChargePercent={setServiceChargePercent}
+                subtotal={subtotal}
+                serviceChargeAmount={serviceChargeAmount}
+                total={finalTotal}
+                onCancel={() => setClosePaidOpen(false)}
+                actions={
+                  <button
+                    type="button"
+                    onClick={handleCloseTable}
+                    disabled={closeTableMutation.isPending}
+                    className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white py-2 text-sm font-medium disabled:opacity-50"
+                  >
+                    {closeTableMutation.isPending ? 'Fechando...' : 'Confirmar'}
+                  </button>
+                }
+              />
+            )
+          ) : !settleOpen ? (
             <button
               type="button"
-              onClick={() => setShowPaymentPicker(true)}
+              onClick={() => setSettleOpen(true)}
               className="w-full rounded-lg bg-green-600 hover:bg-green-700 text-white py-2.5 text-sm font-semibold transition-colors"
             >
-              Receber pagamento
-            </button>
-          ) : !showCloseConfirm ? (
-            <button
-              type="button"
-              onClick={() => setShowCloseConfirm(true)}
-              className="w-full rounded-lg bg-red-600 hover:bg-red-700 text-white py-2.5 text-sm font-semibold transition-colors"
-            >
-              Fechar sessão
+              Fechar conta
             </button>
           ) : (
-            <div className="space-y-3 rounded-lg bg-gray-50 p-4 border border-gray-200">
-              <p className="text-sm font-semibold text-gray-800">Confirmar fechamento</p>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={applyServiceCharge}
-                  onChange={(e) => setApplyServiceCharge(e.target.checked)}
-                  className="rounded"
+            <ServiceChargePanel
+              title="Fechar conta"
+              applyServiceCharge={applyServiceCharge}
+              onToggleServiceCharge={setApplyServiceCharge}
+              serviceChargePercent={serviceChargePercent}
+              onChangeServiceChargePercent={setServiceChargePercent}
+              subtotal={subtotal}
+              serviceChargeAmount={serviceChargeAmount}
+              total={finalTotal}
+              onCancel={() => setSettleOpen(false)}
+              actions={
+                <PaymentMethodButtons
+                  disabled={settleTableMutation.isPending}
+                  onSelect={handleSettle}
                 />
-                Adicionar taxa de serviço
-              </label>
-              {applyServiceCharge && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={serviceChargePercent}
-                    onChange={(e) => setServiceChargePercent(Number(e.target.value))}
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
-                  />
-                  <span className="text-sm text-gray-600">%</span>
-                  <span className="text-sm text-gray-600">= {formatCurrency(serviceChargeAmount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between text-sm font-bold">
-                <span>Total</span>
-                <span>{formatCurrency(finalTotal)}</span>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCloseConfirm(false)}
-                  className="flex-1 rounded-lg border border-gray-300 text-gray-700 py-2 text-sm font-medium hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseTable}
-                  disabled={closeTableMutation.isPending}
-                  className="flex-1 rounded-lg bg-red-600 hover:bg-red-700 text-white py-2 text-sm font-medium disabled:opacity-50"
-                >
-                  {closeTableMutation.isPending ? 'Fechando...' : 'Confirmar'}
-                </button>
-              </div>
-            </div>
+              }
+            />
           )}
         </footer>
       )}
-
-      {showPaymentPicker && (
-        <PaymentMethodPicker
-          total={subtotal}
-          onCancel={() => setShowPaymentPicker(false)}
-          onConfirm={handleConfirmPayment}
-        />
-      )}
     </section>
+  )
+}
+
+interface ServiceChargePanelProps {
+  title?: string
+  applyServiceCharge: boolean
+  onToggleServiceCharge: (v: boolean) => void
+  serviceChargePercent: number
+  onChangeServiceChargePercent: (n: number) => void
+  subtotal: number
+  serviceChargeAmount: number
+  total: number
+  onCancel: () => void
+  actions: React.ReactNode
+}
+
+function ServiceChargePanel({
+  title = 'Confirmar fechamento',
+  applyServiceCharge,
+  onToggleServiceCharge,
+  serviceChargePercent,
+  onChangeServiceChargePercent,
+  subtotal,
+  serviceChargeAmount,
+  total,
+  onCancel,
+  actions,
+}: ServiceChargePanelProps) {
+  return (
+    <div className="space-y-3 rounded-lg bg-gray-50 p-4 border border-gray-200">
+      <p className="text-sm font-semibold text-gray-800">{title}</p>
+      <label className="flex items-center gap-2 text-sm text-gray-700">
+        <input
+          type="checkbox"
+          checked={applyServiceCharge}
+          onChange={(e) => onToggleServiceCharge(e.target.checked)}
+          className="rounded"
+        />
+        Adicionar taxa de serviço
+      </label>
+      {applyServiceCharge && (
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={serviceChargePercent}
+            onChange={(e) => onChangeServiceChargePercent(Number(e.target.value))}
+            className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+          />
+          <span className="text-sm text-gray-600">%</span>
+          <span className="text-sm text-gray-600">= {formatCurrency(serviceChargeAmount)}</span>
+        </div>
+      )}
+      <div className="space-y-1 border-t border-gray-200 pt-2">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>Subtotal</span>
+          <span>{formatCurrency(subtotal)}</span>
+        </div>
+        {applyServiceCharge && serviceChargeAmount > 0 && (
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Taxa de serviço</span>
+            <span>{formatCurrency(serviceChargeAmount)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm font-bold">
+          <span>Total</span>
+          <span>{formatCurrency(total)}</span>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 rounded-lg border border-gray-300 text-gray-700 py-2 text-sm font-medium hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+        {actions}
+      </div>
+    </div>
+  )
+}
+
+const PAYMENT_OPTIONS: Array<{
+  value: TablePaymentMethod
+  label: string
+  icon: React.ElementType
+  color: string
+}> = [
+  { value: 'PIX', label: 'PIX', icon: QrCode, color: 'bg-emerald-500 hover:bg-emerald-600' },
+  { value: 'CASH', label: 'Dinheiro', icon: Banknote, color: 'bg-amber-500 hover:bg-amber-600' },
+  { value: 'CREDIT', label: 'Crédito', icon: CreditCard, color: 'bg-blue-500 hover:bg-blue-600' },
+  { value: 'DEBIT', label: 'Débito', icon: Smartphone, color: 'bg-indigo-500 hover:bg-indigo-600' },
+]
+
+interface PaymentMethodButtonsProps {
+  disabled: boolean
+  onSelect: (method: TablePaymentMethod) => void
+}
+
+function PaymentMethodButtons({ disabled, onSelect }: PaymentMethodButtonsProps) {
+  return (
+    <div className="flex-[2] grid grid-cols-2 gap-2">
+      {PAYMENT_OPTIONS.map((opt) => {
+        const Icon = opt.icon
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={disabled}
+            onClick={() => onSelect(opt.value)}
+            className={`${opt.color} disabled:opacity-50 text-white rounded-lg py-2 px-3 flex items-center justify-center gap-1.5 text-sm font-semibold transition-colors`}
+          >
+            <Icon className="w-4 h-4" />
+            {opt.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

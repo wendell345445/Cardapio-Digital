@@ -6,6 +6,7 @@ import {
   closeTableSchema,
   confirmTablePaymentSchema,
   createTableSchema,
+  settleTableSchema,
   setTablesCountSchema,
   updateItemStatusSchema,
 } from './tables.schema'
@@ -20,6 +21,7 @@ import {
   listClosedSessions,
   listTables,
   setTablesCount,
+  settleTable,
   updateOrderItemStatus,
 } from './tables.service'
 
@@ -141,6 +143,19 @@ export async function confirmTablePaymentController(req: Request, res: Response,
     const { id } = req.params
     const data = confirmTablePaymentSchema.parse(req.body)
     const result = await confirmTableSessionPayment(storeId, id, data, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function settleTableController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const data = settleTableSchema.parse(req.body)
+    const result = await settleTable(storeId, id, data, userId, req.ip)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

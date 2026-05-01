@@ -19,6 +19,7 @@ import type {
   CloseTableInput,
   ConfirmTablePaymentInput,
   CreateTableInput,
+  SettleTableInput,
   UpdateItemStatusInput,
 } from './tables.schema'
 
@@ -646,5 +647,135 @@ export async function confirmTableSessionPayment(
     paymentMethod: data.paymentMethod,
     paymentReceivedAt: now,
     alreadyPaid: false,
+  }
+}
+
+// ─── Pagamento + fechamento numa só ação ────────────────────────────────────
+// O fluxo correto pro garçom: define taxa de serviço, escolhe método, cobra o
+// total certo do cliente. Endpoints `/payment` e `/close` continuam pra usos
+// separados (ex: marcar pagamento sem encerrar, ou fechar mesa sem pedido).
+
+export async function settleTable(
+  storeId: string,
+  tableId: string,
+  data: SettleTableInput,
+  userId: string,
+  ip?: string
+) {
+  if (!isTablePaymentMethod(data.paymentMethod)) {
+    throw new AppError('Método de pagamento inválido para mesa', 422)
+  }
+
+  const table = await prisma.table.findUnique({ where: { id: tableId } })
+  if (!table || table.storeId !== storeId) {
+    throw new AppError('Mesa não encontrada', 404)
+  }
+
+  const session = await prisma.tableSession.findFirst({
+    where: { tableId, storeId, status: 'OPEN' },
+    include: {
+      orders: {
+        where: { status: { not: 'CANCELLED' } },
+        include: { items: { include: { additionals: true } } },
+      },
+    },
+  })
+  if (!session) {
+    throw new AppError('Mesa não tem sessão aberta', 422)
+  }
+
+  const subtotal = session.orders.reduce(
+    (acc, order) => acc + order.items.reduce((s, i) => s + i.totalPrice, 0),
+    0
+  )
+  const serviceCharge =
+    data.applyServiceCharge && data.serviceChargePercent
+      ? (subtotal * data.serviceChargePercent) / 100
+      : 0
+  const total = subtotal + serviceCharge
+  const orderIds = session.orders.map((o) => o.id)
+  const unpaidOrderIds = session.orders
+    .filter((o) => o.paymentReceivedAt === null)
+    .map((o) => o.id)
+  const now = new Date()
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Marca pagamento nos orders ainda não pagos
+    if (unpaidOrderIds.length > 0) {
+      await tx.order.updateMany({
+        where: { id: { in: unpaidOrderIds } },
+        data: {
+          paymentMethod: data.paymentMethod,
+          paymentReceivedAt: now,
+          paymentReceivedById: userId,
+        },
+      })
+      // WAITING_* → CONFIRMED (espelha auto-confirm que OrdersPage faz pro PIX).
+      await tx.order.updateMany({
+        where: {
+          id: { in: unpaidOrderIds },
+          status: { in: ['WAITING_CONFIRMATION', 'WAITING_PAYMENT_PROOF'] },
+        },
+        data: { status: 'CONFIRMED', confirmedAt: now },
+      })
+    }
+
+    // 2. Fecha sessão e marca todos os orders como DELIVERED
+    await tx.tableSession.update({
+      where: { id: session.id },
+      data: {
+        status: 'CLOSED',
+        closedAt: now,
+        closedBy: userId,
+        checkRequestedAt: null,
+      },
+    })
+    await tx.order.updateMany({
+      where: { id: { in: orderIds } },
+      data: { status: 'DELIVERED' },
+    })
+    await tx.table.update({
+      where: { id: tableId },
+      data: { isOccupied: false },
+    })
+  })
+
+  // CashFlow: registra cada pedido pago no caixa aberto (no-op se não há).
+  for (const orderId of unpaidOrderIds) {
+    await linkOrderToCashFlow(storeId, orderId)
+  }
+
+  await prisma.auditLog.create({
+    data: {
+      storeId,
+      userId,
+      action: 'table.settle',
+      entity: 'TableSession',
+      entityId: session.id,
+      data: {
+        tableNumber: table.number,
+        sessionId: session.id,
+        ordersClosed: orderIds.length,
+        ordersPaid: unpaidOrderIds.length,
+        paymentMethod: data.paymentMethod,
+        subtotal,
+        serviceCharge,
+        total,
+        applyServiceCharge: data.applyServiceCharge,
+        serviceChargePercent: data.serviceChargePercent,
+      },
+      ip,
+    },
+  })
+
+  return {
+    tableNumber: table.number,
+    sessionId: session.id,
+    ordersClosed: orderIds.length,
+    ordersPaid: unpaidOrderIds.length,
+    paymentMethod: data.paymentMethod,
+    subtotal,
+    serviceCharge,
+    total,
   }
 }

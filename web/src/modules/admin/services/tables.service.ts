@@ -92,6 +92,23 @@ export interface CloseTableDto {
   serviceChargePercent?: number
 }
 
+export interface SettleTableDto {
+  paymentMethod: TablePaymentMethod
+  applyServiceCharge?: boolean
+  serviceChargePercent?: number
+}
+
+export interface SettleTableResult {
+  tableNumber: number
+  sessionId: string
+  ordersClosed: number
+  ordersPaid: number
+  paymentMethod: TablePaymentMethod
+  subtotal: number
+  serviceCharge: number
+  total: number
+}
+
 export interface QRCodeData {
   qrDataUrl: string
   url: string
@@ -177,6 +194,11 @@ export async function confirmTablePayment(
   paymentMethod: TablePaymentMethod
 ): Promise<ConfirmTablePaymentResult> {
   const { data } = await api.post(`/admin/tables/${tableId}/payment`, { paymentMethod })
+  return data.data
+}
+
+export async function settleTable(tableId: string, dto: SettleTableDto): Promise<SettleTableResult> {
+  const { data } = await api.post(`/admin/tables/${tableId}/settle`, dto)
   return data.data
 }
 
