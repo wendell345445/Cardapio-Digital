@@ -167,31 +167,34 @@ export function MesasPanel() {
   })
 
   // Beep + toast quando chega pedido novo de mesa.
+  // Invalida ['tables'] (atualiza cards) e ['comanda'] (atualiza kanban do
+  // drawer aberto — sem tableId, invalida todas as comandas em cache).
   useEffect(() => {
     if (!socket) return
-    const onNew = (payload: { type?: string; tableNumber?: number }) => {
+    const refresh = () => {
       qc.invalidateQueries({ queryKey: ['tables'] })
+      qc.invalidateQueries({ queryKey: ['comanda'] })
+    }
+    const onNew = (payload: { type?: string; tableNumber?: number }) => {
+      refresh()
       if (payload.type === 'TABLE') {
         playBeep()
         toast.info(`Mesa ${payload.tableNumber ?? '?'}: novo pedido`)
       }
     }
-    const onStatus = () => {
-      qc.invalidateQueries({ queryKey: ['tables'] })
-    }
     const onCheckRequested = (payload: { tableNumber?: number }) => {
-      qc.invalidateQueries({ queryKey: ['tables'] })
+      refresh()
       playBeep()
       toast.info(`Mesa ${payload.tableNumber ?? '?'}: cliente pediu a conta`)
     }
     socket.on('order:new', onNew)
-    socket.on('order:status', onStatus)
-    socket.on('item:status', onStatus)
+    socket.on('order:status', refresh)
+    socket.on('item:status', refresh)
     socket.on('table:check_requested', onCheckRequested)
     return () => {
       socket.off('order:new', onNew)
-      socket.off('order:status', onStatus)
-      socket.off('item:status', onStatus)
+      socket.off('order:status', refresh)
+      socket.off('item:status', refresh)
       socket.off('table:check_requested', onCheckRequested)
     }
   }, [socket, qc])
