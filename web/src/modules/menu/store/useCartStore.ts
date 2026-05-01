@@ -12,11 +12,20 @@ export interface CartItem {
 
 interface CartStore {
   storeSlug: string | null
-  /** C-002/C-022: número da mesa quando cliente entrou via QR code (?mesa=N) */
+  /** Número da mesa, só populado quando cliente abriu sessão via QR (/mesa/:n) */
   tableNumber: number | null
+  /** Token da TableSession (entry-point /mesa/:n cria/entra na sessão) */
+  tableSessionToken: string | null
+  /** Nome que o cliente informou no scan (null = "Convidado") */
+  deviceName: string | null
   items: CartItem[]
   setStore: (slug: string) => void
-  setTableNumber: (n: number | null) => void
+  setTableSession: (params: {
+    tableNumber: number
+    token: string
+    deviceName: string | null
+  }) => void
+  clearTableSession: () => void
   addItem: (item: Omit<CartItem, 'id'>) => void
   updateQty: (id: string, quantity: number) => void
   removeItem: (id: string) => void
@@ -30,16 +39,43 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
       storeSlug: null,
       tableNumber: null,
+      tableSessionToken: null,
+      deviceName: null,
       items: [],
-      setStore: (slug) => set({ storeSlug: slug }),
-      setTableNumber: (n) => set({ tableNumber: n }),
+      setStore: (slug) => {
+        const prev = get().storeSlug
+        if (prev && prev !== slug) {
+          set({
+            storeSlug: slug,
+            items: [],
+            tableNumber: null,
+            tableSessionToken: null,
+            deviceName: null,
+          })
+          return
+        }
+        set({ storeSlug: slug })
+      },
+      setTableSession: ({ tableNumber, token, deviceName }) => {
+        const prevToken = get().tableSessionToken
+        const prevTable = get().tableNumber
+        const sameSession = prevToken === token && prevTable === tableNumber
+        set({
+          tableNumber,
+          tableSessionToken: token,
+          deviceName,
+          items: sameSession ? get().items : [],
+        })
+      },
+      clearTableSession: () =>
+        set({ tableNumber: null, tableSessionToken: null, deviceName: null, items: [] }),
       addItem: (item) => set((s) => ({ items: [...s.items, { ...item, id: crypto.randomUUID() }] })),
       updateQty: (id, quantity) => {
         if (quantity <= 0) { get().removeItem(id); return }
         set((s) => ({ items: s.items.map((i) => i.id === id ? { ...i, quantity } : i) }))
       },
       removeItem: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
-      clearCart: () => set({ items: [] }), // mesa permanece — cliente segue na mesma mesa
+      clearCart: () => set({ items: [] }), // sessão permanece — cliente segue na mesma mesa
       subtotal: () => {
         return get().items.reduce((acc, item) => {
           const base = item.variationPrice ?? item.unitPrice

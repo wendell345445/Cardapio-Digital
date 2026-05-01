@@ -80,4 +80,64 @@ describe('useCartStore', () => {
     })
     expect(useCartStore.getState().subtotal()).toBe(50)
   })
+
+  // O carrinho é compartilhado por origem (uma chave no localStorage), então qualquer
+  // troca de contexto (loja, mesa, sair da mesa) tem que zerar items pra não vazar
+  // pedido entre cardápio online e mesas — bug observado em produção.
+  describe('isolamento por contexto', () => {
+    it('setStore com slug diferente zera items e sessão de mesa', () => {
+      useCartStore.setState({ storeSlug: 'loja-a' })
+      useCartStore.getState().addItem({ ...baseItem })
+      useCartStore.getState().setTableSession({ tableNumber: 5, token: 'tok-a', deviceName: 'João' })
+
+      useCartStore.getState().setStore('loja-b')
+
+      const s = useCartStore.getState()
+      expect(s.storeSlug).toBe('loja-b')
+      expect(s.items).toHaveLength(0)
+      expect(s.tableNumber).toBeNull()
+      expect(s.tableSessionToken).toBeNull()
+      expect(s.deviceName).toBeNull()
+    })
+
+    it('setStore com mesmo slug preserva items', () => {
+      useCartStore.setState({ storeSlug: 'loja-a' })
+      useCartStore.getState().addItem({ ...baseItem })
+
+      useCartStore.getState().setStore('loja-a')
+
+      expect(useCartStore.getState().items).toHaveLength(1)
+    })
+
+    it('setTableSession nova zera items do contexto anterior', () => {
+      useCartStore.getState().addItem({ ...baseItem })
+
+      useCartStore.getState().setTableSession({ tableNumber: 1, token: 'tok-1', deviceName: null })
+
+      expect(useCartStore.getState().items).toHaveLength(0)
+      expect(useCartStore.getState().tableNumber).toBe(1)
+    })
+
+    it('setTableSession com mesmo token preserva items', () => {
+      useCartStore.getState().setTableSession({ tableNumber: 1, token: 'tok-1', deviceName: null })
+      useCartStore.getState().addItem({ ...baseItem })
+
+      useCartStore.getState().setTableSession({ tableNumber: 1, token: 'tok-1', deviceName: 'Ana' })
+
+      expect(useCartStore.getState().items).toHaveLength(1)
+      expect(useCartStore.getState().deviceName).toBe('Ana')
+    })
+
+    it('clearTableSession zera items junto com a sessão', () => {
+      useCartStore.getState().setTableSession({ tableNumber: 1, token: 'tok-1', deviceName: null })
+      useCartStore.getState().addItem({ ...baseItem })
+
+      useCartStore.getState().clearTableSession()
+
+      const s = useCartStore.getState()
+      expect(s.items).toHaveLength(0)
+      expect(s.tableNumber).toBeNull()
+      expect(s.tableSessionToken).toBeNull()
+    })
+  })
 })

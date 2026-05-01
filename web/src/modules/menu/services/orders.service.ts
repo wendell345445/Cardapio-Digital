@@ -33,8 +33,10 @@ export interface CreateOrderDto {
   paymentMethod: PaymentMethod
   notes?: string; couponCode?: string
   address?: OrderAddress
-  /** C-002/C-022: número da mesa quando cliente entrou via QR code */
-  tableNumber?: number
+  /** Token da TableSession (entry-point /mesa/:n). Obrigatório quando type=TABLE. */
+  tableSessionToken?: string
+  /** Nome informado pelo cliente no scan da mesa, atribuído ao pedido. */
+  deviceName?: string
   scheduledFor?: string
   items: OrderItem[]
 }

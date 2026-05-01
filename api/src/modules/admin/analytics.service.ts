@@ -52,6 +52,12 @@ type SalesSummaryResult = {
   averageTicket: number
   cancelledCount: number
   timeline: { date: string; revenue: number; orders: number }[]
+  // v2.7: separação online (DELIVERY/PICKUP) vs mesa (TABLE) — operação tem
+  // realidades muito diferentes pra cada canal e o painel precisa refletir.
+  byChannel: {
+    online: { revenue: number; orders: number }
+    table: { revenue: number; orders: number }
+  }
 }
 
 type TopProductsResult = {
@@ -153,7 +159,7 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
         status: { notIn: ['CANCELLED', 'WAITING_PAYMENT_PROOF'] },
         createdAt,
       },
-      select: { total: true, createdAt: true },
+      select: { total: true, createdAt: true, type: true },
     }),
     prisma.order.count({
       where: { storeId, status: 'CANCELLED', createdAt },
@@ -163,6 +169,16 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0)
   const totalOrders = orders.length
   const averageTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0
+
+  const byChannel = {
+    online: { revenue: 0, orders: 0 },
+    table: { revenue: 0, orders: 0 },
+  }
+  for (const o of orders) {
+    const bucket = o.type === 'TABLE' ? byChannel.table : byChannel.online
+    bucket.revenue += o.total
+    bucket.orders += 1
+  }
 
   // Group by date for line chart (BRT timezone — evita split de pedidos feitos após 21h BRT)
   const byDate: Record<string, { revenue: number; orders: number }> = {}
@@ -177,7 +193,7 @@ export async function getSalesSummary(storeId: string, query: SalesQuery): Promi
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([date, data]) => ({ date, ...data }))
 
-  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, cancelledCount, timeline }
+  const result: SalesSummaryResult = { totalRevenue, totalOrders, averageTicket, cancelledCount, timeline, byChannel }
   if (!isRange) await cache.set(cacheKey, result, CACHE_TTL)
   return result
 }

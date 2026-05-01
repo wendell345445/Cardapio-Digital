@@ -9,12 +9,12 @@ import {
   MessageCircle,
   Package,
   PlusCircle,
-  QrCode,
   Settings,
   ShoppingBag,
   Tag,
   Ticket,
   Truck,
+  UtensilsCrossed,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -35,6 +35,7 @@ const NAV_ITEMS = [
   { label: 'Entregas', to: '/admin/entregas', icon: Truck },
   { label: 'Motoboys', to: '/admin/motoboys', icon: Bike },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
+  { label: 'Mesas', to: '/admin/mesas', icon: UtensilsCrossed },
   { label: 'Clientes', to: '/admin/clientes', icon: Users },
   { label: 'Analytics', to: '/admin/analytics', icon: BarChart2 },
   // Controle de Acesso desabilitado: o telefone não é obrigatório no checkout, então
@@ -44,7 +45,6 @@ const NAV_ITEMS = [
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },
   { label: 'Cupons', to: '/admin/cupons', icon: Ticket },
-  { label: 'QR Code', to: '/admin/qr-code', icon: QrCode },
   { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle, statusDot: true },
   { label: 'Horários', to: '/admin/horarios', icon: Clock },
   { label: 'Caixa', to: '/admin/caixa', icon: Wallet },
@@ -107,7 +107,11 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2">
-        {NAV_ITEMS.map(({ label, to, icon: Icon, badge, statusDot }) => (
+        {NAV_ITEMS.filter((item) => {
+          // Esconde "Mesas" quando a loja desligou atendimento em mesa.
+          if (item.to === '/admin/mesas' && store && store.allowTable === false) return false
+          return true
+        }).map(({ label, to, icon: Icon, badge, statusDot }) => (
           <NavLink
             key={to}
             to={to}

@@ -149,7 +149,6 @@ function TabPagamentos() {
   const [allowCashOnDelivery, setAllowCashOnDelivery] = useState(false)
   const [allowPix, setAllowPix] = useState(false)
   const [allowPickup, setAllowPickup] = useState(false)
-  const [serviceChargePercent, setServiceChargePercent] = useState(0)
   const [settingsInitialized, setSettingsInitialized] = useState(false)
 
   if (store && !settingsInitialized) {
@@ -159,7 +158,6 @@ function TabPagamentos() {
     setAllowCashOnDelivery(store.allowCashOnDelivery)
     setAllowPix(store.features?.allowPix === true)
     setAllowPickup(store.allowPickup)
-    setServiceChargePercent(store.serviceChargePercent)
     setSettingsInitialized(true)
   }
 
@@ -190,7 +188,7 @@ function TabPagamentos() {
   function handleSavePaymentSettings(e: React.FormEvent) {
     e.preventDefault()
     updatePaymentMutation.mutate(
-      { allowCashOnDelivery, allowPix, allowPickup, serviceChargePercent },
+      { allowCashOnDelivery, allowPix, allowPickup },
       { onError: () => alert('Erro ao salvar configurações de pagamento.') }
     )
   }
@@ -354,24 +352,6 @@ function TabPagamentos() {
               </p>
             </div>
           </label>
-
-          <div className="pt-2 border-t border-gray-100">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Taxa de Serviço (%)
-            </label>
-            <input
-              type="number"
-              value={serviceChargePercent}
-              onChange={(e) => setServiceChargePercent(Number(e.target.value))}
-              min={0}
-              max={100}
-              step={0.5}
-              className="w-32 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Percentual aplicado no fechamento de comandas (0 = desabilitado)
-            </p>
-          </div>
 
           <div className="flex items-center gap-3 pt-2">
             <button

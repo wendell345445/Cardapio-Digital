@@ -28,6 +28,7 @@ function TabStatus() {
 
   const allowDelivery = store.allowDelivery !== false
   const allowPickup = !!store.allowPickup
+  const allowTable = store.allowTable !== false
 
   function toggleDelivery() {
     updateMutation.mutate(
@@ -43,7 +44,14 @@ function TabStatus() {
     )
   }
 
-  const neitherAccepted = !allowDelivery && !allowPickup
+  function toggleTable() {
+    updateMutation.mutate(
+      { allowTable: !allowTable },
+      { onError: () => alert('Erro ao atualizar atendimento em mesa.') }
+    )
+  }
+
+  const neitherAccepted = !allowDelivery && !allowPickup && !allowTable
 
   return (
     <div className="space-y-4">
@@ -71,11 +79,19 @@ function TabStatus() {
           onChange={togglePickup}
         />
 
+        <ToggleRow
+          label="🍽️ Atendimento em mesa"
+          description="Cliente escaneia o QR da mesa e pede pelo cardápio. Desligue se a loja é só delivery."
+          checked={allowTable}
+          disabled={updateMutation.isPending}
+          onChange={toggleTable}
+        />
+
         {neitherAccepted && (
           <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <span>⚠️</span>
             <p>
-              Com entrega e retirada desativadas, clientes não conseguem finalizar pedidos.
+              Com entrega, retirada e mesa desativados, clientes não conseguem finalizar pedidos.
               Ative ao menos uma opção.
             </p>
           </div>

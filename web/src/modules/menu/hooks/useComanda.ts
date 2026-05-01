@@ -1,20 +1,20 @@
-// ─── A-056: Comanda pública do cliente — Hooks ──────────────────────────────
+// ─── Comanda pública do cliente — Hooks ─────────────────────────────────────
 
 import { useQuery, useMutation } from '@tanstack/react-query'
 
 import { fetchCustomerComanda, requestCheck } from '../services/comanda.service'
 
-export function useCustomerComanda(tableNumber: number | null) {
+export function useCustomerComanda(sessionToken: string | null) {
   return useQuery({
-    queryKey: ['customer-comanda', tableNumber],
-    queryFn: () => fetchCustomerComanda(tableNumber!),
-    enabled: !!tableNumber,
+    queryKey: ['customer-comanda', sessionToken],
+    queryFn: () => fetchCustomerComanda(sessionToken!),
+    enabled: !!sessionToken,
     staleTime: 30_000,
   })
 }
 
 export function useRequestCheck() {
   return useMutation({
-    mutationFn: (tableNumber: number) => requestCheck(tableNumber),
+    mutationFn: (sessionToken: string) => requestCheck(sessionToken),
   })
 }

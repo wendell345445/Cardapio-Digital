@@ -13,8 +13,7 @@ import { ProductFormPage } from '@/modules/admin/pages/ProductFormPage'
 import { ProductsPage } from '@/modules/admin/pages/ProductsPage'
 import { SettingsPage } from '@/modules/admin/pages/SettingsPage'
 import { WhatsAppPage } from '@/modules/admin/pages/WhatsAppPage'
-import { TablesPage } from '@/modules/admin/pages/TablesPage'
-import { QRCodePage } from '@/modules/admin/pages/QRCodePage'
+import { MesasPage } from '@/modules/admin/pages/MesasPage'
 import { OrdersPage } from '@/modules/admin/pages/OrdersPage'
 import { OrderHistoryPage } from '@/modules/admin/pages/OrderHistoryPage'
 import { CouponsPage } from '@/modules/admin/pages/CouponsPage'
@@ -33,6 +32,7 @@ import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
 import { OrderTrackingPage } from '@/modules/menu/pages/OrderTrackingPage'
 import { MyOrdersPage } from '@/modules/menu/pages/MyOrdersPage'
+import { TableEntryPage } from '@/modules/menu/pages/TableEntryPage'
 import { MotoboyPage } from '@/modules/motoboy/pages/MotoboyPage'
 import { OwnerGuard } from '@/modules/owner/components/OwnerGuard'
 import { DashboardPage } from '@/modules/owner/pages/DashboardPage'
@@ -40,6 +40,7 @@ import { NewStorePage } from '@/modules/owner/pages/NewStorePage'
 import { StoreDetailPage } from '@/modules/owner/pages/StoreDetailPage'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
+import { ToastProvider } from '@/shared/lib/toast'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -85,6 +86,7 @@ function DashboardRedirect() {
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/dashboard" element={<DashboardRedirect />} />
@@ -123,6 +125,8 @@ export function App() {
 
           {/* Cardápio público — slug vem do hostname (subdomain routing) */}
           <Route path="/" element={<RootRoute />} />
+          {/* v2.7: param renomeado pra `accessToken` (hash hex de 16 chars). */}
+          <Route path="/mesa/:accessToken" element={<TableEntryPage />} />
           <Route path="/produto/:productId" element={<ItemPage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/pedido/:token" element={<OrderTrackingPage />} />
@@ -239,13 +243,15 @@ export function App() {
             }
           />
           <Route
-            path="/admin/qr-code"
+            path="/admin/mesas"
             element={
               <AdminLayout>
-                <QRCodePage />
+                <MesasPage />
               </AdminLayout>
             }
           />
+          {/* Legacy redirect — /admin/qr-code virou aba dentro de /admin/mesas */}
+          <Route path="/admin/qr-code" element={<Navigate to="/admin/mesas?tab=qrcodes" replace />} />
           <Route
             path="/admin/configuracoes"
             element={
@@ -322,21 +328,13 @@ export function App() {
           <Route path="/admin/products/:id/edit" element={<Navigate to="/admin/produtos/:id/edit" replace />} />
           <Route path="/admin/categories" element={<Navigate to="/admin/categorias" replace />} />
           <Route path="/admin/settings" element={<Navigate to="/admin/configuracoes" replace />} />
-          <Route path="/admin/tables" element={<Navigate to="/admin/qr-code" replace />} />
+          <Route path="/admin/tables" element={<Navigate to="/admin/mesas" replace />} />
           <Route path="/admin/delivery" element={<Navigate to="/admin/entrega" replace />} />
           <Route path="/admin/coupons" element={<Navigate to="/admin/cupons" replace />} />
           <Route path="/admin/clients" element={<Navigate to="/admin/clientes" replace />} />
           <Route path="/admin/cashflow" element={<Navigate to="/admin/caixa" replace />} />
 
-          {/* Admin legacy — sem AdminLayout (mantidos por compatibilidade) */}
-          <Route
-            path="/admin/tables-legacy"
-            element={
-              <AdminLayout>
-                <TablesPage />
-              </AdminLayout>
-            }
-          />
+          <Route path="/admin/tables-legacy" element={<Navigate to="/admin/mesas" replace />} />
 
           {/* Motoboy */}
           <Route path="/motoboy" element={<MotoboyPage />} />
@@ -356,6 +354,7 @@ export function App() {
           />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
       {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   )

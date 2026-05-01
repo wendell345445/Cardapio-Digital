@@ -35,8 +35,12 @@ jest.mock('../../shared/prisma/prisma', () => ({
       create: jest.fn(),
       update: jest.fn(),
     },
+    tableSession: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
+    },
     store: { findUnique: jest.fn() },
-    order: { findFirst: jest.fn(), update: jest.fn() },
+    order: { findFirst: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
     orderItem: { findFirst: jest.fn(), update: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(),
@@ -73,12 +77,15 @@ function adminToken(storeId = STORE_ID) {
   return sign({ userId: 'user-1', role: 'ADMIN', storeId }, 'test-secret')
 }
 
+const ACCESS_TOKEN = 'a1b2c3d4e5f6a7b8'
+
 const mockTable = {
   id: TABLE_ID,
   storeId: STORE_ID,
   number: 5,
   isOccupied: false,
   createdAt: new Date(),
+  accessToken: ACCESS_TOKEN,
 }
 
 const mockStore = { id: STORE_ID, slug: 'minha-loja' }
@@ -87,14 +94,6 @@ const mockOrderItems = [
   { id: 'item-1', totalPrice: 50, additionals: [] },
   { id: 'item-2', totalPrice: 30, additionals: [] },
 ]
-
-const mockOrder = {
-  id: 'order-1',
-  storeId: STORE_ID,
-  tableId: TABLE_ID,
-  status: 'WAITING_CONFIRMATION',
-  items: mockOrderItems,
-}
 
 beforeEach(() => {
   jest.resetAllMocks()
@@ -205,11 +204,12 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.qrDataUrl).toContain('data:image/png')
-    expect(res.body.data.url).toContain('mesa=5')
+    // v2.7: URL agora usa accessToken (hash), não o número.
+    expect(res.body.data.url).toContain(`/mesa/${ACCESS_TOKEN}`)
     expect(res.body.data.tableNumber).toBe(5)
   })
 
-  it('returns full URL as https://{slug}.{domain}?mesa={N} (A-054)', async () => {
+  it('returns full URL as https://{slug}.{domain}/mesa/{accessToken}', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
 
@@ -219,7 +219,7 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
 
     const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
     expect(res.status).toBe(200)
-    expect(res.body.data.url).toBe(`https://minha-loja.${rootDomain}?mesa=5`)
+    expect(res.body.data.url).toBe(`https://minha-loja.${rootDomain}/mesa/${ACCESS_TOKEN}`)
   })
 
   it('returns 404 when table not found', async () => {
@@ -237,7 +237,7 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
 
 describe('A-054: create table then generate QR code', () => {
   it('creates a table and generates QR with correct menu URL', async () => {
-    const newTable = { id: 'new-table-id', storeId: STORE_ID, number: 3, isOccupied: false, createdAt: new Date() }
+    const newTable = { id: 'new-table-id', storeId: STORE_ID, number: 3, isOccupied: false, createdAt: new Date(), accessToken: ACCESS_TOKEN }
 
     // Step 1: Create table
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
@@ -264,7 +264,7 @@ describe('A-054: create table then generate QR code', () => {
     expect(qrRes.body.data.qrDataUrl).toContain('data:image/png')
     expect(qrRes.body.data.tableNumber).toBe(3)
     const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
-    expect(qrRes.body.data.url).toBe(`https://minha-loja.${rootDomain}?mesa=3`)
+    expect(qrRes.body.data.url).toBe(`https://minha-loja.${rootDomain}/mesa/${ACCESS_TOKEN}`)
   })
 })
 
@@ -287,9 +287,21 @@ describe('GET /api/v1/admin/tables/:id/qrcode/pdf', () => {
 // ─── GET /admin/tables/:id/comanda ────────────────────────────────────────────
 
 describe('GET /api/v1/admin/tables/:id/comanda', () => {
-  it('returns 200 with comanda items and subtotal', async () => {
+  it('returns 200 with session items and subtotal', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
-    ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(mockOrder)
+    ;(mockPrisma.tableSession.findFirst as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      openedAt: new Date(),
+      orders: [
+        {
+          id: 'order-1',
+          number: 1,
+          deviceName: 'Fabio',
+          createdAt: new Date(),
+          items: mockOrderItems,
+        },
+      ],
+    })
 
     const res = await request(app)
       .get(`/api/v1/admin/tables/${TABLE_ID}/comanda`)
@@ -300,16 +312,16 @@ describe('GET /api/v1/admin/tables/:id/comanda', () => {
     expect(res.body.data.items).toHaveLength(2)
   })
 
-  it('returns empty comanda when table has no open order', async () => {
+  it('returns empty comanda when table has no open session', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
-    ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.tableSession.findFirst as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
       .get(`/api/v1/admin/tables/${TABLE_ID}/comanda`)
       .set('Authorization', `Bearer ${adminToken()}`)
 
     expect(res.status).toBe(200)
-    expect(res.body.data.order).toBeNull()
+    expect(res.body.data.session).toBeNull()
     expect(res.body.data.items).toHaveLength(0)
   })
 })
@@ -317,11 +329,20 @@ describe('GET /api/v1/admin/tables/:id/comanda', () => {
 // ─── POST /admin/tables/:id/close ─────────────────────────────────────────────
 
 describe('POST /api/v1/admin/tables/:id/close', () => {
-  it('returns 200 with totals on successful close (comanda encerrada libera a mesa)', async () => {
+  it('returns 200 with totals on successful close (sessão paga, encerrada, libera a mesa)', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
-    ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(mockOrder)
+    ;(mockPrisma.tableSession.findFirst as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      storeId: STORE_ID,
+      tableId: TABLE_ID,
+      status: 'OPEN',
+      orders: [
+        { id: 'order-1', items: mockOrderItems, paymentReceivedAt: new Date() },
+      ],
+    })
+    ;(mockPrisma.tableSession.update as jest.Mock).mockResolvedValue({ id: 'session-1', status: 'CLOSED' })
+    ;(mockPrisma.order.updateMany as jest.Mock).mockResolvedValue({ count: 1 })
     ;(mockPrisma.table.update as jest.Mock).mockResolvedValue({ ...mockTable, isOccupied: false })
-    ;(mockPrisma.order.update as jest.Mock).mockResolvedValue({ ...mockOrder, status: 'DELIVERED' })
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
 
     const res = await request(app)
@@ -334,11 +355,33 @@ describe('POST /api/v1/admin/tables/:id/close', () => {
     expect(res.body.data.serviceCharge).toBe(8)
     expect(res.body.data.total).toBe(88)
     expect(res.body.data.tableNumber).toBe(5)
+    expect(res.body.data.ordersClosed).toBe(1)
   })
 
-  it('returns 422 when table has no open comanda', async () => {
+  it('returns 422 when session has unpaid orders', async () => {
     ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
-    ;(mockPrisma.order.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.tableSession.findFirst as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      storeId: STORE_ID,
+      tableId: TABLE_ID,
+      status: 'OPEN',
+      orders: [
+        { id: 'order-1', items: mockOrderItems, paymentReceivedAt: null },
+      ],
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/tables/${TABLE_ID}/close`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ applyServiceCharge: false })
+
+    expect(res.status).toBe(422)
+    expect(res.body.error).toMatch(/pagamento/i)
+  })
+
+  it('returns 422 when table has no open session', async () => {
+    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(mockTable)
+    ;(mockPrisma.tableSession.findFirst as jest.Mock).mockResolvedValue(null)
 
     const res = await request(app)
       .patch(`/api/v1/admin/tables/${TABLE_ID}/close`)

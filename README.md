@@ -109,6 +109,20 @@ A detecção é lazy (na primeira chamada). Prod com Cloudinary real não depend
 
 Promoção por produto usa o mesmo model `Coupon` (com `productId + promoPrice`), código auto-gerado (`PROMO_xxx`) e não aceito no checkout manual. Não se aplica a produtos com variations.
 
+## Pedidos em mesa (TableSession + QR Code)
+
+Cada mesa física tem um **QR Code** com URL `https://{slug}.{rootDomain}/mesa/:n`. Cliente escaneia, informa o nome (ou pula com "Sou convidado"), e o sistema abre uma `TableSession` única por mesa. Vários celulares na mesma mesa entram na mesma sessão (segundo scan retorna o mesmo token), e cada pedido é etiquetado com `deviceName` pra cozinha saber quem pediu.
+
+**Painel admin** em `/admin/mesas` (sidebar item "Mesas"):
+
+- **Mesas**: cards em mosaico — Livre / Pedido novo (vermelho pulsando) / Aguardando pagamento / Paga. Beep + toast no admin quando chega pedido novo. Click no card abre o drawer da mesa com 3 colunas drag-and-drop (Pendentes / Em preparo / Entregues), botão "Receber pagamento" (PIX/Dinheiro/Crédito/Débito) e "Fechar sessão" (só libera depois de pago).
+- **QR Codes**: input "Total de mesas: N" reconcilia com o banco (cria 1..N e remove > N — só remove livres). Botão "Imprimir todos" baixa PDF único com 1 mesa por página A4.
+- **Histórico**: sessões fechadas com filtro por data, totais e métodos de pagamento. Default = hoje.
+
+Toggle **Atendimento em mesa** em `/admin/entregas > Status` (`Store.allowTable`). Quando desligado, o item "Mesas" some da sidebar e o QR de mesa retorna 422.
+
+Pagamento de mesa entra no `CashFlow` aberto via `linkOrderToCashFlow` (mesmo helper que pedidos online usam ao virar `CONFIRMED`). Métodos de pagamento de mesa: `PIX`, `CASH`, `CREDIT`, `DEBIT` (limpos, sem `_ON_DELIVERY`).
+
 ## Re-autenticação de ações sensíveis
 
 Criar/editar/duplicar produto e excluir produto/categoria/adicional exigem re-digitar a senha via modal antes de executar. Endpoint: `POST /api/v1/auth/reauth`.

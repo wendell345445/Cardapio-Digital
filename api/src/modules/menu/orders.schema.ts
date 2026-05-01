@@ -20,8 +20,11 @@ export const createOrderSchema = z.object({
   notes: z.string().optional(),
   couponCode: z.string().optional(),
   tableId: z.string().uuid().optional(),
-  // C-002/C-022: cliente escaneia QR e abre /menu?mesa=N — frontend manda só o número
-  tableNumber: z.number().int().positive().optional(),
+  // Pedido em mesa: cliente passa pelo entry-point /mesa/:n que abre/entra
+  // numa TableSession e devolve um token. Esse token vem aqui no createOrder
+  // — sem ele, type=TABLE é rejeitado (link antigo ?mesa=N perde o poder).
+  tableSessionToken: z.string().min(20).optional(),
+  deviceName: z.string().trim().max(40).optional(),
   address: z
     .object({
       zipCode: z.string().optional(),

@@ -13,6 +13,11 @@ import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
 import { createOrderController, listOrdersBySessionController } from './orders.controller'
 import { getCustomerComandaController, requestCheckController } from './comanda.controller'
+import {
+  getTableByTokenController,
+  getTableSessionController,
+  openTableSessionController,
+} from './table-session.controller'
 import { getOrderTrackingController } from './tracking.controller'
 
 // ─── TASK-060: Menu Público ───────────────────────────────────────────────────
@@ -30,6 +35,12 @@ menuRouter.get('/', getMenuController)
 menuRouter.post('/orders', createOrderController)
 menuRouter.get('/orders/by-session/:sessionId', listOrdersBySessionController)
 menuRouter.get('/pedido/:token', getOrderTrackingController)
+
+// Sessão de mesa: abre/entra na sessão da mesa via QR code (substitui ?mesa=N).
+menuRouter.post('/table-session', openTableSessionController)
+menuRouter.get('/table-session/:token', getTableSessionController)
+// v2.7: resolve hash do QR (URL /mesa/:accessToken) → info pública da mesa.
+menuRouter.get('/table-by-token/:accessToken', getTableByTokenController)
 
 // ─── A-056: Comanda pública do cliente ──────────────────────────────────────
 menuRouter.get('/comanda', getCustomerComandaController)

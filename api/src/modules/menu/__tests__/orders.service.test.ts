@@ -20,6 +20,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     // C-027: getPaymentMethodsForClient consulta blacklist
     clientPaymentAccess: { findFirst: jest.fn() },
     table: { findUnique: jest.fn(), update: jest.fn() },
+    tableSession: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   },
 }))
@@ -85,6 +86,7 @@ const mockStore = {
   allowCashOnDelivery: true,
   allowPickup: true,
   allowDelivery: true,
+  allowTable: true,
   status: 'ACTIVE',
   manualOpen: true,
   businessHours: openAllWeek,
@@ -159,6 +161,7 @@ function setupDefaultMocks() {
   ;(mockPrisma.clientPaymentAccess.findFirst as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.table.update as jest.Mock).mockResolvedValue({})
+  ;(mockPrisma.tableSession.findUnique as jest.Mock).mockResolvedValue(null)
 }
 
 beforeEach(() => {
@@ -767,7 +770,7 @@ describe('createOrder — retorno e side-effects', () => {
 // ─── C-002/C-022: Mesa via QR code ────────────────────────────────────────────
 
 describe('createOrder — mesa via QR code (C-002/C-022)', () => {
-  it('lança 422 quando type=TABLE e nem tableId nem tableNumber são informados', async () => {
+  it('lança 422 quando type=TABLE sem tableSessionToken', async () => {
     setupDefaultMocks()
 
     await expect(
@@ -775,54 +778,79 @@ describe('createOrder — mesa via QR code (C-002/C-022)', () => {
     ).rejects.toMatchObject({ status: 422 })
   })
 
-  it('lança 404 quando tableNumber não existe na loja', async () => {
+  it('lança 410 quando tableSessionToken não existe', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.tableSession.findUnique as jest.Mock).mockResolvedValue(null)
 
     await expect(
-      createOrder(SLUG, { ...baseOrderInput, type: 'TABLE' as const, tableNumber: 99 })
-    ).rejects.toMatchObject({ status: 404 })
+      createOrder(SLUG, {
+        ...baseOrderInput,
+        type: 'TABLE' as const,
+        tableSessionToken: 'xxxxxxxxxxxxxxxxxxxxxxxx',
+      })
+    ).rejects.toMatchObject({ status: 410 })
   })
 
-  it('resolve tableNumber → tableId, cria pedido e marca mesa como ocupada', async () => {
+  it('lança 410 quando sessão está CLOSED', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue({
-      id: 'table-uuid-1',
+    ;(mockPrisma.tableSession.findUnique as jest.Mock).mockResolvedValue({
+      id: 'session-1',
       storeId: STORE_ID,
-      number: 5,
-      isOccupied: false,
+      tableId: 'table-uuid-1',
+      status: 'CLOSED',
     })
 
-    await createOrder(SLUG, { ...baseOrderInput, type: 'TABLE' as const, tableNumber: 5 })
+    await expect(
+      createOrder(SLUG, {
+        ...baseOrderInput,
+        type: 'TABLE' as const,
+        tableSessionToken: 'xxxxxxxxxxxxxxxxxxxxxxxx',
+      })
+    ).rejects.toMatchObject({ status: 410 })
+  })
 
-    expect(mockPrisma.table.findUnique).toHaveBeenCalledWith({
-      where: { storeId_number: { storeId: STORE_ID, number: 5 } },
+  it('cria pedido em mesa com tableSessionId e deviceName', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.tableSession.findUnique as jest.Mock).mockResolvedValue({
+      id: 'session-1',
+      storeId: STORE_ID,
+      tableId: 'table-uuid-1',
+      status: 'OPEN',
     })
+
+    await createOrder(SLUG, {
+      ...baseOrderInput,
+      type: 'TABLE' as const,
+      tableSessionToken: 'xxxxxxxxxxxxxxxxxxxxxxxx',
+      deviceName: 'Fabio',
+    })
+
     expect(mockPrisma.order.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ tableId: 'table-uuid-1', type: 'TABLE' }),
+        data: expect.objectContaining({
+          tableId: 'table-uuid-1',
+          tableSessionId: 'session-1',
+          deviceName: 'Fabio',
+          type: 'TABLE',
+        }),
       })
     )
-    expect(mockPrisma.table.update).toHaveBeenCalledWith({
-      where: { id: 'table-uuid-1' },
-      data: { isOccupied: true },
-    })
   })
 
   it('aceita paymentMethod=PENDING para TABLE e cria pedido com status WAITING_CONFIRMATION', async () => {
     setupDefaultMocks()
-    ;(mockPrisma.table.findUnique as jest.Mock).mockResolvedValue({
-      id: 'table-uuid-1',
+    ;(mockPrisma.tableSession.findUnique as jest.Mock).mockResolvedValue({
+      id: 'session-1',
       storeId: STORE_ID,
-      number: 5,
-      isOccupied: false,
+      tableId: 'table-uuid-1',
+      status: 'OPEN',
     })
 
     await createOrder(SLUG, {
       ...baseOrderInput,
       type: 'TABLE' as const,
       paymentMethod: 'PENDING' as const,
-      tableNumber: 5,
+      tableSessionToken: 'xxxxxxxxxxxxxxxxxxxxxxxx',
     })
 
     expect(mockPrisma.order.create).toHaveBeenCalledWith(

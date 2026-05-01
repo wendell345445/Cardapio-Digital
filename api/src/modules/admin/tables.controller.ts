@@ -2,14 +2,24 @@ import { NextFunction, Request, Response } from 'express'
 
 import type { JwtPayload } from '../../shared/middleware/auth.middleware'
 
-import { createTableSchema, closeTableSchema, updateItemStatusSchema } from './tables.schema'
 import {
-  listTables,
+  closeTableSchema,
+  confirmTablePaymentSchema,
+  createTableSchema,
+  setTablesCountSchema,
+  updateItemStatusSchema,
+} from './tables.schema'
+import {
+  closeTable,
+  confirmTableSessionPayment,
   createTable,
+  generateAllQRCodesPDF,
   generateQRCode,
   generateQRCodePDF,
-  closeTable,
   getTableComanda,
+  listClosedSessions,
+  listTables,
+  setTablesCount,
   updateOrderItemStatus,
 } from './tables.service'
 
@@ -94,6 +104,57 @@ export async function updateItemStatusController(req: Request, res: Response, ne
     const { tableId, itemId } = req.params
     const data = updateItemStatusSchema.parse(req.body)
     const result = await updateOrderItemStatus(storeId, tableId, itemId, data, userId)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function setTablesCountController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { count } = setTablesCountSchema.parse(req.body)
+    const result = await setTablesCount(storeId, count, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getAllQRCodesPDFController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const buffer = await generateAllQRCodesPDF(storeId)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="mesas-qrcodes.pdf"')
+    res.send(buffer)
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function confirmTablePaymentController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const { userId } = getUser(req)
+    const { id } = req.params
+    const data = confirmTablePaymentSchema.parse(req.body)
+    const result = await confirmTableSessionPayment(storeId, id, data, userId, req.ip)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function listClosedSessionsController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    const fromRaw = typeof req.query.from === 'string' ? req.query.from : undefined
+    const toRaw = typeof req.query.to === 'string' ? req.query.to : undefined
+    const from = fromRaw ? new Date(fromRaw) : undefined
+    const to = toRaw ? new Date(toRaw) : undefined
+    const result = await listClosedSessions(storeId, { from, to, limit: 50 })
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)

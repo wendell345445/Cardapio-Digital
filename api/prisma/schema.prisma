@@ -38,6 +38,7 @@ model Store {
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)
   allowDelivery        Boolean       @default(true)
+  allowTable           Boolean       @default(true)
   manualOpen           Boolean       @default(false)
   whatsappMode         WhatsAppMode  @default(WHATSAPP)
   /// Número WhatsApp pareado (ex: "5511999999999"). Único globalmente — uma mesma
@@ -55,6 +56,7 @@ model Store {
   categories            Category[]
   orders                Order[]
   tables                Table[]
+  tableSessions         TableSession[]
   coupons               Coupon[]
   cashFlows             CashFlow[]
   deliveryDistances     DeliveryDistance[]
@@ -249,29 +251,31 @@ model CustomerPhone {
 // ─── ORDERS ───────────────────────────────────────────────────────
 
 model Order {
-  id             String        @id @default(uuid())
-  storeId        String
-  number         Int
-  clientId       String?
-  clientWhatsapp String?
-  clientName     String?
-  type           OrderType
-  status         OrderStatus   @default(WAITING_CONFIRMATION)
-  paymentMethod  PaymentMethod
-  deliveryFee    Float         @default(0)
-  subtotal       Float
-  discount       Float         @default(0)
-  total          Float
-  address        Json?
-  notes          String?
-  tableId        String?
-  motoboyId      String?
-  couponId       String?
-  scheduledFor   DateTime?
-  confirmedAt    DateTime?
-  preparedAt     DateTime?
-  dispatchedAt   DateTime?
-  deliveredAt    DateTime?
+  id                   String        @id @default(uuid())
+  storeId              String
+  number               Int
+  clientId             String?
+  clientWhatsapp       String?
+  clientName           String?
+  type                 OrderType
+  status               OrderStatus   @default(WAITING_CONFIRMATION)
+  paymentMethod        PaymentMethod
+  deliveryFee          Float         @default(0)
+  subtotal             Float
+  discount             Float         @default(0)
+  total                Float
+  address              Json?
+  notes                String?
+  tableId              String?
+  tableSessionId       String?
+  deviceName           String?
+  motoboyId            String?
+  couponId             String?
+  scheduledFor         DateTime?
+  confirmedAt          DateTime?
+  preparedAt           DateTime?
+  dispatchedAt         DateTime?
+  deliveredAt          DateTime?
   cancelledAt          DateTime?
   cancellationReason   String?
   deliveryIssueReason  String?
@@ -280,16 +284,17 @@ model Order {
   paymentReceivedAt    DateTime?
   paymentReceivedById  String?
   createdAt            DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  updatedAt            DateTime      @updatedAt
 
-  store              Store  @relation(fields: [storeId], references: [id])
-  client             User?  @relation("ClientOrders", fields: [clientId], references: [id])
-  motoboy            User?  @relation("MotoboyOrders", fields: [motoboyId], references: [id])
-  paymentReceivedBy  User?  @relation("PaymentReceivedBy", fields: [paymentReceivedById], references: [id])
-  table        Table?        @relation(fields: [tableId], references: [id])
-  coupon       Coupon?       @relation(fields: [couponId], references: [id])
-  items        OrderItem[]
-  cashFlowItem CashFlowItem?
+  store             Store         @relation(fields: [storeId], references: [id])
+  client            User?         @relation("ClientOrders", fields: [clientId], references: [id])
+  motoboy           User?         @relation("MotoboyOrders", fields: [motoboyId], references: [id])
+  paymentReceivedBy User?         @relation("PaymentReceivedBy", fields: [paymentReceivedById], references: [id])
+  table             Table?        @relation(fields: [tableId], references: [id])
+  tableSession      TableSession? @relation(fields: [tableSessionId], references: [id])
+  coupon            Coupon?       @relation(fields: [couponId], references: [id])
+  items             OrderItem[]
+  cashFlowItem      CashFlowItem?
 
   @@unique([storeId, number])
   @@index([storeId])
@@ -297,6 +302,7 @@ model Order {
   @@index([storeId, createdAt])
   @@index([clientId])
   @@index([tableId])
+  @@index([tableSessionId])
   @@index([storeId, customerSessionId])
 }
 
@@ -337,12 +343,46 @@ model Table {
   number     Int
   isOccupied Boolean  @default(false)
   createdAt  DateTime @default(now())
+  // Hash não-adivinhável que vai no QR (URL: /mesa/<accessToken>). Sem isso,
+  // qualquer cliente conseguiria abrir sessão da mesa do vizinho digitando o
+  // número. Fixo por mesa — bookmark do cliente continua valendo entre sessões.
+  accessToken String  @unique
 
-  store  Store   @relation(fields: [storeId], references: [id])
-  orders Order[]
+  store    Store          @relation(fields: [storeId], references: [id])
+  orders   Order[]
+  sessions TableSession[]
 
   @@unique([storeId, number])
   @@index([storeId])
+}
+
+// Sessão de mesa: aberta no primeiro scan do QR, fechada manualmente pelo admin.
+// Token na URL substitui o antigo `?mesa=N`. @@unique([tableId, status]) garante
+// no banco que só pode haver UMA sessão OPEN por mesa — segunda tentativa de
+// abrir falha com violation, então o front sempre cai no caminho "join".
+model TableSession {
+  id       String             @id @default(uuid())
+  storeId  String
+  tableId  String
+  token    String             @unique
+  status   TableSessionStatus @default(OPEN)
+  openedAt DateTime           @default(now())
+  closedAt DateTime?
+  closedBy String?
+  // Cliente clicou em "Pedir conta" no /comanda — admin precisa atender.
+  // Limpa quando garçom recebe o pagamento (ou quando reseta manualmente).
+  checkRequestedAt DateTime?
+
+  store  Store   @relation(fields: [storeId], references: [id])
+  table  Table   @relation(fields: [tableId], references: [id])
+  orders Order[]
+
+  // Unicidade da sessão OPEN por mesa é garantida via UNIQUE INDEX parcial
+  // (ver migration 20260501210000) — Prisma não modela `WHERE` em índice, então
+  // não tem `@@unique([tableId, status])` aqui. Sem o índice parcial, fechar
+  // uma segunda sessão (ambas viram CLOSED) violava o constraint.
+  @@index([storeId, status])
+  @@index([token])
 }
 
 // ─── COUPON ───────────────────────────────────────────────────────
@@ -378,15 +418,15 @@ model Coupon {
 // ─── CASH FLOW ────────────────────────────────────────────────────
 
 model CashFlow {
-  id                   String         @id @default(uuid())
-  storeId              String
-  openedAt             DateTime
-  closedAt             DateTime?
-  initialAmount        Float          @default(0)
-  countedAmount        Float?
-  closedDifference     Float?
-  closedJustification  String?
-  status               CashFlowStatus @default(OPEN)
+  id                  String         @id @default(uuid())
+  storeId             String
+  openedAt            DateTime
+  closedAt            DateTime?
+  initialAmount       Float          @default(0)
+  countedAmount       Float?
+  closedDifference    Float?
+  closedJustification String?
+  status              CashFlowStatus @default(OPEN)
 
   store       Store                @relation(fields: [storeId], references: [id])
   items       CashFlowItem[]
@@ -545,6 +585,13 @@ enum OrderItemStatus {
 
 enum PaymentMethod {
   PIX
+  // Métodos "limpos" — usados no checkout de mesa onde o cliente paga
+  // presencialmente. Não carregam semântica de delivery.
+  CASH
+  CREDIT
+  DEBIT
+  // Métodos "on delivery" — usados em pedidos de entrega/retirada onde o
+  // pagamento é cobrado pelo motoboy/balcão na hora da entrega.
   CASH_ON_DELIVERY
   CREDIT_ON_DELIVERY
   DEBIT_ON_DELIVERY
@@ -558,6 +605,11 @@ enum CouponType {
 }
 
 enum CashFlowStatus {
+  OPEN
+  CLOSED
+}
+
+enum TableSessionStatus {
   OPEN
   CLOSED
 }
@@ -609,19 +661,19 @@ enum ConversationMessageRole {
 }
 
 model Conversation {
-  id            String               @id @default(uuid())
+  id            String                @id @default(uuid())
   storeId       String
   customerPhone String
   customerName  String?
-  isHumanMode   Boolean              @default(false)
+  isHumanMode   Boolean               @default(false)
   humanAgentId  String?
   /// JID real do Baileys (pode ser LID @lid ou PN @s.whatsapp.net)
   /// Salvo ao receber mensagem — garante envio confiável em sessões LID (Baileys 7.x)
   waJid         String?
-  store         Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store         Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
   messages      ConversationMessage[]
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@unique([storeId, customerPhone])
   @@index([storeId, updatedAt])
@@ -648,7 +700,7 @@ model WhatsAppTemplate {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  store     Store             @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@unique([storeId, eventType])
   @@index([storeId])

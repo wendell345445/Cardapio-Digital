@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Search, Phone, MapPin, Clock, ChevronDown, ChevronUp, ShoppingCart, UtensilsCrossed } from 'lucide-react'
 
 import { useMenu } from '../hooks/useMenu'
@@ -17,11 +17,12 @@ import { resolveImageUrl } from '@/shared/lib/imageUrl'
 export function MenuPage() {
   const slug = useStoreSlug()
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { data, isLoading } = useMenu(slug)
 
   const setStore = useCartStore(s => s.setStore)
-  const setTableNumber = useCartStore(s => s.setTableNumber)
+  // tableNumber só é populado quando há TableSession ativa (entrada via /mesa/:n).
+  // Link antigo ?mesa=N é ignorado — cliente cai no cardápio normal sem poder
+  // criar pedido em mesa.
   const tableNumber = useCartStore(s => s.tableNumber)
   const cartItems = useCartStore(s => s.items)
   const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0)
@@ -34,15 +35,6 @@ export function MenuPage() {
   useEffect(() => {
     if (slug && slug !== '__custom_domain__') setStore(slug)
   }, [slug, setStore])
-
-  // C-002/C-022: captura ?mesa=N do QR code da mesa
-  useEffect(() => {
-    const mesaParam = searchParams.get('mesa')
-    if (mesaParam) {
-      const n = parseInt(mesaParam, 10)
-      if (Number.isInteger(n) && n > 0) setTableNumber(n)
-    }
-  }, [searchParams, setTableNumber])
 
   const allProducts = useMemo(() => {
     if (!data) return []

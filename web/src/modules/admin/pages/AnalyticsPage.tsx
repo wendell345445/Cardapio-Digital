@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart2, CreditCard, ShoppingBag, TrendingUp, Users } from 'lucide-react'
+import { BarChart2, CreditCard, ShoppingBag, TrendingUp, UtensilsCrossed, Users, Wifi } from 'lucide-react'
 
 import {
   usePaymentBreakdown,
@@ -48,6 +48,75 @@ function SummaryCard({
         ) : (
           <p className="text-2xl font-bold text-gray-900 mt-0.5 truncate">{value}</p>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Channel Breakdown (online vs mesa) ──────────────────────────────────────
+
+function ChannelBreakdownCard({
+  byChannel,
+  loading,
+}: {
+  byChannel?: { online: { revenue: number; orders: number }; table: { revenue: number; orders: number } }
+  loading: boolean
+}) {
+  if (loading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <Skeleton className="h-4 w-40 mb-4" />
+        <Skeleton className="h-6 w-full mb-2" />
+        <Skeleton className="h-6 w-full" />
+      </div>
+    )
+  }
+  const online = byChannel?.online ?? { revenue: 0, orders: 0 }
+  const table = byChannel?.table ?? { revenue: 0, orders: 0 }
+  const total = online.revenue + table.revenue
+  // Esconde quando não há nada — evita seção vazia em loja recém criada.
+  if (total === 0) return null
+  const onlinePct = total > 0 ? (online.revenue / total) * 100 : 0
+  const tablePct = total > 0 ? (table.revenue / total) * 100 : 0
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+      <h2 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-4">
+        Online vs Mesa
+      </h2>
+      <div className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2 text-sm">
+              <Wifi className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-gray-700">Online</span>
+              <span className="text-xs text-gray-500">({online.orders} pedido{online.orders === 1 ? '' : 's'})</span>
+            </div>
+            <div className="text-sm">
+              <span className="font-bold text-gray-900">{formatCurrency(online.revenue)}</span>
+              <span className="ml-2 text-xs text-gray-500">{onlinePct.toFixed(0)}%</span>
+            </div>
+          </div>
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full bg-blue-500" style={{ width: `${onlinePct}%` }} />
+          </div>
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-2 text-sm">
+              <UtensilsCrossed className="w-4 h-4 text-orange-600" />
+              <span className="font-medium text-gray-700">Mesa</span>
+              <span className="text-xs text-gray-500">({table.orders} pedido{table.orders === 1 ? '' : 's'})</span>
+            </div>
+            <div className="text-sm">
+              <span className="font-bold text-gray-900">{formatCurrency(table.revenue)}</span>
+              <span className="ml-2 text-xs text-gray-500">{tablePct.toFixed(0)}%</span>
+            </div>
+          </div>
+          <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div className="h-full bg-orange-500" style={{ width: `${tablePct}%` }} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -429,6 +498,9 @@ export function AnalyticsPage() {
             loading={loadingSales}
           />
         </div>
+
+        {/* Online vs Mesa */}
+        <ChannelBreakdownCard byChannel={sales?.byChannel} loading={loadingSales} />
 
         {/* Sales Chart */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">

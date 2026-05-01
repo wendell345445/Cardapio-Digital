@@ -13,6 +13,16 @@ export const closeTableSchema = z.object({
   serviceChargePercent: z.number().min(0).max(100).optional(),
 })
 
+export const setTablesCountSchema = z.object({
+  count: z.number().int().min(0).max(200),
+})
+
+export const confirmTablePaymentSchema = z.object({
+  paymentMethod: z.enum(['PIX', 'CASH', 'CREDIT', 'DEBIT']),
+})
+
 export type CreateTableInput = z.infer<typeof createTableSchema>
 export type UpdateItemStatusInput = z.infer<typeof updateItemStatusSchema>
 export type CloseTableInput = z.infer<typeof closeTableSchema>
+export type SetTablesCountInput = z.infer<typeof setTablesCountSchema>
+export type ConfirmTablePaymentInput = z.infer<typeof confirmTablePaymentSchema>

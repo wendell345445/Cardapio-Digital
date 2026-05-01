@@ -129,6 +129,37 @@ Ver [.claude/projects/.../memory/](memory que o Claude já mantém) sobre:
 - `PUBLIC_ROOT_DOMAIN` / `VITE_PUBLIC_ROOT_DOMAIN` lido inline em ~10 arquivos (sem helper — decisão deliberada)
 - Railway não suporta wildcard subdomain → cardápio público exige DNS wildcard real, não o subdomain free do Railway
 
+**Dev local — IP da máquina muda**: o dnsmasq resolve `*.cardapio.test` pra `LAN_IP` definido no `.env` raiz. Quando você troca de Wi-Fi/casa e o IP muda, o `cardapio.test` para de responder. Conserto rápido: ajustar `LAN_IP=` no `.env` e rodar `docker compose up -d --force-recreate dnsmasq`. Conserto completo (re-detecta IP, re-instala mkcert se preciso): `./infra/scripts/setup-dev.sh`.
+
+### Mesas e sessões (TableSession)
+
+Mesas funcionam como **sessões com token**. Não existe mais `?mesa=N` no link público — o QR code aponta pra `https://{slug}.{rootDomain}/mesa/:n` que é um entry-point ([TableEntryPage.tsx](web/src/modules/menu/pages/TableEntryPage.tsx)) que:
+
+1. Busca/cria uma `TableSession` OPEN pra mesa via `POST /menu/table-session`.
+2. Pede o nome do cliente ("Como devemos te chamar?") com botão "Sou convidado" pra pular.
+3. Persiste `tableSessionToken` + `deviceName` no `useCartStore` (Zustand+localStorage).
+4. Redireciona pra `/` (cardápio).
+
+**Modelo `TableSession`**: `@@unique([tableId, status])` garante no banco que **só pode haver uma sessão OPEN por mesa**. Vários celulares na mesma mesa compartilham a sessão (segundo scan retorna o mesmo token). Pedidos da sessão recebem `tableSessionId` + `deviceName` (o nome aparece pra cozinha em `OrderItem.deviceName`).
+
+**Pagamento de mesa**: enum `PaymentMethod` tem **valores limpos** pra mesa (`PIX | CASH | CREDIT | DEBIT`) e os antigos `*_ON_DELIVERY` continuam exclusivos pra delivery. Helper `isTablePaymentMethod()` em [payment.ts](api/src/shared/utils/payment.ts) valida no backend. O fluxo é em **dois passos**:
+
+1. **`POST /admin/tables/:id/payment`** com `{ paymentMethod }` — `confirmTableSessionPayment` marca todos os pedidos da sessão com `paymentReceivedAt` + `paymentMethod`, sobe `WAITING_*` pra `CONFIRMED` (espelha o auto-confirm do PIX em OrdersPage), e chama `linkOrderToCashFlow` pra cada um (registra na fila aberta de CashFlow).
+2. **`PATCH /admin/tables/:id/close`** com taxa de serviço opcional — `closeTable` marca `TableSession` como CLOSED, todos os orders viram `DELIVERED`, `Table.isOccupied` volta pra false. **Exige sessão paga** (todos os orders com `paymentReceivedAt`); se algum estiver pendente, retorna 422 "Receba o pagamento antes de fechar".
+
+**Configuração da loja**: `Store.allowTable: Boolean @default(true)`. Quando `false`, o backend retorna 422 em `openOrJoinSession` e em `createOrder` com `type=TABLE`. O frontend esconde o item "Mesas" da sidebar admin. Toggle fica em [EntregasPage > Status](web/src/modules/admin/pages/EntregasPage.tsx) ao lado de Entrega e Retirada.
+
+**Painel admin** ([MesasPage.tsx](web/src/modules/admin/pages/MesasPage.tsx)): segmented control com 3 abas:
+- **Mesas** ([MesasPanel.tsx](web/src/modules/admin/pages/mesas/MesasPanel.tsx)): grid de cards com status (Livre / Pedido novo pulsando vermelho / Aguardando pagamento laranja / Paga azul). Beep + toast Radix quando chega pedido novo `type=TABLE` via socket. Click no card abre [MesaDetailDrawer](web/src/modules/admin/pages/mesas/MesaDetailDrawer.tsx) com 3 colunas drag-and-drop (`@dnd-kit`): Pendentes / Em preparo / Entregues. Botão "Receber pagamento" abre [PaymentMethodPicker](web/src/modules/admin/pages/mesas/PaymentMethodPicker.tsx) com 4 botões grandes (PIX/Dinheiro/Crédito/Débito). "Fechar sessão" fica disabled até a sessão estar paga.
+- **QR Codes** ([QRCodesPanel.tsx](web/src/modules/admin/pages/mesas/QRCodesPanel.tsx)): input "Total de mesas: N" reconcilia (`PUT /admin/tables/count` → cria 1..N e remove > N, falha 422 se tem sessão aberta). Botão "Imprimir todos" baixa PDF único (`GET /admin/tables/qrcode/pdf-all`, 1 mesa por página A4). Lista por mesa com botão individual de PDF.
+- **Histórico** ([HistoricoPanel.tsx](web/src/modules/admin/pages/mesas/HistoricoPanel.tsx)): sessões CLOSED filtradas por data (default = hoje). Mostra mesa, abertura, fechamento, duração, # pedidos, método de pagamento, deviceNames e total. Total da receita do período no canto. Endpoint `GET /admin/tables/sessions/history?from=&to=`.
+
+### Toast e som compartilhados
+
+[shared/lib/toast.tsx](web/src/shared/lib/toast.tsx) — wrapper sobre `@radix-ui/react-toast` + Zustand. API: `toast.success(title, desc?)`, `toast.error()`, `toast.info()`. Provider global no `App.tsx` envolve o `BrowserRouter`. Estilo: slide-in canto direito-inferior, auto-close 4s. Use em qualquer mutation de admin (em vez de `alert()` ou setState de erro).
+
+[shared/lib/sounds.ts](web/src/shared/lib/sounds.ts) — `playBeep()` (oscilador 880Hz, 0.6s). Usado por OrdersPage e MesasPanel quando chega pedido novo via socket.
+
 ### Commit
 
 Só fazer commit quando o usuário pedir explicitamente. Nunca usar `--no-verify`. Nunca pushar sem pedido.

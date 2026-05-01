@@ -1,15 +1,9 @@
-// ─── A-056: Comanda pública do cliente — Service ─────────────────────────────
-
-import { getCustomerSessionId } from '../lib/customerSession'
+// ─── Comanda pública do cliente — Service ────────────────────────────────────
 
 import { createPublicApi } from '@/shared/lib/publicApi'
 
 
 const api = createPublicApi()
-
-function sessionHeader() {
-  return { 'x-customer-session-id': getCustomerSessionId() }
-}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -35,10 +29,12 @@ export interface ComandaOrder {
   id: string
   number: number
   createdAt: string
+  deviceName: string | null
 }
 
 export interface CustomerComanda {
   table: { id: string; number: number }
+  sessionId: string
   orders: ComandaOrder[]
   items: ComandaItem[]
   subtotal: number
@@ -48,14 +44,11 @@ export interface CustomerComanda {
 
 // ─── API calls ───────────────────────────────────────────────────────────────
 
-export async function fetchCustomerComanda(tableNumber: number): Promise<CustomerComanda> {
-  const { data } = await api.get('/menu/comanda', {
-    params: { tableNumber },
-    headers: sessionHeader(),
-  })
+export async function fetchCustomerComanda(token: string): Promise<CustomerComanda> {
+  const { data } = await api.get('/menu/comanda', { params: { token } })
   return data.data
 }
 
-export async function requestCheck(tableNumber: number): Promise<void> {
-  await api.post('/menu/comanda/check', { tableNumber }, { headers: sessionHeader() })
+export async function requestCheck(token: string): Promise<void> {
+  await api.post('/menu/comanda/check', { token })
 }

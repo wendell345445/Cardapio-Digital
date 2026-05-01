@@ -40,6 +40,7 @@ export async function getSalesController(req: Request, res: Response, next: Next
         totalOrders: summary.totalOrders,
         averageTicket: summary.averageTicket,
         cancelledCount: summary.cancelledCount,
+        byChannel: summary.byChannel,
         series,
       },
     })

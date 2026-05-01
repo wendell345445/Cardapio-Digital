@@ -78,6 +78,9 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.type === 'PICKUP' && !store.allowPickup) {
     throw new AppError('Retirada no local não está habilitada', 422)
   }
+  if (data.type === 'TABLE' && !store.allowTable) {
+    throw new AppError('Atendimento em mesa desativado nesta loja', 422)
+  }
   if (data.type === 'DELIVERY' && !data.address) {
     throw new AppError('Endereço é obrigatório para entrega', 422)
   }
@@ -93,19 +96,29 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     throw new AppError('Pagamento pendente só é permitido para pedidos de mesa', 422)
   }
 
-  // 3a. C-002/C-022: TABLE — resolve tableNumber → tableId quando QR code da mesa
+  // 3a. TABLE — exige tableSessionToken (link antigo ?mesa=N não basta mais).
+  // Sessão é criada no entry-point /mesa/:n (POST /menu/table-session). Aqui
+  // a gente só valida que o token existe, está OPEN e pertence a essa loja.
   let resolvedTableId: string | undefined = data.tableId
+  let resolvedTableSessionId: string | undefined
   if (data.type === 'TABLE') {
-    if (!resolvedTableId && !data.tableNumber) {
-      throw new AppError('Mesa é obrigatória para pedidos no local', 422)
+    if (!data.tableSessionToken) {
+      throw new AppError(
+        'Pedido em mesa requer escanear o QR code da mesa',
+        422
+      )
     }
-    if (!resolvedTableId && data.tableNumber) {
-      const table = await prisma.table.findUnique({
-        where: { storeId_number: { storeId: store.id, number: data.tableNumber } },
-      })
-      if (!table) throw new AppError(`Mesa ${data.tableNumber} não encontrada`, 404)
-      resolvedTableId = table.id
+    const session = await prisma.tableSession.findUnique({
+      where: { token: data.tableSessionToken },
+    })
+    if (!session || session.storeId !== store.id) {
+      throw new AppError('Sessão de mesa inválida', 410)
     }
+    if (session.status !== 'OPEN') {
+      throw new AppError('Esta mesa já foi fechada', 410)
+    }
+    resolvedTableId = session.tableId
+    resolvedTableSessionId = session.id
   }
 
   // 4. Valida e calcula itens
@@ -311,6 +324,8 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         address: data.address ?? undefined,
         notes: data.notes,
         tableId: resolvedTableId,
+        tableSessionId: resolvedTableSessionId,
+        deviceName: data.deviceName?.trim() || null,
         couponId,
         scheduledFor: data.scheduledFor,
         customerSessionId: data.customerSessionId ?? null,

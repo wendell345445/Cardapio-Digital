@@ -68,7 +68,13 @@ export function CheckoutPage() {
   const updateQty = useCartStore(s => s.updateQty)
   const removeItem = useCartStore(s => s.removeItem)
   const tableNumber = useCartStore(s => s.tableNumber)
+  const tableSessionToken = useCartStore(s => s.tableSessionToken)
+  const deviceName = useCartStore(s => s.deviceName)
   const mutation = useCreateOrder(slug ?? '')
+
+  // Se entrou via QR de mesa, já temos o nome do TableEntryPage (ou "Convidado").
+  // Não pedimos de novo aqui — pula a seção "Seus dados".
+  const tableClientName = tableNumber ? (deviceName?.trim() || 'Convidado') : null
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<CheckoutForm>({
     resolver: zodResolver(checkoutSchema),
@@ -77,7 +83,7 @@ export function CheckoutPage() {
       type: tableNumber ? 'TABLE' : 'DELIVERY',
       paymentMethod: 'PIX',
       scheduleOrder: false,
-      clientName: getCustomerName(),
+      clientName: tableClientName ?? getCustomerName(),
     },
   })
 
@@ -142,7 +148,10 @@ export function CheckoutPage() {
         neighborhood: form.neighborhood!,
         city: form.city!,
       } : undefined,
-      tableNumber: form.type === 'TABLE' && tableNumber ? tableNumber : undefined,
+      tableSessionToken:
+        form.type === 'TABLE' && tableSessionToken ? tableSessionToken : undefined,
+      deviceName:
+        form.type === 'TABLE' && deviceName ? deviceName : undefined,
       items: items.map(i => ({
         productId: i.productId,
         variationId: i.variationId,
@@ -215,22 +224,26 @@ export function CheckoutPage() {
           </div>
         </section>
 
-        {/* Identificação */}
-        <section className="bg-white rounded-xl p-4 shadow-sm space-y-3">
-          <h2 className="font-bold text-gray-800 mb-1">Seus dados</h2>
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-1">Nome *</label>
-            <input
-              type="text"
-              placeholder="Seu nome"
-              autoComplete="name"
-              {...register('clientName')}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
-              style={{ fontSize: 16 }}
-            />
-            {errors.clientName && <p className="text-red-500 text-xs mt-1">{errors.clientName.message}</p>}
-          </div>
-        </section>
+        {/* Identificação — escondida em mesa (já capturada no QR entry) */}
+        {tableClientName ? (
+          <input type="hidden" {...register('clientName')} />
+        ) : (
+          <section className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+            <h2 className="font-bold text-gray-800 mb-1">Seus dados</h2>
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">Nome *</label>
+              <input
+                type="text"
+                placeholder="Seu nome"
+                autoComplete="name"
+                {...register('clientName')}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+                style={{ fontSize: 16 }}
+              />
+              {errors.clientName && <p className="text-red-500 text-xs mt-1">{errors.clientName.message}</p>}
+            </div>
+          </section>
+        )}
 
         {/* Endereço (apenas DELIVERY) */}
         {orderType === 'DELIVERY' && (

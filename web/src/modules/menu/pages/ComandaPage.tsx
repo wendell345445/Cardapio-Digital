@@ -1,6 +1,7 @@
-// ─── A-056: Comanda pública do cliente ───────────────────────────────────────
+// ─── Comanda pública do cliente ─────────────────────────────────────────────
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { io } from 'socket.io-client'
 import { ChefHat, Clock, CheckCircle, UtensilsCrossed } from 'lucide-react'
@@ -51,9 +52,9 @@ function ItemRow({ item }: { item: ComandaItem }) {
 }
 
 export function ComandaPage() {
-  const tableNumber = useCartStore((s) => s.tableNumber)
+  const tableSessionToken = useCartStore((s) => s.tableSessionToken)
   const queryClient = useQueryClient()
-  const { data: comanda, isLoading, isError } = useCustomerComanda(tableNumber)
+  const { data: comanda, isLoading, isError } = useCustomerComanda(tableSessionToken)
   const requestCheckMutation = useRequestCheck()
   const [checkRequested, setCheckRequested] = useState(false)
 
@@ -65,12 +66,12 @@ export function ComandaPage() {
     })
     socket.emit('join-table', comanda.table.id)
     socket.on('item:status', () => {
-      queryClient.invalidateQueries({ queryKey: ['customer-comanda', tableNumber] })
+      queryClient.invalidateQueries({ queryKey: ['customer-comanda', tableSessionToken] })
     })
     return () => { socket.disconnect() }
-  }, [comanda?.storeId, comanda?.table?.id, tableNumber, queryClient])
+  }, [comanda?.storeId, comanda?.table?.id, tableSessionToken, queryClient])
 
-  if (!tableNumber) {
+  if (!tableSessionToken) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
         <div className="text-center">
@@ -104,7 +105,7 @@ export function ComandaPage() {
 
   const handleRequestCheck = async () => {
     try {
-      await requestCheckMutation.mutateAsync(tableNumber)
+      await requestCheckMutation.mutateAsync(tableSessionToken)
       setCheckRequested(true)
     } catch {
       // error handled by mutation state
@@ -151,12 +152,12 @@ export function ComandaPage() {
 
       {/* Footer sticky */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4 space-y-2">
-        <a
-          href={`/?mesa=${tableNumber}`}
+        <Link
+          to="/"
           className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-xl text-sm transition-colors"
         >
           Pedir mais
-        </a>
+        </Link>
         <button
           onClick={handleRequestCheck}
           disabled={checkRequested || requestCheckMutation.isPending}

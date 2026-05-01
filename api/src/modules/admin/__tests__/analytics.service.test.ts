@@ -46,6 +46,7 @@ function makeOrder(overrides: {
   paymentMethod?: string
   whatsapp?: string
   clientName?: string
+  type?: string
 }) {
   return {
     total: overrides.total ?? 100,
@@ -54,6 +55,7 @@ function makeOrder(overrides: {
     clientWhatsapp: overrides.whatsapp ?? '5511999990001',
     clientName: overrides.clientName ?? 'Cliente A',
     clientId: 'client-1',
+    type: overrides.type ?? 'DELIVERY',
   }
 }
 
@@ -91,6 +93,24 @@ describe('getSalesSummary', () => {
     expect(result.totalRevenue).toBe(0)
     expect(result.totalOrders).toBe(0)
     expect(result.averageTicket).toBe(0)
+    expect(result.byChannel).toEqual({
+      online: { revenue: 0, orders: 0 },
+      table: { revenue: 0, orders: 0 },
+    })
+  })
+
+  it('separa receita e contagem por canal (TABLE vs DELIVERY/PICKUP)', async () => {
+    ;(mockPrisma.order.findMany as jest.Mock).mockResolvedValue([
+      makeOrder({ total: 80, type: 'DELIVERY' }),
+      makeOrder({ total: 20, type: 'PICKUP' }),
+      makeOrder({ total: 150, type: 'TABLE' }),
+      makeOrder({ total: 50, type: 'TABLE' }),
+    ])
+
+    const result = await getSalesSummary(STORE_ID, { period: 'day' })
+
+    expect(result.byChannel.online).toEqual({ revenue: 100, orders: 2 })
+    expect(result.byChannel.table).toEqual({ revenue: 200, orders: 2 })
   })
 
   it('agrupa pedidos por data no timeline', async () => {

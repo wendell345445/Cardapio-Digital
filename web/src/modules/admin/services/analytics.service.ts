@@ -22,6 +22,10 @@ export interface SalesSummary {
   totalOrders: number
   averageTicket: number
   cancelledCount: number
+  byChannel: {
+    online: { revenue: number; orders: number }
+    table: { revenue: number; orders: number }
+  }
   series: Array<{ label: string; revenue: number; orders: number }>
 }
 

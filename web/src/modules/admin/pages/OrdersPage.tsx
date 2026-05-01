@@ -20,6 +20,9 @@ import { useConfirmOrderPayment, useOrders, usePrintOrder } from '../hooks/useOr
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
+import { playBeep } from '@/shared/lib/sounds'
+import { toast } from '@/shared/lib/toast'
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TYPE_LABELS: Record<string, string> = {
@@ -156,25 +159,7 @@ const ACTIVE_COLUMN_CONFIG = [
   },
 ]
 
-// ─── Sound helper ─────────────────────────────────────────────────────────────
-
-function playBeep() {
-  try {
-    const ctx = new AudioContext()
-    const oscillator = ctx.createOscillator()
-    const gain = ctx.createGain()
-    oscillator.connect(gain)
-    gain.connect(ctx.destination)
-    oscillator.frequency.value = 880
-    oscillator.type = 'sine'
-    gain.gain.setValueAtTime(0.3, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6)
-    oscillator.start(ctx.currentTime)
-    oscillator.stop(ctx.currentTime + 0.6)
-  } catch {
-    // AudioContext not available
-  }
-}
+// playBeep extraído pra shared/lib/sounds — reusado por MesasPanel e OrdersPage.
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
@@ -473,6 +458,8 @@ function KanbanColumn({
             onViewDetail={onViewDetail}
             onAdvanceStatus={onAdvanceStatus}
             advancing={advancing === order.id}
+            // Pedidos de mesa são gerenciados em /admin/mesas. Aqui só visualização.
+            readonly={order.type === 'TABLE'}
           />
         ))}
       </div>
@@ -533,7 +520,11 @@ export function OrdersPage() {
   const [filterDate, setFilterDate] = useState(todayInputValue)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [advancingId, setAdvancingId] = useState<string | null>(null)
-  const [printSales, setPrintSales] = useState(false)
+  // v2.7: por padrão esconde pedidos de mesa em "Todos" — eles têm seu próprio
+  // kanban em /admin/mesas e não devem ser movimentados manualmente daqui pra
+  // não conflitar com o fluxo da comanda. Toggle abaixo libera quando o
+  // operador quer ver todos juntos.
+  const [showTableOrders, setShowTableOrders] = useState(false)
   // TASK-126: Tab ativos / cancelados
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
   // A-045: Drag-and-drop state
@@ -568,6 +559,18 @@ export function OrdersPage() {
     const orders = data?.orders ?? []
     if (prevCountRef.current > 0 && orders.length > prevCountRef.current) {
       playBeep()
+      // Pega o pedido mais recente (lista vem desc por createdAt) pra mostrar
+      // no toast — só funciona porque acabou de chegar e está no topo.
+      const newest = orders[0]
+      if (newest) {
+        const typeLabel =
+          newest.type === 'DELIVERY'
+            ? 'Delivery'
+            : newest.type === 'PICKUP'
+              ? 'Retirada'
+              : 'Mesa'
+        toast.info(`Pedido #${newest.number}`, typeLabel)
+      }
     }
     prevCountRef.current = orders.length
   }, [data?.orders])
@@ -575,8 +578,14 @@ export function OrdersPage() {
   const allOrders = data?.orders ?? []
 
   // Filter by type
+  // - Chip explícito (DELIVERY/TABLE/PICKUP) → respeita.
+  // - "Todos" → esconde TABLE a menos que o toggle "Mostrar mesas" esteja ON.
   const filteredByType =
-    typeFilter === 'todos' ? allOrders : allOrders.filter((o) => o.type === typeFilter)
+    typeFilter === 'todos'
+      ? showTableOrders
+        ? allOrders
+        : allOrders.filter((o) => o.type !== 'TABLE')
+      : allOrders.filter((o) => o.type === typeFilter)
 
   // Filter by search
   const filteredOrders = search.trim()
@@ -623,6 +632,11 @@ export function OrdersPage() {
 
     const order = active.data.current?.order as Order | undefined
     if (!order) return
+
+    // Pedidos de mesa têm seu próprio fluxo (kanban da comanda em /admin/mesas).
+    // Mover daqui geraria divergência de estado. dnd-kit já bloqueia via
+    // `disabled` no useDraggable, mas isso é a salvaguarda final.
+    if (order.type === 'TABLE') return
 
     const targetColumnId = over.id as string
     const targetStatus = COLUMN_DROP_STATUS[targetColumnId]
@@ -713,32 +727,29 @@ export function OrdersPage() {
 
       {/* Banners */}
       <div className="px-6 pt-3 space-y-2 flex-shrink-0">
-        {/* Impressão automática */}
-        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
-          <Printer className="w-4 h-4 text-blue-500 flex-shrink-0" />
-          <p className="text-sm text-blue-700 flex-1">
-            <span className="font-semibold">Impressão automática no seu computador,</span>{' '}
-            <span className="underline cursor-pointer hover:text-blue-900">baixe o módulo</span>
-          </p>
-        </div>
-
-        {/* Impressão de vendas + tabs Ativos / Cancelados */}
+        {/* Toggle pedidos de mesa + tabs Ativos / Cancelados */}
         <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
-          <button
-            onClick={() => setPrintSales((v) => !v)}
-            className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
-              printSales ? 'bg-green-500' : 'bg-gray-300'
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                printSales ? 'translate-x-4' : 'translate-x-0'
-              }`}
-            />
-          </button>
-          <p className="text-sm text-gray-700">
-            <span className="font-medium">Impressão de vendas</span>
-          </p>
+          {/* v2.7: toggle pra incluir pedidos de mesa em "Todos". Esconde quando
+              o filtro de tipo já é TABLE (irrelevante) ou um tipo não-TABLE. */}
+          {typeFilter === 'todos' && (
+            <>
+              <button
+                onClick={() => setShowTableOrders((v) => !v)}
+                className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
+                  showTableOrders ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    showTableOrders ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+              <p className="text-sm text-gray-700">
+                <span className="font-medium">Mostrar pedidos de mesa</span>
+              </p>
+            </>
+          )}
 
           {/* TASK-126: Tabs Ativos / Cancelados */}
           <div className="ml-auto flex items-center gap-2">
@@ -790,7 +801,7 @@ export function OrdersPage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 min-h-[60vh]" style={{ minWidth: 'max-content' }}>
+            <div className="flex gap-4 min-h-[calc(100vh-180px)]" style={{ minWidth: 'max-content' }}>
               {ACTIVE_COLUMN_CONFIG.map((col) => (
                 <KanbanColumn
                   key={col.id}

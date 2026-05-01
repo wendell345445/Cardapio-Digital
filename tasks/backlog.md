@@ -135,6 +135,44 @@
 
 ---
 
+## Epic 14 — Mesas v2: TableSession + Painel Operacional (v2.6) ✅
+
+Refatora o fluxo de mesa: `?mesa=N` vira sessão com token único; vários celulares na mesma mesa compartilham; admin tem painel mosaico, drag-and-drop de itens, recebimento de pagamento e histórico.
+
+| # | Task | Fase | Pts | Status |
+|---|---|---|---|---|
+| 1 | Schema `TableSession` (model novo + `Order.tableSessionId/deviceName` + `@@unique([tableId, status])`) | F1 | 3 | ✅ |
+| 2 | Backend `table-session.service` (`openOrJoinSession` idempotente + `getSession` 410) | F1 | 3 | ✅ |
+| 3 | `createOrder` exige `tableSessionToken` em TABLE | F1 | 1 | ✅ |
+| 4 | `closeTable` fecha todos os pedidos da sessão (corrige bug findFirst) | F1 | 1 | ✅ |
+| 5 | `comanda` filtra por `tableSessionId` (escopo de sessão, não histórico) | F1 | 1 | ✅ |
+| 6 | QR code aponta pra `/mesa/:n` (novo entry-point) em vez de `?mesa=N` | F1 | 1 | ✅ |
+| 7 | Frontend `useCartStore` + `TableEntryPage` (modal "Como devemos te chamar?") | F1 | 3 | ✅ |
+| 8 | `OrderTrackingPage` esconde OptInCard em TABLE; `ComandaPage` usa token | F1 | 1 | ✅ |
+| 9 | Schema enum `PaymentMethod += CASH/CREDIT/DEBIT` (limpos, sem `_ON_DELIVERY`) | F2 | 1 | ✅ |
+| 10 | Endpoint `setTablesCount(N)` (cria 1..N e remove livres) + `generateAllQRCodesPDF` | F2 | 3 | ✅ |
+| 11 | `confirmTableSessionPayment` (todos os orders com `paymentReceivedAt` + linka CashFlow) | F2 | 2 | ✅ |
+| 12 | `closeTable` exige sessão paga (guard de `paymentReceivedAt`) | F2 | 1 | ✅ |
+| 13 | Frontend `MesasPage` com segmented control (Mesas / QR Codes) | F2 | 2 | ✅ |
+| 14 | `MesasPanel` (cards mosaico + status colorido + beep+toast no socket) | F2 | 3 | ✅ |
+| 15 | `MesaDetailDrawer` com DnD + `PaymentMethodPicker` | F2 | 3 | ✅ |
+| 16 | `QRCodesPanel` (input total + PDF único de todos) | F2 | 2 | ✅ |
+| 17 | Toast helper compartilhado (`@radix-ui/react-toast` + Zustand) | F2 | 1 | ✅ |
+| 18 | `playBeep` extraído pra `shared/lib/sounds` | F2 | 0.5 | ✅ |
+| 19 | Cleanup: deletar `QRCodePage`, `TablesPage`, `ComandaModal` antigos | F2 | 0.5 | ✅ |
+| 20 | Schema `Store.allowTable` + toggle em `/admin/entregas > Status` | F3 | 1 | ✅ |
+| 21 | Backend bloqueia `openOrJoinSession`/`createOrder` quando `allowTable=false` | F3 | 1 | ✅ |
+| 22 | Endpoint `GET /tables/sessions/history` + `HistoricoPanel` (filtro por data) | F3 | 2 | ✅ |
+| 23 | DnD com 3 colunas (PENDING/PREPARING/DELIVERED) | F3 | 1 | ✅ |
+| 24 | OrdersPage com toast + beep no `order:new` (já tinha beep, virou toast também) | F3 | 0.5 | ✅ |
+| 25 | Sidebar esconde "Mesas" quando `allowTable=false` | F3 | 0.5 | ✅ |
+
+**Total Epic 14:** ~38 story points em 3 fases · **STATUS: CONCLUÍDO 2026-05-01** ✅
+**Migrations:** `20260501165028_add_table_session`, `20260501172343_add_clean_payment_methods`, `20260501175253_add_allow_table`.
+**Breaking Change ergonômico:** link antigo `?mesa=N` perde poder de criar pedido em mesa — QRs antigos precisam ser reimpressos (PDF "Imprimir todos" gera todos de uma vez).
+
+---
+
 ## Won't Have (fora do escopo atual)
 
 - Integração iFood/Rappi

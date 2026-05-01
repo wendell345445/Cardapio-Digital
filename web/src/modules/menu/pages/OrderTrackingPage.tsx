@@ -241,7 +241,8 @@ export function OrderTrackingPage() {
           </div>
         </section>
 
-        {/* Pedido cancelado: mostra motivo no lugar do opt-in WhatsApp */}
+        {/* Pedido cancelado: mostra motivo. Em mesa não rola opt-in de WhatsApp
+            (cliente está sentado, comunicação é presencial). */}
         {order.status === 'CANCELLED' ? (
           <section className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
             <XCircle size={20} className="text-red-600 mt-0.5 flex-shrink-0" />
@@ -254,46 +255,48 @@ export function OrderTrackingPage() {
               </p>
             </div>
           </section>
-        ) : (
-          /* TASK-130: opt-in para receber atualizações por WhatsApp */
+        ) : order.type !== 'TABLE' ? (
           <OptInCard order={order} />
-        )}
+        ) : null}
 
         {/* TABLE: navegação para comanda e menu */}
         {order.type === 'TABLE' && (
           <section className="space-y-2">
-            <a
-              href="/comanda"
+            <Link
+              to="/comanda"
               className="block w-full text-center bg-green-500 hover:bg-green-600 text-white font-bold py-3.5 rounded-xl text-sm transition-colors"
             >
               Ver comanda completa da mesa
-            </a>
-            <a
-              href={`/?mesa=${order.table?.number ?? ''}`}
+            </Link>
+            <Link
+              to="/"
               className="block w-full text-center border-2 border-green-500 text-green-600 font-bold py-3.5 rounded-xl text-sm transition-colors hover:bg-green-50"
             >
-              Voltar ao cardapio e pedir mais
-            </a>
+              Voltar ao cardápio e pedir mais
+            </Link>
           </section>
         )}
 
-        {/* TASK-130: navegação geral pós-pedido */}
-        <section className="grid grid-cols-2 gap-2 pt-1">
-          <Link
-            to="/"
-            className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
-          >
-            <ArrowLeft size={14} />
-            Cardápio
-          </Link>
-          <Link
-            to="/meus-pedidos"
-            className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
-          >
-            <ListOrdered size={14} />
-            Meus pedidos
-          </Link>
-        </section>
+        {/* TASK-130: navegação geral pós-pedido — esconde em mesa (já tem
+            "Voltar ao cardápio" acima e "Meus pedidos" não vale pra mesa) */}
+        {order.type !== 'TABLE' && (
+          <section className="grid grid-cols-2 gap-2 pt-1">
+            <Link
+              to="/"
+              className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
+            >
+              <ArrowLeft size={14} />
+              Cardápio
+            </Link>
+            <Link
+              to="/meus-pedidos"
+              className="flex items-center justify-center gap-1.5 border-2 border-gray-200 text-gray-700 hover:border-gray-300 font-semibold py-3 rounded-xl text-sm transition-colors"
+            >
+              <ListOrdered size={14} />
+              Meus pedidos
+            </Link>
+          </section>
+        )}
       </div>
     </div>
   )
