@@ -86,7 +86,7 @@ const mockStore = {
   allowPickup: true,
   allowDelivery: true,
   status: 'ACTIVE',
-  manualOpen: null,
+  manualOpen: true,
   businessHours: openAllWeek,
   features: { allowPix: true },
   address: 'Rua A, 123',

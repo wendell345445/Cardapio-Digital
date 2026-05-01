@@ -49,7 +49,7 @@ export function useUpdateBusinessHours() {
 export function useUpdateStoreStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (dto: { manualOpen: boolean | null }) => updateStoreStatus(dto),
+    mutationFn: (dto: { manualOpen: boolean }) => updateStoreStatus(dto),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['store'] }),
   })
 }

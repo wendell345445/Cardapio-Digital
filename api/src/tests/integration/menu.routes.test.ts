@@ -98,7 +98,7 @@ const mockStore = {
   allowCashOnDelivery: true,
   allowPickup: true,
   allowDelivery: true,
-  manualOpen: null,
+  manualOpen: true,
   features: { allowPix: true },
   plan: 'PROFESSIONAL',
   status: 'ACTIVE',

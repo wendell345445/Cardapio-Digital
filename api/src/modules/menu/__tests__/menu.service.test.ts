@@ -48,7 +48,7 @@ const mockStore = {
   allowCashOnDelivery: true,
   allowPickup: false,
   allowDelivery: true,
-  manualOpen: null,
+  manualOpen: true,
   features: { allowPix: true },
   plan: 'PROFESSIONAL',
   status: 'ACTIVE',
@@ -168,11 +168,11 @@ describe('calcStoreStatus — integrado via getMenu', () => {
     expect(result.store.storeStatus).toBe('suspended')
   })
 
-  it('retorna "closed" quando manualOpen=false (ignora horário)', async () => {
+  it('retorna "closed" quando manualOpen=false mesmo dentro do horário', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
       manualOpen: false,
-      businessHours: openAllWeekHours, // horário diz aberto, mas manual fecha
+      businessHours: openAllWeekHours, // horário diz aberto, mas caixa fechado
     })
 
     const result = await getMenu(SLUG) as any
@@ -180,16 +180,16 @@ describe('calcStoreStatus — integrado via getMenu', () => {
     expect(result.store.storeStatus).toBe('closed')
   })
 
-  it('retorna "open" quando manualOpen=true (ignora horário)', async () => {
+  it('retorna "closed" quando manualOpen=true mas fora do horário', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
       manualOpen: true,
-      businessHours: [], // sem horário configurado, mas manual abre
+      businessHours: [], // sem horário configurado → não bate o AND
     })
 
     const result = await getMenu(SLUG) as any
 
-    expect(result.store.storeStatus).toBe('open')
+    expect(result.store.storeStatus).toBe('closed')
   })
 
   it('retorna "closed" quando isClosed=true para o dia atual', async () => {
@@ -199,7 +199,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: closedHours,
     })
 
@@ -211,7 +211,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
   it('retorna "closed" quando não há horário configurado para hoje', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: [], // nenhum horário configurado
     })
 
@@ -229,7 +229,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: nullTimeHours,
     })
 
@@ -238,10 +238,10 @@ describe('calcStoreStatus — integrado via getMenu', () => {
     expect(result.store.storeStatus).toBe('closed')
   })
 
-  it('retorna "open" quando manualOpen=null e horário cobre toda a semana (00:00-23:59)', async () => {
+  it('retorna "open" quando manualOpen=true e horário cobre toda a semana (00:00-23:59)', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: openAllWeekHours,
     })
 
@@ -256,7 +256,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
   it('nextOpenLabel é null quando loja está aberta', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: openAllWeekHours,
     })
 
@@ -276,7 +276,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: onlyTodayLater,
     })
 
@@ -300,7 +300,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: past,
     })
 
@@ -321,7 +321,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
 
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: onlyFriday,
     })
 
@@ -331,7 +331,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
     expect(result.store.nextOpenLabel).toBe('sexta às 18:00')
   })
 
-  it('nextOpenLabel é null quando manualOpen=false (sem ETA)', async () => {
+  it('nextOpenLabel é null quando manualOpen=false (caixa fechado, sem ETA)', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
       manualOpen: false,
@@ -347,7 +347,7 @@ describe('calcStoreStatus — integrado via getMenu', () => {
   it('nextOpenLabel é null quando nenhum dia da semana tem horário válido', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
       ...mockStore,
-      manualOpen: null,
+      manualOpen: true,
       businessHours: [],
     })
 

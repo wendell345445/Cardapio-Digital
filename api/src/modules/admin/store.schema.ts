@@ -31,7 +31,7 @@ export const updateBusinessHoursSchema = z.object({
 })
 
 export const updateStoreStatusSchema = z.object({
-  manualOpen: z.boolean().nullable(),
+  manualOpen: z.boolean(),
 })
 
 // ─── TASK-051: WhatsApp e Pix (reauth obrigatória) ───────────────────────────

@@ -47,7 +47,7 @@ const mockStore = {
   logo: null,
   address: 'Rua A, 123',
   phone: '5548999990000',
-  manualOpen: null,
+  manualOpen: false,
   pixKey: null,
   pixKeyType: null,
   allowCashOnDelivery: true,
@@ -286,21 +286,16 @@ describe('PATCH /api/v1/admin/store/status', () => {
     expect(res.body.data.manualOpen).toBe(false)
   })
 
-  it('retorna 200 ao restaurar controle automático (manualOpen=null)', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({ id: STORE_ID, manualOpen: null })
-    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
-
+  it('retorna 400 quando manualOpen é null (campo agora é boolean obrigatório)', async () => {
     const res = await request(app)
       .patch('/api/v1/admin/store/status')
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ manualOpen: null })
 
-    expect(res.status).toBe(200)
-    expect(res.body.data.manualOpen).toBeNull()
+    expect(res.status).toBe(400)
   })
 
-  it('retorna 400 quando manualOpen não é boolean nem null', async () => {
+  it('retorna 400 quando manualOpen não é boolean', async () => {
     const res = await request(app)
       .patch('/api/v1/admin/store/status')
       .set('Authorization', `Bearer ${adminToken()}`)

@@ -17,9 +17,10 @@ import type { CreateOrderInput } from './orders.schema'
 
 type StoreStatus = 'open' | 'closed' | 'suspended'
 
+// Mantém em sync com menu.service.ts#calcStoreStatus: AND de manualOpen + horário.
 function calcStoreStatus(store: {
   status: string
-  manualOpen: boolean | null
+  manualOpen: boolean
   businessHours: Array<{
     dayOfWeek: number
     openTime: string | null
@@ -28,8 +29,7 @@ function calcStoreStatus(store: {
   }>
 }): StoreStatus {
   if (store.status === 'SUSPENDED') return 'suspended'
-  if (store.manualOpen === false) return 'closed'
-  if (store.manualOpen === true) return 'open'
+  if (!store.manualOpen) return 'closed'
 
   // UTC-3 = BRT (Brasil não tem horário de verão desde 2019)
   const now = new Date()

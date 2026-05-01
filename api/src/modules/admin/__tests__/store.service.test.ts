@@ -58,7 +58,7 @@ const mockStore = {
   logo: null,
   address: 'Rua A, 123',
   phone: '5548999990000',
-  manualOpen: null,
+  manualOpen: false,
   pixKey: null,
   pixKeyType: null,
   allowCashOnDelivery: true,
@@ -301,16 +301,6 @@ describe('updateStoreStatus', () => {
     const result = await updateStoreStatus(STORE_ID, { manualOpen: false }, USER_ID)
 
     expect(result.manualOpen).toBe(false)
-  })
-
-  it('define manualOpen=null (retorna ao controle automático por horário)', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({ id: STORE_ID, manualOpen: null })
-    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
-
-    const result = await updateStoreStatus(STORE_ID, { manualOpen: null }, USER_ID)
-
-    expect(result.manualOpen).toBeNull()
   })
 
   it('lança 404 quando loja não existe', async () => {

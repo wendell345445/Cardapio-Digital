@@ -38,7 +38,7 @@ model Store {
   allowCashOnDelivery  Boolean       @default(true)
   allowPickup          Boolean       @default(false)
   allowDelivery        Boolean       @default(true)
-  manualOpen           Boolean?
+  manualOpen           Boolean       @default(false)
   whatsappMode         WhatsAppMode  @default(WHATSAPP)
   /// Número WhatsApp pareado (ex: "5511999999999"). Único globalmente — uma mesma
   /// conta WA não pode estar pareada em duas lojas, senão recebem o mesmo evento

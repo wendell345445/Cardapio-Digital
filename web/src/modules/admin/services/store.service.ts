@@ -13,7 +13,7 @@ export interface StoreData {
   logo?: string
   address?: string
   phone?: string
-  manualOpen: boolean | null
+  manualOpen: boolean
   pixKey?: string
   pixKeyType?: string
   allowCashOnDelivery: boolean
@@ -76,8 +76,8 @@ export async function updateBusinessHours(dto: {
 }
 
 export async function updateStoreStatus(dto: {
-  manualOpen: boolean | null
-}): Promise<{ id: string; manualOpen: boolean | null }> {
+  manualOpen: boolean
+}): Promise<{ id: string; manualOpen: boolean }> {
   const { data } = await api.patch('/admin/store/status', dto)
   return data.data
 }

@@ -21,17 +21,18 @@ function nowBrt(): Date {
   return new Date(now.getTime() - 3 * 60 * 60 * 1000)
 }
 
+// Cardápio público só fica "open" se AS DUAS condições baterem:
+//   1) manualOpen === true (owner abriu o caixa no admin)
+//   2) horário atual dentro de businessHours do dia
+// Owner fechar o caixa OU sair do horário → 'closed'.
 function calcStoreStatus(store: {
   status: string
-  manualOpen: boolean | null
+  manualOpen: boolean
   businessHours: BusinessHour[]
 }): StoreStatus {
   if (store.status === 'SUSPENDED') return 'suspended'
+  if (!store.manualOpen) return 'closed'
 
-  if (store.manualOpen === false) return 'closed'
-  if (store.manualOpen === true) return 'open'
-
-  // manualOpen === null → verifica horário de funcionamento (UTC-3 = BRT)
   const brt = nowBrt()
   const dayOfWeek = brt.getUTCDay()
   const hh = String(brt.getUTCHours()).padStart(2, '0')
@@ -52,13 +53,13 @@ function calcStoreStatus(store: {
 
 // Procura o próximo horário de abertura nos próximos 7 dias e devolve label
 // pronto pro frontend ("hoje às 18:00", "amanhã às 18:00", "sexta às 18:00").
-// Retorna null se manualOpen === false (fechado manualmente, sem ETA) ou se
+// Retorna null se caixa fechado (sem ETA — owner reabre quando quiser) ou se
 // nenhum dia da semana tem horário válido.
 function calcNextOpenLabel(
-  manualOpen: boolean | null,
+  manualOpen: boolean,
   businessHours: BusinessHour[],
 ): string | null {
-  if (manualOpen === false) return null
+  if (!manualOpen) return null
   if (businessHours.length === 0) return null
 
   const brt = nowBrt()

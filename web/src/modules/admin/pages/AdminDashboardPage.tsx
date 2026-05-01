@@ -91,7 +91,7 @@ export function AdminDashboardPage() {
                 RESTAURANTE: {store?.name ?? '...'}
               </span>
               <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                CAIXA: {store?.manualOpen === true ? 'Aberto' : store?.manualOpen === false ? 'Fechado' : 'Automático'}
+                CAIXA: {store?.manualOpen ? 'Aberto' : 'Fechado'}
               </span>
             </div>
           </div>
