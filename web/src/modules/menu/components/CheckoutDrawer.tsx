@@ -8,6 +8,7 @@ import { X, ShoppingBag, ArrowLeft, Trash2, Minus, Plus, ChevronDown, ChevronUp 
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
+import { useTableMode } from '../hooks/useTableMode'
 import { useCreateOrder } from '../hooks/useOrder'
 import {
   calculateDeliveryFee as fetchDeliveryFee,
@@ -160,9 +161,7 @@ export function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const clearCart = useCartStore(s => s.clearCart)
   const updateQty = useCartStore(s => s.updateQty)
   const removeItem = useCartStore(s => s.removeItem)
-  const tableNumber = useCartStore(s => s.tableNumber)
-  const tableSessionToken = useCartStore(s => s.tableSessionToken)
-  const deviceName = useCartStore(s => s.deviceName)
+  const { tableNumber, tableSessionToken, deviceName } = useTableMode()
 
   const totalQty = items.reduce((s, i) => s + i.quantity, 0)
 

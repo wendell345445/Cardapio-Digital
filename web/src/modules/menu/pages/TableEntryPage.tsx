@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { isAxiosError } from 'axios'
 
 import { useCartStore } from '../store/useCartStore'
+import { markTableModeActive } from '../hooks/useTableMode'
+
+import { MenuPage } from './MenuPage'
 
 import { createPublicApi } from '@/shared/lib/publicApi'
 
@@ -27,7 +30,6 @@ const ACCESS_TOKEN_RE = /^[a-f0-9]{16}$/i
 
 export function TableEntryPage() {
   const { accessToken } = useParams<{ accessToken: string }>()
-  const navigate = useNavigate()
   const setTableSession = useCartStore((s) => s.setTableSession)
   const clearTableSession = useCartStore((s) => s.clearTableSession)
   const existingToken = useCartStore((s) => s.tableSessionToken)
@@ -36,6 +38,9 @@ export function TableEntryPage() {
   const validToken = accessToken && ACCESS_TOKEN_RE.test(accessToken)
 
   const [tableNumber, setTableNumber] = useState<number | null>(null)
+  // sessionReady = sessão validada/aberta pra essa mesa nesta aba — passa a
+  // renderizar MenuPage in-place (URL continua /mesa/:token, sem redirect).
+  const [sessionReady, setSessionReady] = useState(false)
   const [name, setName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [checking, setChecking] = useState(true)
@@ -60,7 +65,10 @@ export function TableEntryPage() {
           api
             .get<SessionStatusResponse>(`/menu/table-session/${existingToken}`)
             .then(() => {
-              if (!cancelled) navigate('/', { replace: true })
+              if (cancelled) return
+              markTableModeActive()
+              setSessionReady(true)
+              setChecking(false)
             })
             .catch(() => {
               if (cancelled) return
@@ -75,7 +83,7 @@ export function TableEntryPage() {
         if (!cancelled) setChecking(false)
       })
     return () => { cancelled = true }
-  }, [validToken, accessToken, existingToken, existingTableNumber, clearTableSession, navigate])
+  }, [validToken, accessToken, existingToken, existingTableNumber, clearTableSession])
 
   async function handleSubmit(deviceName: string | null) {
     if (!validToken || !accessToken) return
@@ -91,7 +99,8 @@ export function TableEntryPage() {
         token: data.data.token,
         deviceName,
       })
-      navigate('/', { replace: true })
+      markTableModeActive()
+      setSessionReady(true)
     } catch (err) {
       const message = isAxiosError(err)
         ? err.response?.data?.error ?? 'Não foi possível abrir a mesa'
@@ -99,6 +108,11 @@ export function TableEntryPage() {
       setError(message)
       setSubmitting(false)
     }
+  }
+
+  // Sessão validada — renderiza o cardápio in-place. URL permanece /mesa/:token.
+  if (sessionReady) {
+    return <MenuPage />
   }
 
   // QR antigo (numérico) ou hash mal-formado.

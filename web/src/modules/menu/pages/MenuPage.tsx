@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Search, Phone, MapPin, Clock, ChevronDown, ChevronUp, ShoppingCart, UtensilsCrossed } from 'lucide-react'
 
 import { useMenu } from '../hooks/useMenu'
+import { useTableMode } from '../hooks/useTableMode'
 import { ProductCard } from '../components/ProductCard'
 import { SkeletonCard } from '../components/SkeletonCard'
 import { CheckoutDrawer } from '../components/CheckoutDrawer'
@@ -20,10 +21,9 @@ export function MenuPage() {
   const { data, isLoading } = useMenu(slug)
 
   const setStore = useCartStore(s => s.setStore)
-  // tableNumber só é populado quando há TableSession ativa (entrada via /mesa/:n).
-  // Link antigo ?mesa=N é ignorado — cliente cai no cardápio normal sem poder
-  // criar pedido em mesa.
-  const tableNumber = useCartStore(s => s.tableNumber)
+  // Modo mesa só vale na aba que veio do QR (`/mesa/:token`). Em qualquer outra
+  // visita à URL raiz, ignoramos a sessão persistida e tratamos como online.
+  const { tableNumber } = useTableMode()
   const cartItems = useCartStore(s => s.items)
   const cartCount = cartItems.reduce((sum, i) => sum + i.quantity, 0)
 

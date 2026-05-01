@@ -7,6 +7,7 @@ import { CalendarClock, ChevronLeft, CreditCard, MapPin, ShoppingBag, Trash2, Mi
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
+import { useTableMode } from '../hooks/useTableMode'
 import { useCreateOrder } from '../hooks/useOrder'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { validateCouponPublic } from '../services/orders.service'
@@ -67,9 +68,7 @@ export function CheckoutPage() {
   const clearCart = useCartStore(s => s.clearCart)
   const updateQty = useCartStore(s => s.updateQty)
   const removeItem = useCartStore(s => s.removeItem)
-  const tableNumber = useCartStore(s => s.tableNumber)
-  const tableSessionToken = useCartStore(s => s.tableSessionToken)
-  const deviceName = useCartStore(s => s.deviceName)
+  const { tableNumber, tableSessionToken, deviceName } = useTableMode()
   const mutation = useCreateOrder(slug ?? '')
 
   // Se entrou via QR de mesa, já temos o nome do TableEntryPage (ou "Convidado").
