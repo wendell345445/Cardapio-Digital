@@ -33,7 +33,7 @@ export function CategoryChips({ categories, activeId, onSelect }: Props) {
       <div className="relative mt-[14px] -mx-4 overflow-hidden bg-menu-bg sm:-mx-6 md:-mx-8">
         <nav
           aria-label="Categorias de produtos"
-          className="relative z-20 flex w-full touch-pan-x items-center gap-2 overflow-x-auto overflow-y-hidden px-6 pt-1 pb-4 overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] sm:px-8 md:px-10 [&::-webkit-scrollbar]:hidden"
+          className="relative z-20 flex w-full touch-pan-x items-center gap-2 overflow-x-auto overflow-y-hidden px-4 pt-1 pb-4 overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] sm:px-6 md:px-8 [&::-webkit-scrollbar]:hidden"
         >
           {categories.map((category) => {
             const isActive = activeId === category.id
