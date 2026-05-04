@@ -19,6 +19,7 @@ export function errorHandler(
   const status = (err as { status?: number }).status || 500
   const message = err.message || 'Internal server error'
   const code = (err as { code?: string }).code
+  const details = (err as { details?: unknown }).details
 
   if (status >= 500) {
     console.error('Server error:', err)
@@ -28,6 +29,7 @@ export function errorHandler(
     success: false,
     error: message,
     ...(code ? { code } : {}),
+    ...(details !== undefined ? { details } : {}),
   })
 }
 
@@ -35,7 +37,8 @@ export class AppError extends Error {
   constructor(
     message: string,
     public status: number = 400,
-    public code?: string
+    public code?: string,
+    public details?: unknown
   ) {
     super(message)
     this.name = 'AppError'

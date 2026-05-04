@@ -16,6 +16,9 @@ export interface CepLookupResult {
   city: string
   state: string
   source: 'google' | 'viacep'
+  /** Coordenadas vêm só quando `source === 'google'`. ViaCEP não retorna lat/lng. */
+  latitude?: number
+  longitude?: number
 }
 
 const CACHE_TTL_SECONDS = 60 * 60 * 24 * 7
@@ -28,6 +31,9 @@ interface GoogleAddressComponent {
 }
 interface GoogleResult {
   address_components?: GoogleAddressComponent[]
+  geometry?: {
+    location?: { lat?: number; lng?: number }
+  }
 }
 interface GoogleResponse {
   status: string
@@ -102,7 +108,8 @@ async function tryGoogle(cep: string): Promise<CepLookupResult | null> {
 
   if (body.status !== 'OK' || !body.results.length) return null
 
-  const components = body.results[0].address_components
+  const hit = body.results[0]
+  const components = hit.address_components
   const city =
     pickComponent(components, 'administrative_area_level_2') ||
     pickComponent(components, 'locality') ||
@@ -119,7 +126,22 @@ async function tryGoogle(cep: string): Promise<CepLookupResult | null> {
   // o fallback ViaCEP cobrir.
   if (!city || !state) return null
 
-  return { cep, street, neighborhood, city, state, source: 'google' }
+  // lat/lng vem do `geometry.location`. Pra CEP genérico (cidade-only), o
+  // ponto é o centroide da cidade — útil só como aproximação. Pra CEP de
+  // rua específica, é a coordenada exata da via.
+  const lat = hit.geometry?.location?.lat
+  const lng = hit.geometry?.location?.lng
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng)
+
+  return {
+    cep,
+    street,
+    neighborhood,
+    city,
+    state,
+    source: 'google',
+    ...(hasCoords ? { latitude: lat as number, longitude: lng as number } : {}),
+  }
 }
 
 async function tryViaCep(cep: string): Promise<CepLookupResult | null> {

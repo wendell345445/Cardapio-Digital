@@ -49,3 +49,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Google Places Autocomplete dropdown — sobe pra cima de modais e bottom-sheets.
+   Por padrão o `.pac-container` é appended em document.body com z-index:1000,
+   o que fica abaixo dos nossos overlays (z-[80] do AddressBottomSheet). */
+.pac-container {
+  z-index: 9999 !important;
+}

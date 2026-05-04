@@ -26,8 +26,9 @@ interface CartStore {
     deviceName: string | null
   }) => void
   clearTableSession: () => void
-  addItem: (item: Omit<CartItem, 'id'>) => void
+  addItem: (item: Omit<CartItem, 'id'>) => string
   updateQty: (id: string, quantity: number) => void
+  updateNotes: (id: string, notes: string) => void
   removeItem: (id: string) => void
   clearCart: () => void
   subtotal: () => number
@@ -69,10 +70,22 @@ export const useCartStore = create<CartStore>()(
       },
       clearTableSession: () =>
         set({ tableNumber: null, tableSessionToken: null, deviceName: null, items: [] }),
-      addItem: (item) => set((s) => ({ items: [...s.items, { ...item, id: crypto.randomUUID() }] })),
+      addItem: (item) => {
+        const id = crypto.randomUUID()
+        set((s) => ({ items: [...s.items, { ...item, id }] }))
+        return id
+      },
       updateQty: (id, quantity) => {
         if (quantity <= 0) { get().removeItem(id); return }
         set((s) => ({ items: s.items.map((i) => i.id === id ? { ...i, quantity } : i) }))
+      },
+      updateNotes: (id, notes) => {
+        const trimmed = notes.trim()
+        set((s) => ({
+          items: s.items.map((i) =>
+            i.id === id ? { ...i, notes: trimmed || undefined } : i
+          ),
+        }))
       },
       removeItem: (id) => set((s) => ({ items: s.items.filter((i) => i.id !== id) })),
       clearCart: () => set({ items: [] }), // sessão permanece — cliente segue na mesma mesa

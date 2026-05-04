@@ -83,7 +83,7 @@ describe('ItemPage — bloqueio de loja fechada', () => {
     useMenuMock.mockReset()
   })
 
-  it('com loja aberta, clicar em "Adicionar" insere o item no carrinho', () => {
+  it('com loja aberta, clicar em "Adicionar" insere o item no carrinho e abre popup', () => {
     useMenuMock.mockReturnValue({ data: buildMenuData('open'), isLoading: false })
 
     render(<ItemPage />, { wrapper })
@@ -93,9 +93,35 @@ describe('ItemPage — bloqueio de loja fechada', () => {
 
     fireEvent.click(addBtn)
 
+    // Item é persistido imediatamente — popup é só pra confirmação/ajuste.
     expect(useCartStore.getState().items).toHaveLength(1)
     expect(useCartStore.getState().items[0].productId).toBe(PRODUCT_ID)
+
+    // "Continuar comprando" navega de volta pro cardápio.
+    fireEvent.click(screen.getByRole('button', { name: /Continuar comprando/ }))
     expect(navigateMock).toHaveBeenCalledWith('/')
+    // Item permanece no cart depois do click.
+    expect(useCartStore.getState().items).toHaveLength(1)
+  })
+
+  it('alterar qty no popup faz update no item já adicionado (não cria novo)', () => {
+    useMenuMock.mockReturnValue({ data: buildMenuData('open'), isLoading: false })
+
+    render(<ItemPage />, { wrapper })
+
+    fireEvent.click(screen.getByRole('button', { name: /Adicionar/ }))
+    expect(useCartStore.getState().items).toHaveLength(1)
+    expect(useCartStore.getState().items[0].quantity).toBe(1)
+
+    // Pega o controle de qty dentro do popup (label "Aumentar quantidade").
+    const incBtns = screen.getAllByLabelText('Aumentar quantidade')
+    // Há 2 controles na tela: o do footer (já não fica visível) e o do popup.
+    // Pegamos o último (= o do popup).
+    fireEvent.click(incBtns[incBtns.length - 1])
+
+    // Continua sendo 1 item, com qty=2 — sem item duplicado.
+    expect(useCartStore.getState().items).toHaveLength(1)
+    expect(useCartStore.getState().items[0].quantity).toBe(2)
   })
 
   it('com loja fechada, clicar em "Adicionar" não insere no carrinho e mostra aviso', () => {

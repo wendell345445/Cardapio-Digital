@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react'
 import { api } from '@/shared/lib/api'
 
 // Mantém o nome `useViaCep` por compatibilidade com os callers existentes
-// (RegisterStorePage, DeliveryPage, CheckoutDrawer). Por baixo, agora chama
+// (RegisterStorePage, DeliveryPage). Por baixo, agora chama
 // o backend (`POST /api/v1/cep/lookup`), que tenta Google Geocoding primeiro
 // e cai em ViaCEP quando o Google não traz dados utilizáveis. Centraliza no
 // backend pra (1) cobrir CEPs únicos de cidade pequena que o ViaCEP devolve

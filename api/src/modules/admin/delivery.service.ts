@@ -126,7 +126,14 @@ export async function calculateDeliveryFee(storeId: string, input: CalculateDeli
 
   const dist = haversine(store.latitude, store.longitude, input.latitude, input.longitude)
   const range = distances.find((d) => dist >= d.minKm && dist < d.maxKm)
-  if (!range) throw new AppError('Distância fora da área de entrega', 422)
+  if (!range) {
+    // Calcula o maxKm do raio total atendido pra mensagem amigável.
+    const maxKm = distances.reduce((acc, d) => Math.max(acc, d.maxKm), 0)
+    throw new AppError('Distância fora da área de entrega', 422, undefined, {
+      maxKm,
+      distance: Math.round(dist * 100) / 100,
+    })
+  }
 
   return { fee: range.fee, distance: Math.round(dist * 100) / 100 }
 }

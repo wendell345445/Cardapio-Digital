@@ -26,8 +26,11 @@ import { EntregasPage } from '@/modules/admin/pages/EntregasPage'
 import { HorariosPage } from '@/modules/admin/pages/HorariosPage'
 import { MotoboysPage } from '@/modules/admin/pages/MotoboysPage'
 import { ControleAcessoPage } from '@/modules/admin/pages/ControleAcessoPage'
+import { CartPage } from '@/modules/menu/pages/CartPage'
 import { CheckoutPage } from '@/modules/menu/pages/CheckoutPage'
 import { ComandaPage } from '@/modules/menu/pages/ComandaPage'
+import { IdentifiquesePage } from '@/modules/menu/pages/IdentifiquesePage'
+import { PagamentoPage } from '@/modules/menu/pages/PagamentoPage'
 import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
 import { OrderTrackingPage } from '@/modules/menu/pages/OrderTrackingPage'
@@ -128,7 +131,10 @@ export function App() {
           {/* v2.7: param renomeado pra `accessToken` (hash hex de 16 chars). */}
           <Route path="/mesa/:accessToken" element={<TableEntryPage />} />
           <Route path="/produto/:productId" element={<ItemPage />} />
+          <Route path="/carrinho" element={<CartPage />} />
+          <Route path="/identifique-se" element={<IdentifiquesePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/pagamento" element={<PagamentoPage />} />
           <Route path="/pedido/:token" element={<OrderTrackingPage />} />
           <Route path="/meus-pedidos" element={<MyOrdersPage />} />
           <Route path="/comanda" element={<ComandaPage />} />

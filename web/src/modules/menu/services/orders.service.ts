@@ -44,6 +44,10 @@ export interface CreateOrderDto {
 export interface OrderResult {
   orderId: string; orderNumber: number; token: string; total: number; status: string
   pixKey?: string; pixKeyType?: string
+  /** QR Code Pix em data URL (`data:image/png;base64,...`). Só vem quando paymentMethod=PIX. */
+  pixQrCode?: string
+  /** Pix copia-e-cola (BR Code completo) pronto pra colar no app do banco. */
+  pixCopyPaste?: string
 }
 
 export async function submitOrder(dto: CreateOrderDto): Promise<OrderResult> {

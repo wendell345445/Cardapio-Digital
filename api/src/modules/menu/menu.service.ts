@@ -16,6 +16,38 @@ type BusinessHour = {
 
 const DAY_LABELS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
+// Monta o endereço de exibição (2 linhas) a partir dos campos estruturados.
+// Retorna null se não tiver dados suficientes — o caller usa fallback no
+// campo legado `Store.address`.
+function formatStoreAddress(s: {
+  street?: string | null
+  number?: string | null
+  neighborhood?: string | null
+  city?: string | null
+  state?: string | null
+  cep?: string | null
+}): string | null {
+  const street = (s.street ?? '').trim()
+  if (!street) return null
+
+  const number = (s.number ?? '').trim()
+  const neighborhood = (s.neighborhood ?? '').trim()
+  const city = (s.city ?? '').trim()
+  const state = (s.state ?? '').trim()
+  const cep = (s.cep ?? '').trim()
+
+  // Linha 1: "Rua, número - Bairro" (omite parts vazias).
+  const line1Parts: string[] = []
+  line1Parts.push(number ? `${street}, ${number}` : street)
+  if (neighborhood) line1Parts.push(neighborhood)
+  const line1 = line1Parts.join(' - ')
+
+  // Linha 2: "Cidade UF CEP" (qualquer combinação que não fique vazia).
+  const line2 = [city && state ? `${city} ${state}` : city || state, cep].filter(Boolean).join(' ')
+
+  return [line1, line2].filter(Boolean).join('\n')
+}
+
 function nowBrt(): Date {
   const now = new Date()
   return new Date(now.getTime() - 3 * 60 * 60 * 1000)
@@ -96,7 +128,19 @@ export async function getMenu(slug: string) {
       slug: true,
       description: true,
       logo: true,
+      // Campo legado (v2.5 deprecated) — usado como fallback se a loja
+      // ainda não migrou pros campos estruturados.
       address: true,
+      // addressLabel: string formatado salvo pelo Google Places em "Entregas →
+      // Localização da loja" (ex: "R. Sebastião dos Santos, 384 - Parque
+      // Continental I, Guarulhos - SP, 07077-190"). Tem prioridade no header.
+      addressLabel: true,
+      cep: true,
+      street: true,
+      number: true,
+      neighborhood: true,
+      city: true,
+      state: true,
       phone: true,
       pixKey: true,
       pixKeyType: true,
@@ -158,6 +202,14 @@ export async function getMenu(slug: string) {
 
   const { businessHours: _bh, ...storeData } = store
 
+  // Endereço pra exibição no header do cardápio. Ordem de prioridade:
+  //  1. addressLabel (string formatada do Google Places — fluxo atual)
+  //  2. campos estruturados cep/street/number/etc compostos
+  //  3. campo legado `address` (v2.5 deprecated) como último recurso
+  const composedAddress = formatStoreAddress(storeData)
+  const finalAddress =
+    storeData.addressLabel?.trim() || composedAddress || storeData.address || null
+
   // Anexa preço promocional quando houver promo ativa pro produto.
   const promos = await getActiveProductPromos(store.id)
   const categoriesWithPromos = categories.map((cat) => ({
@@ -176,7 +228,7 @@ export async function getMenu(slug: string) {
   }))
 
   const result = {
-    store: { ...storeData, storeStatus, nextOpenLabel },
+    store: { ...storeData, address: finalAddress, storeStatus, nextOpenLabel },
     categories: categoriesWithPromos,
   }
 
