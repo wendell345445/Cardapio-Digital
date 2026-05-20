@@ -128,6 +128,8 @@ export async function getMenu(slug: string) {
       slug: true,
       description: true,
       logo: true,
+      primaryColor: true,
+      secondaryColor: true,
       // Campo legado (v2.5 deprecated) — usado como fallback se a loja
       // ainda não migrou pros campos estruturados.
       address: true,

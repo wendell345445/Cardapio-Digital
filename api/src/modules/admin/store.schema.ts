@@ -2,11 +2,26 @@ import { z } from 'zod'
 
 // ─── TASK-050: Configurações da Loja ─────────────────────────────────────────
 
+const hexColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Cor deve ser HEX no formato #RRGGBB')
+
+// Aceita URL absoluta (Cloudinary) ou caminho relativo /uploads/... (fallback local).
+// Mesma regra do products.schema — não usa .url() direto.
+const logoSchema = z
+  .string()
+  .refine(
+    (v) => /^https?:\/\//.test(v) || v.startsWith('/uploads/'),
+    'Logo deve ser URL https:// ou caminho /uploads/...'
+  )
+
 export const updateStoreSchema = z.object({
   name: z.string().min(2).max(100).optional(),
   description: z.string().max(500).optional().nullable(),
-  logo: z.string().url().optional().nullable(),
+  logo: logoSchema.optional().nullable(),
   address: z.string().max(300).optional().nullable(),
+  primaryColor: hexColorSchema.optional().nullable(),
+  secondaryColor: hexColorSchema.optional().nullable(),
 })
 
 export const businessHourSchema = z.object({

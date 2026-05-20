@@ -51,29 +51,40 @@ const extByMime: Record<string, string> = {
   'image/webp': 'webp',
 }
 
+export type UploadType = 'products' | 'logos'
+
+const ALLOWED_TYPES: UploadType[] = ['products', 'logos']
+
+function resolveUploadType(type?: string): UploadType {
+  if (type && (ALLOWED_TYPES as string[]).includes(type)) return type as UploadType
+  return 'products'
+}
+
 async function uploadToLocal(
   file: Express.Multer.File,
-  storeId: string
+  storeId: string,
+  type: UploadType
 ): Promise<{ url: string; publicId: string }> {
   const ext = extByMime[file.mimetype] ?? 'bin'
   const filename = `${randomUUID()}.${ext}`
-  const dir = path.join(LOCAL_UPLOAD_DIR, storeId, 'products')
+  const dir = path.join(LOCAL_UPLOAD_DIR, storeId, type)
   await mkdir(dir, { recursive: true })
   await writeFile(path.join(dir, filename), file.buffer)
 
   // URL relativa — resolve via proxy Vite em dev e via Caddy/nginx em prod.
-  const publicId = `${storeId}/products/${filename}`
+  const publicId = `${storeId}/${type}/${filename}`
   return { url: `/uploads/${publicId}`, publicId }
 }
 
 async function uploadToCloudinary(
   file: Express.Multer.File,
-  storeId: string
+  storeId: string,
+  type: UploadType
 ): Promise<{ url: string; publicId: string }> {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        folder: `menupanda/${storeId}/products`,
+        folder: `menupanda/${storeId}/${type}`,
         resource_type: 'image',
       },
       (error, result) => {
@@ -91,16 +102,18 @@ async function uploadToCloudinary(
 
 export async function uploadImage(
   file: Express.Multer.File,
-  storeId: string
+  storeId: string,
+  type?: string
 ): Promise<{ url: string; publicId: string }> {
   const allowed = ['image/jpeg', 'image/png', 'image/webp']
   if (!allowed.includes(file.mimetype)) {
     throw new AppError('Tipo de arquivo inválido. Use JPEG, PNG ou WebP', 422)
   }
 
+  const uploadType = resolveUploadType(type)
   const backend = resolveBackend()
   if (backend === 'local') {
-    return uploadToLocal(file, storeId)
+    return uploadToLocal(file, storeId, uploadType)
   }
-  return uploadToCloudinary(file, storeId)
+  return uploadToCloudinary(file, storeId, uploadType)
 }

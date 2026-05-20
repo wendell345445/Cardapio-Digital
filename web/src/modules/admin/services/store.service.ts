@@ -11,6 +11,8 @@ export interface StoreData {
   customDomain?: string | null
   description?: string
   logo?: string
+  primaryColor?: string | null
+  secondaryColor?: string | null
   address?: string
   phone?: string
   manualOpen: boolean
@@ -43,8 +45,10 @@ export interface BusinessHour {
 export interface UpdateStoreDto {
   name?: string
   description?: string
-  logo?: string
+  logo?: string | null
   address?: string
+  primaryColor?: string | null
+  secondaryColor?: string | null
 }
 
 export interface UpdatePaymentSettingsDto {
