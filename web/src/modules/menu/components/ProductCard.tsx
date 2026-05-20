@@ -24,7 +24,8 @@ function fmtBRL(v: number) {
 export function ProductCard({ product, onNavigate }: Props) {
   const addItem = useCartStore((s) => s.addItem)
   const hasVariations = product.variations.filter((v) => v.isActive).length > 0
-  const hasAdditionals = product.additionals.filter((a) => a.isActive).length > 0
+  // v2.9: addons via ProductAddon. Filtra addon ativo.
+  const hasAdditionals = product.addons.some((link) => link.addon.isActive)
   const displayPrice = hasVariations
     ? Math.min(...product.variations.filter((v) => v.isActive).map((v) => v.price))
     : product.basePrice

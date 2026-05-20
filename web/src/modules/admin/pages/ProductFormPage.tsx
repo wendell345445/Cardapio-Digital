@@ -21,13 +21,8 @@ const variationSchema = z.object({
   isActive: z.boolean().optional().default(true),
 })
 
-const additionalSchema = z.object({
-  id: z.string().optional(),
-  name: z.string().min(1, 'Nome obrigatório').max(100),
-  price: z.coerce.number().min(0, 'Preço não pode ser negativo'),
-  isActive: z.boolean().optional().default(true),
-})
-
+// v2.9: adicionais saíram do form de produto. Vivem em /admin/adicionais e
+// se vinculam ao produto pelo modal acessado via card "Adicionais" na lista.
 const productFormSchema = z.object({
   categoryId: z.string().uuid('Selecione uma categoria'),
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(200),
@@ -37,7 +32,6 @@ const productFormSchema = z.object({
   isActive: z.boolean().optional().default(true),
   order: z.coerce.number().int().min(0).optional().default(0),
   variations: z.array(variationSchema).optional().default([]),
-  additionals: z.array(additionalSchema).optional().default([]),
 })
 
 type ProductFormValues = z.infer<typeof productFormSchema>
@@ -83,7 +77,6 @@ export function ProductFormPage() {
       isActive: true,
       order: 0,
       variations: [],
-      additionals: [],
     },
   })
 
@@ -92,12 +85,6 @@ export function ProductFormPage() {
     append: appendVariation,
     remove: removeVariation,
   } = useFieldArray({ control, name: 'variations' })
-
-  const {
-    fields: additionalFields,
-    append: appendAdditional,
-    remove: removeAdditional,
-  } = useFieldArray({ control, name: 'additionals' })
 
   const imageUrl = watch('imageUrl')
 
@@ -117,12 +104,6 @@ export function ProductFormPage() {
           name: v.name,
           price: v.price,
           isActive: v.isActive,
-        })),
-        additionals: existingProduct.additionals.map((a) => ({
-          id: a.id,
-          name: a.name,
-          price: a.price,
-          isActive: a.isActive,
         })),
       })
     }
@@ -384,64 +365,8 @@ export function ProductFormPage() {
             ))}
           </div>
 
-          {/* Adicionais */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-800">Adicionais</h2>
-              <button
-                type="button"
-                onClick={() => appendAdditional({ name: '', price: 0, isActive: true })}
-                className="text-sm text-blue-600 hover:underline font-medium"
-              >
-                + Adicionar item
-              </button>
-            </div>
-
-            {additionalFields.length === 0 && (
-              <p className="text-sm text-gray-400">Nenhum adicional cadastrado.</p>
-            )}
-
-            {additionalFields.map((field, index) => (
-              <div key={field.id} className="flex items-end gap-3">
-                <div className="flex-1">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Nome</label>
-                  <input
-                    {...register(`additionals.${index}.name`)}
-                    placeholder="Ex: Queijo extra"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {errors.additionals?.[index]?.name && (
-                    <p className="mt-1 text-xs text-red-600">
-                      {errors.additionals[index]?.name?.message}
-                    </p>
-                  )}
-                </div>
-                <div className="w-32">
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Preço</label>
-                  <input
-                    {...register(`additionals.${index}.price`)}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  {errors.additionals?.[index]?.price && (
-                    <p className="mt-1 text-xs text-red-600">
-                      {errors.additionals[index]?.price?.message}
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeAdditional(index)}
-                  className="mb-0.5 text-red-500 hover:text-red-700 text-sm"
-                >
-                  Remover
-                </button>
-              </div>
-            ))}
-          </div>
+          {/* Adicionais agora vivem em /admin/adicionais e se vinculam pelo
+              modal acessado no card do produto (botão "Adicionais"). */}
 
           {/* Erro geral */}
           {mutationError && (

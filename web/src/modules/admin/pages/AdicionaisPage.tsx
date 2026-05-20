@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { Search, Plus, Copy, ArrowUpDown, Pencil, X } from 'lucide-react'
-
+import { Search, Plus, Pencil, X } from 'lucide-react'
 
 import {
-  useAdditionals,
-  useCreateAdditionalItem,
-  useDeleteAdditionalItem,
-  useUpdateAdditionalItem,
+  useAddonCategories,
+  useCreateAddon,
+  useCreateAddonCategory,
+  useDeleteAddon,
+  useDeleteAddonCategory,
+  useUpdateAddon,
 } from '../hooks/useAdditionals'
-import type { AdditionalItem } from '../services/additionals.service'
+import type { Addon, AddonCategory } from '../services/additionals.service'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
 
@@ -16,7 +17,7 @@ function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-function ItemToggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
   return (
     <button
       onClick={onChange}
@@ -28,38 +29,32 @@ function ItemToggle({ checked, onChange, disabled }: { checked: boolean; onChang
   )
 }
 
-interface EditItemState {
+interface EditAddonState {
   id: string
   name: string
   price: string
 }
 
-function GroupContent({
-  groupId,
-  items,
-}: {
-  groupId: string
-  items: AdditionalItem[]
-}) {
-  const updateItem = useUpdateAdditionalItem()
-  const createItem = useCreateAdditionalItem()
-  const deleteItem = useDeleteAdditionalItem()
+function CategoryContent({ category }: { category: AddonCategory }) {
+  const updateAddon = useUpdateAddon()
+  const createAddon = useCreateAddon()
+  const deleteAddon = useDeleteAddon()
 
-  const [editState, setEditState] = useState<EditItemState | null>(null)
-  const [newItemName, setNewItemName] = useState('')
-  const [newItemPrice, setNewItemPrice] = useState('')
+  const [editState, setEditState] = useState<EditAddonState | null>(null)
+  const [newName, setNewName] = useState('')
+  const [newPrice, setNewPrice] = useState('')
   const [showAdd, setShowAdd] = useState(false)
-  const [itemToDelete, setItemToDelete] = useState<AdditionalItem | null>(null)
+  const [toDelete, setToDelete] = useState<Addon | null>(null)
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
-    if (!newItemName.trim() || !newItemPrice) return
-    createItem.mutate(
-      { productId: groupId, dto: { name: newItemName.trim(), price: Number(newItemPrice) } },
+    if (!newName.trim() || !newPrice) return
+    createAddon.mutate(
+      { categoryId: category.id, name: newName.trim(), price: Number(newPrice) },
       {
         onSuccess: () => {
-          setNewItemName('')
-          setNewItemPrice('')
+          setNewName('')
+          setNewPrice('')
           setShowAdd(false)
         },
       }
@@ -69,7 +64,7 @@ function GroupContent({
   function handleSaveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editState) return
-    updateItem.mutate(
+    updateAddon.mutate(
       { id: editState.id, dto: { name: editState.name, price: Number(editState.price) } },
       { onSuccess: () => setEditState(null) }
     )
@@ -78,9 +73,9 @@ function GroupContent({
   return (
     <div>
       <div className="divide-y divide-gray-50">
-        {items.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
-            {editState?.id === item.id ? (
+        {category.addons.map((addon) => (
+          <div key={addon.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
+            {editState?.id === addon.id ? (
               <form onSubmit={handleSaveEdit} className="flex-1 flex items-center gap-2">
                 <input
                   type="text"
@@ -96,7 +91,7 @@ function GroupContent({
                   onChange={(e) => setEditState((s) => s && { ...s, price: e.target.value })}
                   className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 />
-                <button type="submit" disabled={updateItem.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
+                <button type="submit" disabled={updateAddon.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
                   Salvar
                 </button>
                 <button type="button" onClick={() => setEditState(null)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200">
@@ -105,32 +100,35 @@ function GroupContent({
               </form>
             ) : (
               <>
-                {/* Placeholder thumbnail */}
-                <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs flex-shrink-0">
-                  📷
-                </div>
+                {addon.imageUrl ? (
+                  <img src={addon.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs flex-shrink-0">
+                    📷
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{item.name}</p>
-                  <p className="text-sm text-gray-500">{fmt(item.price)}</p>
+                  <p className="text-sm font-medium text-gray-900">{addon.name}</p>
+                  <p className="text-sm text-gray-500">{fmt(addon.price)}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-gray-500">Disponível</span>
-                    <ItemToggle
-                      checked={item.isActive}
-                      onChange={() => updateItem.mutate({ id: item.id, dto: { isActive: !item.isActive } })}
-                      disabled={updateItem.isPending}
+                    <Toggle
+                      checked={addon.isActive}
+                      onChange={() => updateAddon.mutate({ id: addon.id, dto: { isActive: !addon.isActive } })}
+                      disabled={updateAddon.isPending}
                     />
                   </div>
                   <button
-                    onClick={() => setEditState({ id: item.id, name: item.name, price: String(item.price) })}
+                    onClick={() => setEditState({ id: addon.id, name: addon.name, price: String(addon.price) })}
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
                   >
                     <Pencil className="w-3 h-3" />
                     Editar
                   </button>
                   <button
-                    onClick={() => setItemToDelete(item)}
+                    onClick={() => setToDelete(addon)}
                     className="text-xs text-gray-400 hover:text-red-500"
                   >
                     <X className="w-3.5 h-3.5" />
@@ -142,14 +140,13 @@ function GroupContent({
         ))}
       </div>
 
-      {/* Add item */}
       {showAdd ? (
         <form onSubmit={handleCreate} className="flex items-center gap-2 px-5 py-3 border-t border-gray-100">
           <input
             type="text"
-            placeholder="Nome do item"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
+            placeholder="Nome do adicional"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
             autoFocus
             required
             className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
@@ -158,12 +155,12 @@ function GroupContent({
             type="number"
             step="0.01"
             placeholder="Preço"
-            value={newItemPrice}
-            onChange={(e) => setNewItemPrice(e.target.value)}
+            value={newPrice}
+            onChange={(e) => setNewPrice(e.target.value)}
             required
             className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
-          <button type="submit" disabled={createItem.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
+          <button type="submit" disabled={createAddon.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
             Adicionar
           </button>
           <button type="button" onClick={() => setShowAdd(false)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg">
@@ -172,36 +169,27 @@ function GroupContent({
         </form>
       ) : null}
 
-      {/* Footer actions */}
       <div className="flex items-center gap-3 px-5 py-3 border-t border-gray-100 text-xs text-gray-500">
-        <span>{items.length} itens</span>
+        <span>{category.addons.length} {category.addons.length === 1 ? 'item' : 'itens'}</span>
         <button
           onClick={() => setShowAdd(true)}
           className="flex items-center gap-1 text-red-500 hover:text-red-700 font-medium ml-auto"
         >
           <Plus className="w-3.5 h-3.5" />
-          Novo item
-        </button>
-        <button className="flex items-center gap-1 hover:text-gray-700">
-          <Copy className="w-3.5 h-3.5" />
-          Copiar item
-        </button>
-        <button className="flex items-center gap-1 hover:text-gray-700">
-          <ArrowUpDown className="w-3.5 h-3.5" />
-          Ordenar
+          Novo adicional
         </button>
       </div>
 
       <ReauthModal
-        open={!!itemToDelete}
+        open={!!toDelete}
         title="Excluir adicional"
-        description={`Para excluir "${itemToDelete?.name ?? ''}", confirme sua senha.`}
+        description={`Para excluir "${toDelete?.name ?? ''}", confirme sua senha.`}
         confirmLabel="Excluir"
-        onCancel={() => setItemToDelete(null)}
+        onCancel={() => setToDelete(null)}
         onConfirm={() => {
-          if (!itemToDelete) return
-          deleteItem.mutate(itemToDelete.id)
-          setItemToDelete(null)
+          if (!toDelete) return
+          deleteAddon.mutate(toDelete.id)
+          setToDelete(null)
         }}
       />
     </div>
@@ -211,20 +199,41 @@ function GroupContent({
 // ─── AdicionaisPage ────────────────────────────────────────────────────────────
 
 export function AdicionaisPage() {
-  const { data: groups, isLoading, isError } = useAdditionals()
+  const { data: categories, isLoading, isError } = useAddonCategories()
+  const createCategory = useCreateAddonCategory()
+  const deleteCategory = useDeleteAddonCategory()
   const [search, setSearch] = useState('')
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null)
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null)
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [categoryToDelete, setCategoryToDelete] = useState<AddonCategory | null>(null)
 
-  const filteredGroups = (groups ?? []).filter((g) =>
-    search.trim() ? g.name.toLowerCase().includes(search.toLowerCase()) : true
-  )
+  const filtered = (categories ?? []).filter((c) => {
+    if (!search.trim()) return true
+    const term = search.toLowerCase()
+    if (c.name.toLowerCase().includes(term)) return true
+    return c.addons.some((a) => a.name.toLowerCase().includes(term))
+  })
 
-  const selectedGroup =
-    filteredGroups.find((g) => g.id === activeGroupId) ?? filteredGroups[0] ?? null
+  const selected = filtered.find((c) => c.id === activeCategoryId) ?? filtered[0] ?? null
+
+  function handleCreateCategory(e: React.FormEvent) {
+    e.preventDefault()
+    if (!newCategoryName.trim()) return
+    createCategory.mutate(
+      { name: newCategoryName.trim() },
+      {
+        onSuccess: (cat) => {
+          setNewCategoryName('')
+          setShowNewCategory(false)
+          setActiveCategoryId(cat.id)
+        },
+      }
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 space-y-4">
-      {/* Search + New group */}
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -236,16 +245,38 @@ export function AdicionaisPage() {
             className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
         </div>
-        <button className="flex items-center gap-2 text-red-500 hover:text-red-700 text-sm font-medium border border-red-200 hover:border-red-400 px-4 py-2.5 rounded-xl transition-colors">
+        <button
+          onClick={() => setShowNewCategory((v) => !v)}
+          className="flex items-center gap-2 text-red-500 hover:text-red-700 text-sm font-medium border border-red-200 hover:border-red-400 px-4 py-2.5 rounded-xl transition-colors"
+        >
           <Plus className="w-4 h-4" />
-          Novo grupo
+          Nova categoria
         </button>
       </div>
 
-      {/* Title */}
+      {showNewCategory && (
+        <form onSubmit={handleCreateCategory} className="flex items-center gap-2 bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <input
+            type="text"
+            placeholder="Nome da categoria (ex: Acompanhamentos)"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            autoFocus
+            required
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+          <button type="submit" disabled={createCategory.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
+            Criar
+          </button>
+          <button type="button" onClick={() => setShowNewCategory(false)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg">
+            Cancelar
+          </button>
+        </form>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Adicionais</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Cadastre itens adicionais e ingredientes para os produtos.</p>
+        <p className="text-sm text-gray-500 mt-0.5">Cadastre itens adicionais organizados por categoria. Vincule aos produtos pelo modal de cada item.</p>
       </div>
 
       {isLoading && <p className="text-center text-sm text-gray-500 py-12">Carregando adicionais...</p>}
@@ -253,52 +284,66 @@ export function AdicionaisPage() {
 
       {!isLoading && !isError && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          {filteredGroups.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="p-10 text-center text-gray-400">
-              <p>Nenhum grupo de adicionais encontrado.</p>
-              <p className="text-xs mt-1">Adicione adicionais aos seus produtos para que apareçam aqui.</p>
+              <p>Nenhuma categoria de adicional cadastrada ainda.</p>
+              <p className="text-xs mt-1">Crie uma categoria pra organizar os adicionais (ex: Acompanhamentos, Bebidas).</p>
             </div>
           ) : (
             <>
-              {/* Tabs */}
               <div className="flex overflow-x-auto border-b border-gray-200 px-4 pt-2 gap-1">
-                {filteredGroups.map((group) => (
+                {filtered.map((cat) => (
                   <button
-                    key={group.id}
-                    onClick={() => setActiveGroupId(group.id)}
+                    key={cat.id}
+                    onClick={() => setActiveCategoryId(cat.id)}
                     className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors -mb-px ${
-                      selectedGroup?.id === group.id
+                      selected?.id === cat.id
                         ? 'border-red-500 text-red-500'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {group.name}
+                    {cat.name}
                   </button>
                 ))}
               </div>
 
-              {/* Active group content */}
-              {selectedGroup && (
+              {selected && (
                 <>
-                  {/* Group header */}
                   <div className="flex items-center gap-3 px-5 py-3 border-b border-gray-100 bg-gray-50">
-                    <span className="font-semibold text-gray-900 text-sm">{selectedGroup.name}</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-gray-500">Disponível</span>
-                      <ItemToggle
-                        checked={selectedGroup.isActive}
-                        onChange={() => {}}
-                      />
-                    </div>
+                    <span className="font-semibold text-gray-900 text-sm">{selected.name}</span>
+                    <button
+                      onClick={() => setCategoryToDelete(selected)}
+                      className="ml-auto text-xs text-gray-400 hover:text-red-500 flex items-center gap-1"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Excluir categoria
+                    </button>
                   </div>
 
-                  <GroupContent groupId={selectedGroup.id} items={selectedGroup.items} />
+                  <CategoryContent category={selected} />
                 </>
               )}
             </>
           )}
         </div>
       )}
+
+      <ReauthModal
+        open={!!categoryToDelete}
+        title="Excluir categoria de adicionais"
+        description={`Para excluir "${categoryToDelete?.name ?? ''}", confirme sua senha. A categoria precisa estar vazia.`}
+        confirmLabel="Excluir"
+        onCancel={() => setCategoryToDelete(null)}
+        onConfirm={() => {
+          if (!categoryToDelete) return
+          deleteCategory.mutate(categoryToDelete.id, {
+            onSuccess: () => {
+              setCategoryToDelete(null)
+              if (activeCategoryId === categoryToDelete.id) setActiveCategoryId(null)
+            },
+          })
+        }}
+      />
     </div>
   )
 }

@@ -1,4 +1,7 @@
+import type { Addon } from './additionals.service'
+
 import { api } from '@/shared/lib/api'
+
 
 // ─── TASK-041: Produtos CRUD Individual ──────────────────────────────────────
 
@@ -10,12 +13,12 @@ export interface ProductVariation {
   isActive: boolean
 }
 
-export interface ProductAdditional {
-  id: string
+// v2.9: vínculo N:N. Backend retorna ProductAddon[] expandido com addon + category.
+export interface ProductAddonLink {
   productId: string
-  name: string
-  price: number
-  isActive: boolean
+  addonId: string
+  order: number
+  addon: Addon
 }
 
 export interface Product {
@@ -31,17 +34,10 @@ export interface Product {
   createdAt: string
   updatedAt: string
   variations: ProductVariation[]
-  additionals: ProductAdditional[]
+  addons: ProductAddonLink[]
 }
 
 export interface VariationDto {
-  id?: string
-  name: string
-  price: number
-  isActive?: boolean
-}
-
-export interface AdditionalDto {
   id?: string
   name: string
   price: number
@@ -57,7 +53,6 @@ export interface CreateProductDto {
   isActive?: boolean
   order?: number
   variations?: VariationDto[]
-  additionals?: AdditionalDto[]
 }
 
 export interface UpdateProductDto {
@@ -69,7 +64,6 @@ export interface UpdateProductDto {
   isActive?: boolean
   order?: number
   variations?: VariationDto[]
-  additionals?: AdditionalDto[]
 }
 
 export interface ProductFilters {

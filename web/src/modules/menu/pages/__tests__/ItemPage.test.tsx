@@ -36,7 +36,7 @@ const baseProduct = {
   imageUrl: null,
   isActive: true,
   variations: [],
-  additionals: [],
+  addons: [],
 }
 
 function buildMenuData(
