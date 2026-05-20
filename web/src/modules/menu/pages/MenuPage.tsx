@@ -6,6 +6,7 @@ import { useTableMode } from '../hooks/useTableMode'
 import { ProductCard } from '../components/ProductCard'
 import { SkeletonCard } from '../components/SkeletonCard'
 import { FacebookPixel } from '../components/FacebookPixel'
+import { ThemeInjector } from '../components/ThemeInjector'
 import { CookieBanner, hasCookieConsent } from '../components/CookieBanner'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { StoreHeader } from '../components/StoreHeader'
@@ -104,6 +105,8 @@ export function MenuPage() {
       {store.facebookPixelId && hasCookieConsent() && (
         <FacebookPixel pixelId={store.facebookPixelId} />
       )}
+      <ThemeInjector primaryColor={store.primaryColor} secondaryColor={store.secondaryColor} />
+
 
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg"

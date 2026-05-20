@@ -8,6 +8,8 @@ interface ImageUploadProps {
   onChange: (url: string) => void
   className?: string
   variant?: 'button' | 'card'
+  /** Pasta de destino no backend. Default: `products`. Use `logos` para a logo da loja. */
+  uploadType?: 'products' | 'logos'
 }
 
 export function ImageUpload({
@@ -15,6 +17,7 @@ export function ImageUpload({
   onChange,
   className = '',
   variant = 'button',
+  uploadType = 'products',
 }: ImageUploadProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,6 +35,7 @@ export function ImageUpload({
       formData.append('image', file)
       const { data } = await api.post('/admin/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        params: { type: uploadType },
       })
       onChange(data.data.url)
     } catch (err: any) {

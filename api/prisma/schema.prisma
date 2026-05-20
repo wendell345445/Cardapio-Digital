@@ -16,6 +16,10 @@ model Store {
   customDomain                  String?       @unique
   description                   String?
   logo                          String?
+  /// HEX #RRGGBB. Aplicado em botões/destaques do cardápio público. NULL = tema default (vermelho).
+  primaryColor                  String?
+  /// HEX #RRGGBB. Usada em acentos secundários (ícones, badges, hover). NULL = derivada da primária.
+  secondaryColor                String?
   /// @deprecated v2.5 — substituído por cep/street/number/neighborhood/city/state. Remover em v2.6.
   address                       String?
   segment                       StoreSegment?

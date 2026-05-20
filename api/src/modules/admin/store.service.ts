@@ -35,6 +35,8 @@ export async function getStore(storeId: string) {
       customDomain: true,
       description: true,
       logo: true,
+      primaryColor: true,
+      secondaryColor: true,
       address: true,
       phone: true,
       manualOpen: true,
@@ -81,6 +83,8 @@ export async function updateStore(
       ...(data.description !== undefined && { description: data.description }),
       ...(data.logo !== undefined && { logo: data.logo }),
       ...(data.address !== undefined && { address: data.address }),
+      ...(data.primaryColor !== undefined && { primaryColor: data.primaryColor }),
+      ...(data.secondaryColor !== undefined && { secondaryColor: data.secondaryColor }),
     },
     select: {
       id: true,
@@ -88,6 +92,8 @@ export async function updateStore(
       description: true,
       logo: true,
       address: true,
+      primaryColor: true,
+      secondaryColor: true,
     },
   })
 

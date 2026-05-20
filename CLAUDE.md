@@ -97,7 +97,9 @@ Erros do backend saem sempre como `{ success: false, error: '<mensagem>', code?:
 `api/src/modules/admin/upload.service.ts` detecta o backend na primeira chamada:
 
 - Se `CLOUDINARY_URL` ou o trio `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` estiver preenchido com valores reais → usa Cloudinary e retorna URL absoluta.
-- Se estiver vazio ou com placeholder (`your-cloud-name`, etc.) → fallback em disco local: grava em `api/uploads/<storeId>/products/<uuid>.<ext>` e retorna caminho relativo `/uploads/<storeId>/products/<uuid>.ext`.
+- Se estiver vazio ou com placeholder (`your-cloud-name`, etc.) → fallback em disco local: grava em `api/uploads/<storeId>/<tipo>/<uuid>.<ext>` e retorna caminho relativo `/uploads/<storeId>/<tipo>/<uuid>.ext`.
+
+`POST /admin/upload` aceita query `?type=products|logos` (default `products`). O componente `ImageUpload` em [web/src/modules/admin/components/ImageUpload.tsx](web/src/modules/admin/components/ImageUpload.tsx) expõe a prop `uploadType` (`'products' | 'logos'`) — a tab Personalização passa `logos` pra separar logos de fotos de produtos no Cloudinary/disco.
 
 O Express serve `/uploads` estaticamente em [api/src/app.ts](api/src/app.ts) com header `Cross-Origin-Resource-Policy: cross-origin` (helmet bloqueia por default). Vite proxy em [web/vite.config.ts](web/vite.config.ts) roteia `/uploads` pra :3001 em dev.
 
@@ -217,6 +219,22 @@ Cron `print-jobs-cleanup` ([jobs/print-jobs-cleanup.job.ts](api/src/jobs/print-j
 **Quando dispara ORDER_CREATED rico**: no opt-in inbound (`tryHandleOptIn` em [opt-in.service.ts](api/src/modules/whatsapp/opt-in.service.ts)), quando o pedido é "fresh" (`!preparedAt && status ∈ {WAITING_*, CONFIRMED}`). Pedidos já em PREPARING+ recebem o template do status atual via `renderAndEnqueueStatusMessage`.
 
 **Sidebar admin**: item "Configurações" renomeado para "Minha Loja" ([AdminSidebar.tsx](web/src/modules/admin/components/AdminSidebar.tsx) e [SettingsPage.tsx](web/src/modules/admin/pages/SettingsPage.tsx)). Rota `/admin/configuracoes` mantida (sem migration de URL).
+
+### Personalização visual (v2.9)
+
+Loja pode customizar **logo + paleta de cores** do cardápio público em **Minha Loja → Personalização** ([SettingsPage.tsx](web/src/modules/admin/pages/SettingsPage.tsx) tab `personalizacao`).
+
+**Schema**: `Store.primaryColor` e `Store.secondaryColor` são `String?` em HEX `#RRGGBB`. `NULL` = tema default (vermelho `#EF4444` / fundo sutil `#FEE2E2` definido no `:root` de [index.css](web/src/index.css)).
+
+**Endpoint admin**: `PATCH /admin/store` (mesmo `updateStoreSchema`) — Zod valida HEX via regex `/^#[0-9a-fA-F]{6}$/`. Logo aceita URL absoluta ou caminho `/uploads/` (mesma regra de `products.schema`).
+
+**Endpoint público**: `GET /menu` retorna `primaryColor` e `secondaryColor` no `store`. Cache `menu:<storeId>` é invalidado via `cache.del + emit.menuUpdated` em todo update da Store.
+
+**Aplicação no cardápio**: [ThemeInjector](web/src/modules/menu/components/ThemeInjector.tsx) monta dentro de `MenuPage` e seta as CSS variables `--primary` e `--accent` em `document.documentElement.style`. Conversão HEX → HSL (formato Tailwind) é feita por `hexToHslString` em [shared/lib/theme.ts](web/src/shared/lib/theme.ts). Cleanup restaura os valores ao desmontar (importante porque admin compartilha o mesmo bundle).
+
+**Paleta + util**: 10 presets curados em `PALETTE_PRESETS` ([shared/lib/theme.ts](web/src/shared/lib/theme.ts)). Admin escolhe por clique ou abre "Personalizar cor" pra picker nativo + input hex livre. `readableTextColor(hex)` calcula contraste WCAG para texto sobre botões custom.
+
+**Preview ao vivo**: [MenuPreviewMock](web/src/modules/admin/components/MenuPreviewMock.tsx) é um mockup estático (header + tabs + 2 cards + CTA) que aceita logo+cores via props e reflete mudanças sem persistir. Layout 2 colunas (`lg:grid-cols-[minmax(0,1fr)_360px]`) na tab, com o preview `sticky` à direita.
 
 ### Toast e som compartilhados
 

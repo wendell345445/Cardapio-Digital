@@ -34,6 +34,8 @@ export interface Product {
 export interface Category { id: string; name: string; order: number; isActive: boolean; products: Product[] }
 export interface StoreInfo {
   id: string; name: string; slug: string; description?: string; logo?: string
+  primaryColor?: string | null
+  secondaryColor?: string | null
   address?: string; phone: string; pixKey?: string; pixKeyType?: string
   allowCashOnDelivery: boolean; allowPickup: boolean; allowDelivery: boolean
   deliveryByDistanceEnabled?: boolean
