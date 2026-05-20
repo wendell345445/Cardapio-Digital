@@ -203,6 +203,22 @@ export function CheckoutPage() {
     }
   }, [deliveryByNeighborhoodOn])
 
+  // Endereço salvo via fluxo bairro guarda neighborhood (nome) mas sem id (id
+  // depende da loja). Quando carregam os bairros disponíveis, casa por nome
+  // pra reselecionar o bairro automaticamente — senão isAddressComplete
+  // exigiria cidade (que o fluxo bairro não pede) e o botão "Escolha como
+  // receber" ficaria disabled permanentemente.
+  useEffect(() => {
+    if (selectedNeighborhoodId) return
+    if (availableNeighborhoods.length === 0) return
+    const target = address.neighborhood.trim().toLowerCase()
+    if (!target) return
+    const match = availableNeighborhoods.find(
+      (n) => n.name.trim().toLowerCase() === target
+    )
+    if (match) setSelectedNeighborhoodId(match.id)
+  }, [availableNeighborhoods, address.neighborhood, selectedNeighborhoodId])
+
   // Cart vazio → cardápio (proteção contra entrar direto na URL).
   useEffect(() => {
     if (items.length === 0) navigate('/', { replace: true })
