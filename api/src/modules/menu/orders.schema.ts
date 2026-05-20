@@ -59,7 +59,9 @@ export const createOrderSchema = z.object({
         variationId: z.string().uuid().optional(),
         quantity: z.number().int().min(1),
         notes: z.string().optional(),
-        additionalIds: z.array(z.string().uuid()).default([]),
+        // v2.9: addonIds referencia Addon.id (não mais ProductAdditional.id).
+        // Backend valida que cada Addon está vinculado ao produto via ProductAddon.
+        addonIds: z.array(z.string().uuid()).default([]),
       })
     )
     .min(1, 'Pedido deve ter pelo menos 1 item'),

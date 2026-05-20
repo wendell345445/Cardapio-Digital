@@ -155,7 +155,11 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   for (const item of data.items) {
     const product = await prisma.product.findUnique({
       where: { id: item.productId },
-      include: { variations: true, additionals: true },
+      include: {
+        variations: true,
+        // v2.9: adicionais vinculados ao produto via N:N.
+        addons: { include: { addon: true } },
+      },
     })
     if (!product || product.storeId !== store.id) {
       throw new AppError(`Produto ${item.productId} não encontrado`, 404)
@@ -198,11 +202,16 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       }
     }
 
+    // v2.9: resolve addons via ProductAddon. Cliente envia Addon.id; backend
+    // valida vínculo (impede compra de adicional não-vinculado), snapshot vai
+    // pra OrderItemAdditional como antes (name + price congelados).
     const additionals: Array<{ name: string; price: number }> = []
-    for (const addId of item.additionalIds) {
-      const add = product.additionals.find((a) => a.id === addId && a.isActive)
-      if (!add) throw new AppError('Adicional não encontrado', 404)
-      additionals.push({ name: add.name, price: add.price })
+    for (const addonId of item.addonIds) {
+      const link = product.addons.find(
+        (l) => l.addonId === addonId && l.addon.isActive
+      )
+      if (!link) throw new AppError('Adicional não encontrado', 404)
+      additionals.push({ name: link.addon.name, price: link.addon.price })
     }
 
     const addTotal = additionals.reduce((s, a) => s + a.price, 0)

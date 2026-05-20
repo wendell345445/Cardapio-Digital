@@ -52,7 +52,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     category: { findMany: jest.fn() },
     product: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     productVariation: { deleteMany: jest.fn(), createMany: jest.fn() },
-    productAdditional: { deleteMany: jest.fn(), createMany: jest.fn() },
+    productAddon: { deleteMany: jest.fn(), createMany: jest.fn() },
+    addonCategory: { upsert: jest.fn() },
+    addon: { upsert: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(),
   },
@@ -88,7 +90,9 @@ beforeEach(() => {
   ;(mockPrisma.product.findFirst as jest.Mock).mockResolvedValue(null)
   ;(mockPrisma.product.create as jest.Mock).mockResolvedValue({ id: 'prod-new' })
   ;(mockPrisma.productVariation.createMany as jest.Mock).mockResolvedValue({ count: 0 })
-  ;(mockPrisma.productAdditional.createMany as jest.Mock).mockResolvedValue({ count: 0 })
+  ;(mockPrisma.productAddon.createMany as jest.Mock).mockResolvedValue({ count: 0 })
+  ;(mockPrisma.addonCategory.upsert as jest.Mock).mockResolvedValue({ id: 'addon-cat-geral' })
+  ;(mockPrisma.addon.upsert as jest.Mock).mockResolvedValue({ id: 'addon-1' })
   ;(mockCache.del as jest.Mock).mockResolvedValue(undefined)
   ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
 })
@@ -233,7 +237,7 @@ describe('importProducts — success', () => {
     })
     ;(mockPrisma.product.update as jest.Mock).mockResolvedValue({ id: 'prod-existing' })
     ;(mockPrisma.productVariation.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
-    ;(mockPrisma.productAdditional.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
+    ;(mockPrisma.productAddon.deleteMany as jest.Mock).mockResolvedValue({ count: 0 })
     setupRows([['Pizza Margherita', 'Atualizada', 39.9, 'Pizzas', null, null]])
 
     const result = await importProducts(mockFile, STORE_ID, USER_ID)

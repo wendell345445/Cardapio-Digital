@@ -7,12 +7,27 @@ import {
   requireRole,
   requireStore,
 } from '../../shared/middleware/auth.middleware'
-import { prisma } from '../../shared/prisma/prisma'
-import { cache } from '../../shared/redis/redis'
-import { emit } from '../../shared/socket/socket'
 
-// ─── TASK-109: Adicionais centralizados ──────────────────────────────────────
-// Agrupa ProductAdditional por produto para gestão centralizada na sidebar
+import {
+  createAddon,
+  createAddonCategory,
+  createAddonCategorySchema,
+  createAddonSchema,
+  deleteAddon,
+  deleteAddonCategory,
+  duplicateAddon,
+  listAddonCategories,
+  listAddons,
+  updateAddon,
+  updateAddonCategory,
+  updateAddonCategorySchema,
+  updateAddonSchema,
+} from './addons.service'
+import { setProductAddons } from './products.service'
+
+// ─── v2.9: Adicionais (sidebar /admin/adicionais) ────────────────────────────
+// Substituiu a rota antiga (TASK-109) que listava ProductAdditional agrupado
+// por produto. Agora vivem em Addon/AddonCategory e se ligam ao produto via N:N.
 
 const router = Router()
 
@@ -24,141 +39,95 @@ router.use(
   requireActiveStore
 )
 
-/**
- * GET /admin/additionals
- * Lista todos os produtos com seus adicionais agrupados
- */
+// ── Categorias ──────────────────────────────────────────────────────────────
+
+router.get('/categories', async (req, res, next) => {
+  try {
+    const data = await listAddonCategories(req.tenant!.storeId)
+    res.json({ success: true, data })
+  } catch (err) { next(err) }
+})
+
+router.post('/categories', async (req, res, next) => {
+  try {
+    const data = createAddonCategorySchema.parse(req.body)
+    const created = await createAddonCategory(req.tenant!.storeId, data)
+    res.status(201).json({ success: true, data: created })
+  } catch (err) { next(err) }
+})
+
+router.patch('/categories/:id', async (req, res, next) => {
+  try {
+    const data = updateAddonCategorySchema.parse(req.body)
+    const updated = await updateAddonCategory(req.tenant!.storeId, req.params.id, data)
+    res.json({ success: true, data: updated })
+  } catch (err) { next(err) }
+})
+
+router.delete('/categories/:id', async (req, res, next) => {
+  try {
+    await deleteAddonCategory(req.tenant!.storeId, req.params.id)
+    res.json({ success: true })
+  } catch (err) { next(err) }
+})
+
+// ── Addons ──────────────────────────────────────────────────────────────────
+
 router.get('/', async (req, res, next) => {
   try {
-    const storeId = req.tenant!.storeId
-
-    const products = await prisma.product.findMany({
-      where: { storeId },
-      include: {
-        additionals: true,
-        category: { select: { name: true } },
-      },
-      orderBy: { name: 'asc' },
-    })
-
-    const groups = products
-      .filter((p) => p.additionals.length > 0)
-      .map((p) => ({
-        id: p.id,
-        name: p.name,
-        categoryName: p.category.name,
-        isActive: p.isActive,
-        items: p.additionals.map((a) => ({
-          id: a.id,
-          name: a.name,
-          price: a.price,
-          isActive: a.isActive,
-          productId: a.productId,
-        })),
-      }))
-
-    res.json({ success: true, data: groups })
-  } catch (err) {
-    next(err)
-  }
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId : undefined
+    const data = await listAddons(req.tenant!.storeId, { categoryId })
+    res.json({ success: true, data })
+  } catch (err) { next(err) }
 })
 
-/**
- * PATCH /admin/additionals/items/:itemId
- * Atualiza um adicional (nome, preço, isActive)
- */
-router.patch('/items/:itemId', async (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
-    const storeId = req.tenant!.storeId
-    const { itemId } = req.params
-    const { name, price, isActive } = req.body
+    const data = createAddonSchema.parse(req.body)
+    const created = await createAddon(req.tenant!.storeId, data)
+    res.status(201).json({ success: true, data: created })
+  } catch (err) { next(err) }
+})
 
-    // Verify that the additional belongs to this store
-    const existing = await prisma.productAdditional.findFirst({
-      where: { id: itemId, product: { storeId } },
-    })
-    if (!existing) {
-      res.status(404).json({ success: false, message: 'Adicional não encontrado' })
-      return
-    }
-
-    const updated = await prisma.productAdditional.update({
-      where: { id: itemId },
-      data: {
-        ...(name !== undefined && { name }),
-        ...(price !== undefined && { price: Number(price) }),
-        ...(isActive !== undefined && { isActive }),
-      },
-    })
-
-    await cache.del(`menu:${storeId}`)
-    emit.menuUpdated(storeId)
-
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const data = updateAddonSchema.parse(req.body)
+    const updated = await updateAddon(req.tenant!.storeId, req.params.id, data)
     res.json({ success: true, data: updated })
-  } catch (err) {
-    next(err)
-  }
+  } catch (err) { next(err) }
 })
 
-/**
- * POST /admin/additionals/:productId/items
- * Cria um novo adicional em um produto
- */
-router.post('/:productId/items', async (req, res, next) => {
+router.delete('/:id', async (req, res, next) => {
   try {
-    const storeId = req.tenant!.storeId
-    const { productId } = req.params
-    const { name, price } = req.body
-
-    if (!name || price === undefined) {
-      res.status(400).json({ success: false, message: 'name e price são obrigatórios' })
-      return
-    }
-
-    const product = await prisma.product.findFirst({ where: { id: productId, storeId } })
-    if (!product) {
-      res.status(404).json({ success: false, message: 'Produto não encontrado' })
-      return
-    }
-
-    const item = await prisma.productAdditional.create({
-      data: { productId, name, price: Number(price) },
-    })
-
-    await cache.del(`menu:${storeId}`)
-    emit.menuUpdated(storeId)
-
-    res.status(201).json({ success: true, data: item })
-  } catch (err) {
-    next(err)
-  }
+    await deleteAddon(req.tenant!.storeId, req.params.id)
+    res.json({ success: true })
+  } catch (err) { next(err) }
 })
 
-/**
- * DELETE /admin/additionals/items/:itemId
- */
-router.delete('/items/:itemId', async (req, res, next) => {
+router.post('/:id/duplicate', async (req, res, next) => {
   try {
-    const storeId = req.tenant!.storeId
-    const { itemId } = req.params
+    const created = await duplicateAddon(req.tenant!.storeId, req.params.id)
+    res.status(201).json({ success: true, data: created })
+  } catch (err) { next(err) }
+})
 
-    const existing = await prisma.productAdditional.findFirst({
-      where: { id: itemId, product: { storeId } },
-    })
-    if (!existing) {
-      res.status(404).json({ success: false, message: 'Adicional não encontrado' })
+// ── Vínculo produto ↔ adicionais ────────────────────────────────────────────
+// PUT substitui a lista inteira. Order vem do índice do array.
+
+router.put('/products/:productId', async (req, res, next) => {
+  try {
+    const { addonIds } = req.body as { addonIds?: unknown }
+    if (!Array.isArray(addonIds) || addonIds.some((id) => typeof id !== 'string')) {
+      res.status(400).json({ success: false, error: 'addonIds deve ser array de string' })
       return
     }
-
-    await prisma.productAdditional.delete({ where: { id: itemId } })
-
-    await cache.del(`menu:${storeId}`)
-    emit.menuUpdated(storeId)
-
-    res.json({ success: true, data: null })
-  } catch (err) {
-    next(err)
-  }
+    const updated = await setProductAddons(
+      req.tenant!.storeId,
+      req.params.productId,
+      addonIds as string[]
+    )
+    res.json({ success: true, data: updated })
+  } catch (err) { next(err) }
 })
 
 export default router
