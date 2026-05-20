@@ -43,9 +43,11 @@ export default {
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
         menu: {
-          primary: '#ef2a30',
-          'gradient-from': '#f53b3b',
-          'gradient-to': '#c91f25',
+          // primary/gradient lidos via CSS variables — ThemeInjector sobrescreve por loja.
+          // Defaults estão em src/index.css (:root).
+          primary: 'var(--menu-primary)',
+          'gradient-from': 'var(--menu-gradient-from)',
+          'gradient-to': 'var(--menu-gradient-to)',
           text: '#403939',
           'text-soft': '#8b8080',
           'text-muted': '#746d6d',

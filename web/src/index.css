@@ -20,6 +20,12 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+
+    /* Cardápio público (menu) — cor de marca da loja.
+       Defaults batem com tailwind.config.js menu.primary/gradient-from/to. */
+    --menu-primary: #ef2a30;
+    --menu-gradient-from: #f53b3b;
+    --menu-gradient-to: #c91f25;
   }
 
   .dark {

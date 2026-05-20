@@ -32,13 +32,13 @@ export const PALETTE_PRESETS: PalettePreset[] = [
   { id: 'slate', label: 'Grafite', primary: '#334155', secondary: '#E2E8F0' },
 ]
 
-/**
- * HEX (#RRGGBB) → string `H S% L%` no formato exigido pelo Tailwind
- * (`hsl(var(--primary))` expande pra `hsl(H S% L%)`). Lança erro se o
- * input não bate no regex — paleta predefinida já está validada, custom
- * passa pelo mesmo regex do Zod no backend.
- */
-export function hexToHslString(hex: string): string {
+interface Hsl {
+  h: number
+  s: number
+  l: number
+}
+
+function hexToHsl(hex: string): Hsl {
   const match = /^#([0-9a-fA-F]{6})$/.exec(hex)
   if (!match) throw new Error(`HEX inválido: ${hex}`)
 
@@ -71,7 +71,49 @@ export function hexToHslString(hex: string): string {
     h *= 60
   }
 
-  return `${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`
+  return { h, s: s * 100, l: l * 100 }
+}
+
+/**
+ * HEX (#RRGGBB) → string `H S% L%` no formato exigido pelo Tailwind
+ * (`hsl(var(--primary))` expande pra `hsl(H S% L%)`). Lança erro se o
+ * input não bate no regex — paleta predefinida já está validada, custom
+ * passa pelo mesmo regex do Zod no backend.
+ */
+export function hexToHslString(hex: string): string {
+  const { h, s, l } = hexToHsl(hex)
+  return `${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%`
+}
+
+/**
+ * HEX → `hsl(H S% L%)` (CSS-pronto). Usado pelas variáveis `--menu-*` que
+ * o tailwind.config consome direto (sem o `hsl(var(...))` wrapper).
+ */
+export function hexToCssHsl(hex: string): string {
+  const { h, s, l } = hexToHsl(hex)
+  return `hsl(${Math.round(h)} ${Math.round(s)}% ${Math.round(l)}%)`
+}
+
+/**
+ * Gera o trio { primary, gradientFrom, gradientTo } a partir de um HEX de marca.
+ * `from` é a primária ligeiramente mais clara, `to` ligeiramente mais escura —
+ * mantém o efeito de degradê do header do cardápio (`bg-gradient-to-r`).
+ * Saída em `hsl(...)` CSS-pronto pra `setProperty`.
+ */
+export function deriveMenuPalette(hex: string): {
+  primary: string
+  gradientFrom: string
+  gradientTo: string
+} {
+  const base = hexToHsl(hex)
+  const clamp = (v: number) => Math.max(0, Math.min(100, v))
+  const fmt = (h: Hsl) =>
+    `hsl(${Math.round(h.h)} ${Math.round(h.s)}% ${Math.round(h.l)}%)`
+  return {
+    primary: fmt(base),
+    gradientFrom: fmt({ h: base.h, s: base.s, l: clamp(base.l + 4) }),
+    gradientTo: fmt({ h: base.h, s: base.s, l: clamp(base.l - 8) }),
+  }
 }
 
 /**
