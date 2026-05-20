@@ -244,20 +244,13 @@ describe('markDelivered', () => {
     )
   })
 
-  it('envia WhatsApp ao cliente após entregar (fire-and-forget)', async () => {
+  it('NÃO envia WhatsApp ao cliente após entregar (decisão de produto v2.9 — DELIVERED é silencioso)', async () => {
     setupMarkMocks()
     const { sendStatusUpdateMessage } = await import('../../whatsapp/messages.service')
 
     await markDelivered(STORE_ID, ORDER_ID, MOTOBOY_ID, USER_ID)
 
-    // WhatsApp é fire-and-forget; verificamos que foi chamado
-    expect(sendStatusUpdateMessage).toHaveBeenCalledWith(
-      STORE_ID,
-      mockDispatchedOrder.clientWhatsapp,
-      mockDispatchedOrder.number,
-      'DELIVERED',
-      mockStore.name
-    )
+    expect(sendStatusUpdateMessage).not.toHaveBeenCalled()
   })
 
   // M-012: guard de pagamento

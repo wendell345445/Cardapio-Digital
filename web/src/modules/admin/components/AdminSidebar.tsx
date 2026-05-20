@@ -48,7 +48,7 @@ const NAV_ITEMS = [
   { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle, statusDot: true },
   { label: 'Horários', to: '/admin/horarios', icon: Clock },
   { label: 'Caixa', to: '/admin/caixa', icon: Wallet },
-  { label: 'Configurações', to: '/admin/configuracoes', icon: Settings },
+  { label: 'Minha Loja', to: '/admin/configuracoes', icon: Settings },
 ]
 
 interface AdminSidebarProps {

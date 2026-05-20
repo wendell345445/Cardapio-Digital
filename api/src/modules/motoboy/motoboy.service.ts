@@ -3,7 +3,6 @@ import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
 import { isPaymentOnDelivery } from '../../shared/utils/payment'
 import { confirmOrderPayment } from '../admin/orders.service'
-import { sendStatusUpdateMessage } from '../whatsapp/messages.service'
 
 // ─── TASK-083: Serviço do Motoboy ────────────────────────────────────────────
 
@@ -128,12 +127,9 @@ export async function markDelivered(
   // Emit socket event
   emit.orderStatus(storeId, { orderId, status: 'DELIVERED' })
 
-  // Fire-and-forget WhatsApp notification
-  if (order.clientWhatsapp) {
-    sendStatusUpdateMessage(storeId, order.clientWhatsapp, order.number, 'DELIVERED', store.name).catch(
-      () => void 0
-    )
-  }
+  // DELIVERED não dispara mais mensagem WhatsApp (decisão de produto v2.9 —
+  // pedido entregue não precisa de notificação extra; cliente já recebeu
+  // confirmação no DISPATCHED).
 
   // AuditLog
   await prisma.auditLog.create({

@@ -154,6 +154,21 @@ Mesas funcionam como **sessões com token**. Não existe mais `?mesa=N` no link 
 - **QR Codes** ([QRCodesPanel.tsx](web/src/modules/admin/pages/mesas/QRCodesPanel.tsx)): input "Total de mesas: N" reconcilia (`PUT /admin/tables/count` → cria 1..N e remove > N, falha 422 se tem sessão aberta). Botão "Imprimir todos" baixa PDF único (`GET /admin/tables/qrcode/pdf-all`, 1 mesa por página A4). Lista por mesa com botão individual de PDF.
 - **Histórico** ([HistoricoPanel.tsx](web/src/modules/admin/pages/mesas/HistoricoPanel.tsx)): sessões CLOSED filtradas por data (default = hoje). Mostra mesa, abertura, fechamento, duração, # pedidos, método de pagamento, deviceNames e total. Total da receita do período no canto. Endpoint `GET /admin/tables/sessions/history?from=&to=`.
 
+### Mensagens WhatsApp (v2.9)
+
+**Templates default** ([whatsapp-messages.service.ts](api/src/modules/admin/whatsapp-messages.service.ts)):
+
+- **GREETING**: saudação multilinha com link do cardápio. Placeholder `{{link}}` é substituído por `https://<slug>.<PUBLIC_ROOT_DOMAIN>/` em [whatsapp.service.ts](api/src/modules/whatsapp/whatsapp.service.ts) (não passa por Cloudinary nem afeta IA — é só string).
+- **ORDER_CREATED**: template rico — `{{cliente}}, {{telefone}}, {{endereco_bloco}}, {{itens}}, {{subtotal}}, {{frete}}, {{total}}, {{tipo_entrega}}, {{pagamento}}`. Helpers em [messages.service.ts](api/src/modules/whatsapp/messages.service.ts) montam cada bloco condicionalmente por `OrderType` (DELIVERY mostra endereço; PICKUP/TABLE pulam).
+- **PREPARING**: enxuto, sem `{{numero}}` no default (só "🥳 Seu pedido já está em preparo!"). Custom pode usar placeholders.
+- **DELIVERED**: **não dispara mais** mensagem. `renderAndEnqueueStatusMessage` removeu DELIVERED do `eventMap` ([messages.service.ts](api/src/modules/whatsapp/messages.service.ts)), e [motoboy.service.ts](api/src/modules/motoboy/motoboy.service.ts) `markDelivered` não chama mais `sendStatusUpdateMessage`. Template segue no banco caso a loja queira reativar via UI no futuro.
+
+**Cooldown do GREETING — `Conversation.lastGreetingAt`**: 90 minutos. Quando uma mensagem inbound chega e `now - lastGreetingAt < 90min`, o bot **ignora completamente** — não envia GREETING/ABSENCE nem chama a IA. Fora da janela: marca `lastGreetingAt = now` ANTES de enviar (protege contra rajada de mensagens), envia GREETING (loja aberta) ou ABSENCE (fechada), aí chama a IA.
+
+**Quando dispara ORDER_CREATED rico**: no opt-in inbound (`tryHandleOptIn` em [opt-in.service.ts](api/src/modules/whatsapp/opt-in.service.ts)), quando o pedido é "fresh" (`!preparedAt && status ∈ {WAITING_*, CONFIRMED}`). Pedidos já em PREPARING+ recebem o template do status atual via `renderAndEnqueueStatusMessage`.
+
+**Sidebar admin**: item "Configurações" renomeado para "Minha Loja" ([AdminSidebar.tsx](web/src/modules/admin/components/AdminSidebar.tsx) e [SettingsPage.tsx](web/src/modules/admin/pages/SettingsPage.tsx)). Rota `/admin/configuracoes` mantida (sem migration de URL).
+
 ### Toast e som compartilhados
 
 [shared/lib/toast.tsx](web/src/shared/lib/toast.tsx) — wrapper sobre `@radix-ui/react-toast` + Zustand. API: `toast.success(title, desc?)`, `toast.error()`, `toast.info()`. Provider global no `App.tsx` envolve o `BrowserRouter`. Estilo: slide-in canto direito-inferior, auto-close 4s. Use em qualquer mutation de admin (em vez de `alert()` ou setState de erro).
