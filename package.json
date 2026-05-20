@@ -8,6 +8,9 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w api\" \"npm run dev -w web\"",
+    "dev:up": "./infra/scripts/sync-lan-ip.sh && docker compose up -d",
+    "dev:down": "docker compose down",
+    "dev:all": "npm run dev:up && npm run dev",
     "build": "npm run build -w api && npm run build -w web",
     "lint": "npm run lint -w api && npm run lint -w web",
     "lint:fix": "npm run lint:fix -w api && npm run lint:fix -w web",

@@ -34,11 +34,21 @@ cp .env.example .env
 # Edite .env com suas credenciais em cada projeto (root, app e api)
 ```
 
-### 3. Suba o banco e Redis
+### 3. Suba a infra (Postgres, Redis, dnsmasq, Caddy) e os serviços (api + web)
 
 ```bash
-docker-compose up -d
+npm run dev:all   # infra + api + web num comando só (use esse no dia a dia)
 ```
+
+Comandos granulares (se precisar):
+
+```bash
+npm run dev:up    # só infra: auto-detecta LAN_IP e sobe os containers
+npm run dev       # só api + web (assume infra já no ar)
+npm run dev:down  # derruba os containers
+```
+
+> `dev:up` roda `infra/scripts/sync-lan-ip.sh` antes do `docker compose up -d`: detecta o IP atual da rede (`en0`/`en1`), reescreve `LAN_IP` no `.env` se mudou, e recria o container `dnsmasq` pra aplicar o novo IP. Isso resolve o caso típico de trocar de Wi-Fi (casa ↔ trabalho) e `cardapio.test` parar de responder.
 
 ### 4. Rode as migrations e seed
 
