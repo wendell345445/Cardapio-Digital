@@ -389,7 +389,7 @@ export function AdicionaisPage() {
             </div>
           ) : (
             <>
-              <div className="flex overflow-x-auto border-b border-gray-200 px-4 pt-2 gap-1">
+              <div className="flex overflow-x-auto border-b border-gray-200 px-4 pt-2 gap-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 {filtered.map((cat) => (
                   <button
                     key={cat.id}

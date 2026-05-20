@@ -109,7 +109,7 @@ export function ProductAddonsModal({ open, productId, productName, initialAddonI
           </div>
         ) : (
           <>
-            <div className="flex overflow-x-auto border-b border-gray-200 px-6 pt-2 gap-1">
+            <div className="flex overflow-x-auto border-b border-gray-200 px-6 pt-2 gap-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {filteredCategories.map((cat) => (
                 <button
                   key={cat.id}
