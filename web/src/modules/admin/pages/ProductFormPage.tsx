@@ -11,7 +11,6 @@ import { useCategories, useCreateCategory } from '../hooks/useCategories'
 import { useCreateProduct, useProduct, useUpdateProduct } from '../hooks/useProducts'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
-import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 // ─── TASK-041: Produtos CRUD Individual ──────────────────────────────────────
 
@@ -319,19 +318,6 @@ export function ProductFormPage() {
               </label>
             </div>
 
-            {/* Imagem */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Imagem <span className="text-red-500">*</span>
-              </label>
-              <ImageUpload
-                value={imageUrl}
-                onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
-              />
-              {errors.imageUrl && (
-                <p className="mt-1 text-xs text-red-600">{errors.imageUrl.message}</p>
-              )}
-            </div>
           </div>
 
           {/* Variações */}
@@ -495,37 +481,13 @@ export function ProductFormPage() {
         {/* Preview do card do produto */}
         <aside className="lg:col-span-1">
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden lg:sticky lg:top-6">
-            {imageUrl ? (
-              <img
-                src={resolveImageUrl(imageUrl)}
-                alt="Preview"
-                className="w-full h-56 object-cover"
-              />
-            ) : (
-              <div className="w-full h-56 flex flex-col items-center justify-center bg-red-50 text-red-500">
-                <svg
-                  width={36}
-                  height={36}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="12" y1="18" x2="12" y2="12" />
-                  <polyline points="9 15 12 12 15 15" />
-                </svg>
-                <p className="mt-2 text-sm font-semibold">Adicione uma foto</p>
-                <p className="mt-1 text-xs text-gray-500 px-4 text-center">
-                  Atraia os clientes com uma foto linda do seu produto.
-                  <br />
-                  (JPEG, PNG até 3MB)
-                </p>
-              </div>
+            <ImageUpload
+              variant="card"
+              value={imageUrl}
+              onChange={(url) => setValue('imageUrl', url, { shouldValidate: true })}
+            />
+            {errors.imageUrl && (
+              <p className="text-xs text-red-600 px-4 pt-2">{errors.imageUrl.message}</p>
             )}
             <div className="p-4 space-y-2">
               <h3 className="text-base font-semibold text-gray-900">
