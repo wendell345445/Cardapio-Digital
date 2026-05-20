@@ -73,8 +73,9 @@ export function ProductAddonsModal({ open, productId, productName, initialAddonI
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-xl">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="min-h-full flex items-start justify-center p-4">
+        <div className="bg-white rounded-2xl w-full max-w-3xl my-auto shadow-xl">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Seleção de adicionais</h2>
@@ -125,7 +126,7 @@ export function ProductAddonsModal({ open, productId, productName, initialAddonI
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="px-6 py-3">
               {activeCategory && activeCategory.addons.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">Nenhum adicional nessa categoria.</p>
               ) : (
@@ -179,6 +180,7 @@ export function ProductAddonsModal({ open, productId, productName, initialAddonI
               {setProductAddons.isPending ? 'Salvando...' : 'Salvar Adicionais'}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
