@@ -7,6 +7,9 @@ import { ArrowLeft, Clock, CheckCircle, ChefHat, Bike, Package } from 'lucide-re
 import { listOrdersBySession } from '../services/orders.service'
 import type { SessionOrderSummary } from '../services/orders.service'
 import { getCustomerSessionId } from '../lib/customerSession'
+import { useMenu } from '../hooks/useMenu'
+
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 // TASK-130: lista os pedidos da sessão atual do navegador (sem login).
 // Status atualiza em tempo real via socket — qualquer mudança em qualquer
@@ -42,6 +45,9 @@ function fmtMoney(value: number): string {
 export function MyOrdersPage() {
   const sessionId = getCustomerSessionId()
   const qc = useQueryClient()
+  const slug = useStoreSlug()
+  const { data: menu } = useMenu(slug)
+  const storeId = menu?.store.id
 
   const { data: orders, isLoading, isError } = useQuery({
     queryKey: ['my-orders', sessionId],
@@ -49,19 +55,21 @@ export function MyOrdersPage() {
     staleTime: 15_000,
   })
 
-  // Socket.io: invalida lista quando qualquer pedido muda de status.
-  // Cada pedido pode ser de uma loja diferente (raro mas possível). Por
-  // simplicidade, ouvimos pelo storeId do primeiro pedido — se o usuário tem
-  // pedidos em múltiplas lojas, o refetch periódico (staleTime) cobre.
+  // Socket.io: invalida lista quando qualquer pedido da loja muda de status.
+  // Conecta na room `store:${storeId}` (a mesma que o admin emite). Como a
+  // página é servida pelo subdomínio da loja, todos os pedidos da sessão são
+  // dessa loja — basta uma conexão.
   useEffect(() => {
-    const first = orders?.[0]
-    if (!first) return
-    const socket = io(import.meta.env.VITE_API_URL ?? '/', { auth: { storeId: '*' } })
+    if (!storeId) return
+    const socket = io(import.meta.env.VITE_API_URL ?? '/', {
+      auth: { storeId },
+      transports: ['websocket'],
+    })
     socket.on('order:status', () => {
       qc.invalidateQueries({ queryKey: ['my-orders', sessionId] })
     })
     return () => { socket.disconnect() }
-  }, [orders, sessionId, qc])
+  }, [storeId, sessionId, qc])
 
   return (
     <div className="min-h-screen bg-gray-50">
