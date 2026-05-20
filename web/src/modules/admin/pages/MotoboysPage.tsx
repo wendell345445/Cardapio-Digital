@@ -11,7 +11,7 @@ import {
 import type { Motoboy } from '../services/motoboys.service'
 
 import { PasswordInput } from '@/shared/components/PasswordInput'
-import { formatBrPhone, onlyDigits } from '@/shared/lib/masks'
+import { formatBrPhone, maskWhatsapp, onlyDigits } from '@/shared/lib/masks'
 
 const PUBLIC_ROOT_DOMAIN =
   (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
@@ -47,32 +47,17 @@ function extractApiError(err: unknown, fallback: string): string {
 }
 
 // ─── Telefone BR com DDD + 9 ───────────────────────────────────────────────────
-// Backend grava com DDI `55`. No formulário, o usuário só informa DDD + número
-// (10 ou 11 dígitos). O `55` é concatenado no submit.
+// Backend grava com DDI `55`. No formulário, o usuário digita DDD + número em um
+// único campo (10 ou 11 dígitos, mascarado como "(xx) xxxxx-xxxx"). O `55` é
+// concatenado no submit.
 
-function splitStoredPhone(stored: string | null | undefined): {
-  ddd: string
-  number: string
-} {
-  if (!stored) return { ddd: '', number: '' }
+function stripDdiFromStored(stored: string | null | undefined): string {
+  if (!stored) return ''
   let digits = onlyDigits(stored)
   if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) {
     digits = digits.slice(2)
   }
-  if (digits.length !== 10 && digits.length !== 11) return { ddd: '', number: '' }
-  return { ddd: digits.slice(0, 2), number: digits.slice(2) }
-}
-
-function maskDdd(value: string): string {
-  return onlyDigits(value).slice(0, 2)
-}
-
-/** Máscara do número local: `XXXXX-XXXX` (9 dígitos) ou `XXXX-XXXX` (8 dígitos). */
-function maskLocalPhone(value: string): string {
-  const digits = onlyDigits(value).slice(0, 9)
-  if (digits.length <= 4) return digits
-  if (digits.length <= 8) return `${digits.slice(0, 4)}-${digits.slice(4)}`
-  return `${digits.slice(0, 5)}-${digits.slice(5)}`
+  return digits.length === 10 || digits.length === 11 ? digits : ''
 }
 
 /**
@@ -80,25 +65,19 @@ function maskLocalPhone(value: string): string {
  * se o usuário deixou em branco. Retorna `null` se não passar validação
  * mínima (DDD+8 dígitos), pra UI bloquear.
  */
-function buildStoredPhone(ddd: string, local: string): string | null {
-  const d = onlyDigits(ddd)
-  const l = onlyDigits(local)
-  if (!d && !l) return ''
-  if (d.length !== 2) return null
-  if (l.length !== 8 && l.length !== 9) return null
-  return `55${d}${l}`
+function buildStoredPhone(phone: string): string | null {
+  const d = onlyDigits(phone)
+  if (!d) return ''
+  if (d.length !== 10 && d.length !== 11) return null
+  return `55${d}`
 }
 
-function PhoneInputs({
-  ddd,
-  local,
-  onDddChange,
-  onLocalChange,
+function PhoneInput({
+  value,
+  onChange,
 }: {
-  ddd: string
-  local: string
-  onDddChange: (v: string) => void
-  onLocalChange: (v: string) => void
+  value: string
+  onChange: (digits: string) => void
 }) {
   return (
     <div className="flex items-stretch gap-2">
@@ -108,19 +87,10 @@ function PhoneInputs({
       <input
         type="tel"
         inputMode="numeric"
-        value={ddd}
-        onChange={(e) => onDddChange(maskDdd(e.target.value))}
-        placeholder="11"
-        aria-label="DDD"
-        className="w-16 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-      />
-      <input
-        type="tel"
-        inputMode="numeric"
-        value={maskLocalPhone(local)}
-        onChange={(e) => onLocalChange(onlyDigits(e.target.value))}
-        placeholder="99999-9999"
-        aria-label="Telefone"
+        value={maskWhatsapp(value)}
+        onChange={(e) => onChange(onlyDigits(e.target.value))}
+        placeholder="(11) 99999-9999"
+        aria-label="WhatsApp"
         className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
@@ -137,19 +107,17 @@ function EditEntregadorModal({
   onToast: (msg: string, type: 'success' | 'error') => void
 }) {
   const updateMutation = useUpdateMotoboy()
-  const initial = splitStoredPhone(motoboy.whatsapp)
   const [name, setName] = useState(motoboy.name)
-  const [ddd, setDdd] = useState(initial.ddd)
-  const [phoneLocal, setPhoneLocal] = useState(initial.number)
+  const [phone, setPhone] = useState(stripDdiFromStored(motoboy.whatsapp))
   const [email, setEmail] = useState(motoboy.email ?? '')
   const [password, setPassword] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    const stored = buildStoredPhone(ddd, phoneLocal)
+    const stored = buildStoredPhone(phone)
     if (stored === null) {
-      onToast('WhatsApp inválido. Informe DDD (2) + número (8 ou 9 dígitos).', 'error')
+      onToast('WhatsApp inválido. Informe DDD + número (10 ou 11 dígitos).', 'error')
       return
     }
     const dto = {
@@ -194,12 +162,7 @@ function EditEntregadorModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
-            <PhoneInputs
-              ddd={ddd}
-              local={phoneLocal}
-              onDddChange={setDdd}
-              onLocalChange={setPhoneLocal}
-            />
+            <PhoneInput value={phone} onChange={setPhone} />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
@@ -300,8 +263,7 @@ export function MotoboysPage() {
   const deleteMutation = useDeleteMotoboy()
 
   const [name, setName] = useState('')
-  const [ddd, setDdd] = useState('')
-  const [phoneLocal, setPhoneLocal] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [toast, setToast] = useState<EntregadorToast>(null)
@@ -327,9 +289,9 @@ export function MotoboysPage() {
   function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !password.trim()) return
-    const stored = buildStoredPhone(ddd, phoneLocal)
+    const stored = buildStoredPhone(phone)
     if (stored === null) {
-      showToast('WhatsApp inválido. Informe DDD (2) + número (8 ou 9 dígitos).', 'error')
+      showToast('WhatsApp inválido. Informe DDD + número (10 ou 11 dígitos).', 'error')
       return
     }
     createMutation.mutate(
@@ -342,8 +304,7 @@ export function MotoboysPage() {
       {
         onSuccess: () => {
           setName('')
-          setDdd('')
-          setPhoneLocal('')
+          setPhone('')
           setEmail('')
           setPassword('')
           showToast('Entregador adicionado!', 'success')
@@ -391,12 +352,7 @@ export function MotoboysPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
-                <PhoneInputs
-                  ddd={ddd}
-                  local={phoneLocal}
-                  onDddChange={setDdd}
-                  onLocalChange={setPhoneLocal}
-                />
+                <PhoneInput value={phone} onChange={setPhone} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
