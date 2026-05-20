@@ -13,7 +13,7 @@ import { OrderStatus } from '@prisma/client'
 import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
 
-import { renderAndEnqueueStatusMessage } from './messages.service'
+import { renderAndEnqueueStatusMessage, sendOrderCreatedMessage } from './messages.service'
 import { enqueueWhatsApp } from './whatsapp.queue'
 
 const ORDER_NUMBER_REGEX = /#\s*(\d{1,8})/
@@ -82,9 +82,25 @@ export async function tryHandleOptIn(
       status: true,
       type: true,
       total: true,
+      subtotal: true,
+      deliveryFee: true,
+      discount: true,
+      paymentMethod: true,
+      address: true,
+      clientName: true,
       clientWhatsapp: true,
       notifyOnStatusChange: true,
-      store: { select: { id: true, name: true } },
+      preparedAt: true,
+      store: { select: { id: true, name: true, slug: true } },
+      items: {
+        select: {
+          productName: true,
+          variationName: true,
+          quantity: true,
+          totalPrice: true,
+          additionals: { select: { name: true, price: true } },
+        },
+      },
     },
   })
   if (!order) return false
@@ -132,18 +148,54 @@ export async function tryHandleOptIn(
     type: 'ORDER',
   })
 
-  // Mensagem extra com o template do status atual (caso a loja tenha texto customizado).
-  // renderAndEnqueueStatusMessage não checa a flag — é o que queremos aqui.
+  // Pedido "fresh" (ainda em WAITING_* ou CONFIRMED sem preparo iniciado) →
+  // envia o template ORDER_CREATED rico (cliente, endereço, itens, total).
+  // Pedido já em PREPARING+ → envia o template do status atual.
+  const isFreshOrder =
+    !order.preparedAt &&
+    (order.status === 'WAITING_CONFIRMATION' ||
+      order.status === 'WAITING_PAYMENT_PROOF' ||
+      order.status === 'CONFIRMED')
+
   try {
-    await renderAndEnqueueStatusMessage(
-      storeId,
-      senderPhone,
-      order.number,
-      order.status,
-      order.store.name,
-      order.type,
-      { total: order.total }
-    )
+    if (isFreshOrder) {
+      await sendOrderCreatedMessage({
+        id: order.id,
+        number: order.number,
+        clientWhatsapp: senderPhone,
+        clientName: order.clientName,
+        type: order.type,
+        status: order.status,
+        paymentMethod: order.paymentMethod,
+        subtotal: order.subtotal,
+        deliveryFee: order.deliveryFee,
+        discount: order.discount,
+        total: order.total,
+        address: order.address as Record<string, string> | null,
+        items: order.items.map((i) => ({
+          productName: i.productName,
+          variationName: i.variationName,
+          quantity: i.quantity,
+          totalPrice: i.totalPrice,
+          additionals: i.additionals,
+        })),
+        store: {
+          id: order.store.id,
+          name: order.store.name,
+          slug: order.store.slug,
+        },
+      })
+    } else {
+      await renderAndEnqueueStatusMessage(
+        storeId,
+        senderPhone,
+        order.number,
+        order.status,
+        order.store.name,
+        order.type,
+        { total: order.total }
+      )
+    }
   } catch {
     // Se template do status atual não estiver mapeado (ex: WAITING_PAYMENT_PROOF
     // sem template configurado), a confirmação acima já é suficiente.

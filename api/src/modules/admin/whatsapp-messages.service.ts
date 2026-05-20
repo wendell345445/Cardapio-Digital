@@ -32,17 +32,35 @@ export const ALL_EVENT_TYPES: WhatsAppEventType[] = [
 
 export const DEFAULT_TEMPLATES: Record<WhatsAppEventType, string> = {
   GREETING:
-    'Olá! Bem-vindo(a) à {{loja}}! 👋 Como posso te ajudar?',
+    'Olá! Seja bem-vindo(a) à *{{loja}}* 👋\n\n' +
+    'Faça seu pedido pelo nosso cardápio digital de forma rápida, prática e sem espera.\n\n' +
+    '🟢 *Estamos online agora!*\n\n' +
+    '👇 Peça pelo link abaixo:\n\n' +
+    '{{link}}',
   ABSENCE:
     'Olá! A {{loja}} está fechada no momento. Nosso horário: {{horario}}. Em breve retornamos! 😊',
   ORDER_CREATED:
-    '✅ *Pedido #{{numero}} recebido — {{loja}}*\n\n{{itens}}\n\n*Total: {{total}}*\n\n🔗 Acompanhe seu pedido pelo link enviado.',
+    'Olá, {{cliente}}! 😊\n\n' +
+    'Recebemos seu pedido *#{{numero}}* e ele está em análise.\n' +
+    'Assim que entrar em produção, avisaremos você por aqui.\n\n' +
+    'Cliente: {{cliente}}\n' +
+    'Telefone: {{telefone}}\n\n' +
+    '{{endereco_bloco}}' +
+    '*Itens do pedido:*\n' +
+    '{{itens}}\n\n' +
+    '*Resumo:*\n' +
+    'Subtotal: {{subtotal}}\n' +
+    'Entrega: {{frete}}\n' +
+    'Total: *{{total}}*\n\n' +
+    '{{tipo_entrega}}\n' +
+    '{{pagamento}}',
   WAITING_PAYMENT:
     '⏳ *Pedido #{{numero}} aguardando pagamento — {{loja}}*\n\nEnvie o comprovante Pix para confirmar seu pedido.\n*Total: {{total}}*',
   CONFIRMED:
-    '✅ *Pedido #{{numero}} confirmado!*\n{{loja}} confirmou seu pedido e já está preparando. 🍕',
+    '✅ *Pedido #{{numero}} confirmado!*\n{{loja}} confirmou seu pedido',
   PREPARING:
-    '👨‍🍳 *Pedido #{{numero}} em preparo!*\n{{loja}} está preparando seu pedido. Aguarde!',
+    '🥳 *Seu pedido já está em preparo!*\n\n' +
+    'Aguarde só mais um pouquinho enquanto nossa equipe prepara tudo com carinho para você.',
   DISPATCHED:
     '🛵 *Pedido #{{numero}} saiu para entrega!*\nSeu pedido está a caminho. Fique atento!',
   READY_FOR_PICKUP:

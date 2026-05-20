@@ -774,6 +774,10 @@ model Conversation {
   /// JID real do Baileys (pode ser LID @lid ou PN @s.whatsapp.net)
   /// Salvo ao receber mensagem — garante envio confiável em sessões LID (Baileys 7.x)
   waJid         String?
+  /// Timestamp do último GREETING enviado a este contato. Usado pelo cooldown
+  /// de 90min: dentro da janela, o bot ignora mensagens (não envia GREETING
+  /// nem chama a IA).
+  lastGreetingAt DateTime?
   store         Store                 @relation(fields: [storeId], references: [id], onDelete: Cascade)
   messages      ConversationMessage[]
   createdAt     DateTime              @default(now())

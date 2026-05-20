@@ -110,9 +110,9 @@ describe('sendStatusUpdateMessage — disparo universal por modo', () => {
     expect(mockSendMessage).toHaveBeenCalledTimes(1)
   })
 
-  it('envia mensagem DELIVERED com template padrão', async () => {
+  it('NÃO envia mensagem DELIVERED (decisão de produto v2.9 — pedido entregue não notifica)', async () => {
     await sendStatusUpdateMessage(STORE_ID, PHONE, ORDER_NUMBER, 'DELIVERED', STORE_NAME)
-    expect(mockSendMessage).toHaveBeenCalledTimes(1)
+    expect(mockSendMessage).not.toHaveBeenCalled()
   })
 
   it('envia mensagem CANCELLED com template padrão', async () => {

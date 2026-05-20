@@ -6,6 +6,7 @@ jest.mock('../whatsapp.queue', () => ({
 
 jest.mock('../messages.service', () => ({
   renderAndEnqueueStatusMessage: jest.fn().mockResolvedValue(undefined),
+  sendOrderCreatedMessage: jest.fn().mockResolvedValue(undefined),
 }))
 
 jest.mock('../../../shared/socket/socket', () => ({
@@ -21,7 +22,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
 
 import { tryHandleOptIn } from '../opt-in.service'
 import { enqueueWhatsApp } from '../whatsapp.queue'
-import { renderAndEnqueueStatusMessage } from '../messages.service'
+import { renderAndEnqueueStatusMessage, sendOrderCreatedMessage } from '../messages.service'
 import { emit } from '../../../shared/socket/socket'
 import { prisma } from '../../../shared/prisma/prisma'
 
@@ -31,6 +32,7 @@ const mockConvFind = prisma.conversation.findUnique as jest.Mock
 const mockConvUpdate = prisma.conversation.update as jest.Mock
 const mockEnqueue = enqueueWhatsApp as jest.Mock
 const mockRender = renderAndEnqueueStatusMessage as jest.Mock
+const mockSendOrderCreated = sendOrderCreatedMessage as jest.Mock
 const mockEmitOrderStatus = emit.orderStatus as jest.Mock
 const mockEmitConvUpdated = emit.conversationUpdated as jest.Mock
 
@@ -40,9 +42,17 @@ const orderRecord = (overrides: Record<string, unknown> = {}) => ({
   status: 'CONFIRMED',
   type: 'DELIVERY',
   total: 50,
+  subtotal: 45,
+  deliveryFee: 5,
+  discount: 0,
+  paymentMethod: 'PIX',
+  address: null,
+  clientName: 'João',
   clientWhatsapp: null,
   notifyOnStatusChange: false,
-  store: { id: 'store-1', name: 'Loja Teste' },
+  preparedAt: null,
+  store: { id: 'store-1', name: 'Loja Teste', slug: 'loja-teste' },
+  items: [{ productName: 'Burger', variationName: null, quantity: 1, totalPrice: 45, additionals: [] }],
   ...overrides,
 })
 
@@ -80,10 +90,15 @@ describe('tryHandleOptIn', () => {
     expect(mockEnqueue).toHaveBeenCalledTimes(1)
     expect(mockEnqueue.mock.calls[0][0].text).toContain('#42')
     expect(mockEnqueue.mock.calls[0][0].text).toContain('Confirmado')
-    expect(mockRender).toHaveBeenCalledWith(
-      'store-1', '5511900000000', 42, 'CONFIRMED', 'Loja Teste', 'DELIVERY',
-      { total: 50 }
-    )
+    // Pedido fresh (CONFIRMED sem preparedAt) → usa template ORDER_CREATED rico
+    expect(mockSendOrderCreated).toHaveBeenCalledTimes(1)
+    expect(mockSendOrderCreated.mock.calls[0][0]).toMatchObject({
+      id: 'order-1',
+      number: 42,
+      clientWhatsapp: '5511900000000',
+      status: 'CONFIRMED',
+    })
+    expect(mockRender).not.toHaveBeenCalled()
     expect(mockEmitOrderStatus).toHaveBeenCalledWith('store-1', { orderId: 'order-1', status: 'CONFIRMED' })
   })
 

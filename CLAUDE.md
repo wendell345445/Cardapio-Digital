@@ -201,6 +201,21 @@ Cron `print-jobs-cleanup` ([jobs/print-jobs-cleanup.job.ts](api/src/jobs/print-j
 
 **Config inicial do Menuziprinter** (operador da loja, 1ª vez): URL da API + email + senha do admin. Token JWT fica salvo em `electron-store` local — próximas aberturas pulam login.
 
+### Mensagens WhatsApp (v2.9)
+
+**Templates default** ([whatsapp-messages.service.ts](api/src/modules/admin/whatsapp-messages.service.ts)):
+
+- **GREETING**: saudação multilinha com link do cardápio. Placeholder `{{link}}` é substituído por `https://<slug>.<PUBLIC_ROOT_DOMAIN>/` em [whatsapp.service.ts](api/src/modules/whatsapp/whatsapp.service.ts) (não passa por Cloudinary nem afeta IA — é só string).
+- **ORDER_CREATED**: template rico — `{{cliente}}, {{telefone}}, {{endereco_bloco}}, {{itens}}, {{subtotal}}, {{frete}}, {{total}}, {{tipo_entrega}}, {{pagamento}}`. Helpers em [messages.service.ts](api/src/modules/whatsapp/messages.service.ts) montam cada bloco condicionalmente por `OrderType` (DELIVERY mostra endereço; PICKUP/TABLE pulam).
+- **PREPARING**: enxuto, sem `{{numero}}` no default (só "🥳 Seu pedido já está em preparo!"). Custom pode usar placeholders.
+- **DELIVERED**: **não dispara mais** mensagem. `renderAndEnqueueStatusMessage` removeu DELIVERED do `eventMap` ([messages.service.ts](api/src/modules/whatsapp/messages.service.ts)), e [motoboy.service.ts](api/src/modules/motoboy/motoboy.service.ts) `markDelivered` não chama mais `sendStatusUpdateMessage`. Template segue no banco caso a loja queira reativar via UI no futuro.
+
+**Cooldown do GREETING — `Conversation.lastGreetingAt`**: 90 minutos. Quando uma mensagem inbound chega e `now - lastGreetingAt < 90min`, o bot **ignora completamente** — não envia GREETING/ABSENCE nem chama a IA. Fora da janela: marca `lastGreetingAt = now` ANTES de enviar (protege contra rajada de mensagens), envia GREETING (loja aberta) ou ABSENCE (fechada), aí chama a IA.
+
+**Quando dispara ORDER_CREATED rico**: no opt-in inbound (`tryHandleOptIn` em [opt-in.service.ts](api/src/modules/whatsapp/opt-in.service.ts)), quando o pedido é "fresh" (`!preparedAt && status ∈ {WAITING_*, CONFIRMED}`). Pedidos já em PREPARING+ recebem o template do status atual via `renderAndEnqueueStatusMessage`.
+
+**Sidebar admin**: item "Configurações" renomeado para "Minha Loja" ([AdminSidebar.tsx](web/src/modules/admin/components/AdminSidebar.tsx) e [SettingsPage.tsx](web/src/modules/admin/pages/SettingsPage.tsx)). Rota `/admin/configuracoes` mantida (sem migration de URL).
+
 ### Toast e som compartilhados
 
 [shared/lib/toast.tsx](web/src/shared/lib/toast.tsx) — wrapper sobre `@radix-ui/react-toast` + Zustand. API: `toast.success(title, desc?)`, `toast.error()`, `toast.info()`. Provider global no `App.tsx` envolve o `BrowserRouter`. Estilo: slide-in canto direito-inferior, auto-close 4s. Use em qualquer mutation de admin (em vez de `alert()` ou setState de erro).

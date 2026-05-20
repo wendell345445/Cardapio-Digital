@@ -46,6 +46,62 @@ function formatAddress(address: Record<string, string>): string {
   return parts.join(', ')
 }
 
+/**
+ * Bloco de endereço usado no template ORDER_CREATED. Para DELIVERY mostra
+ * rua/número, bairro/cidade/UF, CEP e referência (se houver). Para PICKUP e
+ * TABLE retorna string vazia (sem bloco de endereço).
+ */
+function formatAddressBlock(
+  type: string,
+  address: Record<string, string> | null | undefined
+): string {
+  if (type !== 'DELIVERY' || !address) return ''
+  const linha1 = [address.street, address.number].filter(Boolean).join(', ')
+  const bairroCidade = [address.neighborhood, [address.city, address.state].filter(Boolean).join('/')]
+    .filter(Boolean)
+    .join(' — ')
+  const cep = address.cep || address.zipCode
+  const ref = address.reference || address.complement
+  const lines = [
+    '*Endereço de entrega:*',
+    linha1,
+    bairroCidade,
+    cep ? `CEP: ${cep}` : '',
+    ref ? `Referência: ${ref}` : '',
+  ].filter(Boolean)
+  return lines.join('\n') + '\n\n'
+}
+
+/** Label do tipo de entrega usado em {{tipo_entrega}}. */
+function formatOrderTypeLabel(type: string): string {
+  switch (type) {
+    case 'DELIVERY':
+      return '🛵 Tipo de entrega: Entregar no endereço'
+    case 'PICKUP':
+      return '🏪 Tipo de entrega: Retirar na loja'
+    case 'TABLE':
+      return '🍽️ Tipo de entrega: Consumir na mesa'
+    default:
+      return ''
+  }
+}
+
+/** Label completo do método de pagamento usado em {{pagamento}}. */
+function formatPaymentMethodLabel(method: string): string {
+  const labels: Record<string, string> = {
+    PIX: '💳 Forma de pagamento: Pix (Enviar Comprovante pagamento)',
+    PIX_ON_DELIVERY: '💳 Forma de pagamento: Pix na entrega',
+    CASH: '💵 Forma de pagamento: Dinheiro',
+    CASH_ON_DELIVERY: '💵 Forma de pagamento: Dinheiro na entrega',
+    CREDIT: '💳 Forma de pagamento: Crédito',
+    CREDIT_ON_DELIVERY: '💳 Forma de pagamento: Crédito na maquininha',
+    DEBIT: '💳 Forma de pagamento: Débito',
+    DEBIT_ON_DELIVERY: '💳 Forma de pagamento: Débito na maquininha',
+    PENDING: '💳 Forma de pagamento: A definir',
+  }
+  return labels[method] ?? `💳 Forma de pagamento: ${method}`
+}
+
 function describePaymentForMotoboy(method: string): string {
   switch (method) {
     case 'PIX':
@@ -85,14 +141,21 @@ export async function sendOrderCreatedMessage(order: OrderData): Promise<void> {
   const store = order.store
 
   const itemsStr = formatItems(order.items)
-  const totalStr = formatMoney(order.total)
 
   const templateText = await getTemplate(store.id, 'ORDER_CREATED')
   const message = templateText
     .replace(/\{\{numero\}\}/g, String(order.number))
     .replace(/\{\{loja\}\}/g, store.name)
+    .replace(/\{\{cliente\}\}/g, order.clientName ?? 'Cliente')
+    .replace(/\{\{telefone\}\}/g, order.clientWhatsapp ?? '')
+    .replace(/\{\{endereco_bloco\}\}/g, formatAddressBlock(order.type, order.address as Record<string, string> | null))
     .replace(/\{\{itens\}\}/g, itemsStr)
-    .replace(/\{\{total\}\}/g, totalStr)
+    .replace(/\{\{subtotal\}\}/g, formatMoney(order.subtotal))
+    .replace(/\{\{frete\}\}/g, order.deliveryFee > 0 ? formatMoney(order.deliveryFee) : 'Grátis')
+    .replace(/\{\{desconto\}\}/g, order.discount > 0 ? formatMoney(order.discount) : '—')
+    .replace(/\{\{total\}\}/g, formatMoney(order.total))
+    .replace(/\{\{tipo_entrega\}\}/g, formatOrderTypeLabel(order.type))
+    .replace(/\{\{pagamento\}\}/g, formatPaymentMethodLabel(order.paymentMethod))
     .replace(/\{\{status\}\}/g, order.status)
     .replace(/\{\{motivo\}\}/g, '')
     .replace(/\{\{horario\}\}/g, '')
@@ -123,6 +186,7 @@ export async function renderAndEnqueueStatusMessage(
 ): Promise<void> {
   // Map DB status → WhatsApp event type
   // READY dispatches READY_FOR_PICKUP for pickup orders; delivery uses MOTOBOY_ASSIGNED separately
+  // DELIVERED não envia mensagem (decisão de produto v2.9) — fica fora do map.
   let eventType: string | undefined
   if (status === 'READY') {
     eventType = orderType === 'PICKUP' ? 'READY_FOR_PICKUP' : undefined
@@ -131,7 +195,6 @@ export async function renderAndEnqueueStatusMessage(
       CONFIRMED: 'CONFIRMED',
       PREPARING: 'PREPARING',
       DISPATCHED: 'DISPATCHED',
-      DELIVERED: 'DELIVERED',
       CANCELLED: 'CANCELLED',
       WAITING_PAYMENT: 'WAITING_PAYMENT',
     }

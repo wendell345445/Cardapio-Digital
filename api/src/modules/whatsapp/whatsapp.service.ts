@@ -285,25 +285,27 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             logger.debug({ storeId, replyJid }, '[WhatsApp] onWhatsApp falhou, usando replyJid')
           }
 
-          // Buscar loja + contagem de msgs de IA/Agente na última hora
-          const since = new Date(Date.now() - 60 * 60 * 1000) // 1h atrás
-          const [store, aiRecentCount] = await Promise.all([
-            prisma.store.findUnique({
-              where: { id: storeId },
-              select: { slug: true, name: true, businessHours: true },
-            }),
-            prisma.conversationMessage.count({
-              where: {
-                conversationId: conversation.id,
-                role: { in: ['AI', 'AGENT'] },
-                createdAt: { gte: since },
-              },
-            }),
-          ])
+          // Cooldown do GREETING: 90min desde o último GREETING/ABSENCE enviado
+          // a este contato. Dentro da janela, o bot IGNORA completamente —
+          // não envia saudação nem chama a IA. Fora da janela, segue fluxo
+          // normal (saudação + IA quando aberto, só ABSENCE quando fechado).
+          const GREETING_COOLDOWN_MS = 90 * 60 * 1000
+          const inGreetingCooldown = !!conversation.lastGreetingAt &&
+            Date.now() - conversation.lastGreetingAt.getTime() < GREETING_COOLDOWN_MS
+
+          const store = await prisma.store.findUnique({
+            where: { id: storeId },
+            select: { slug: true, name: true, businessHours: true },
+          })
           if (!store) continue
 
+          if (inGreetingCooldown) {
+            logger.info({ storeId, from, lastGreetingAt: conversation.lastGreetingAt }, '[WhatsApp] dentro do cooldown de 90min — bot ignora')
+            continue
+          }
+
           const isOpen = isStoreOpenNow(store)
-          logger.debug({ storeId, isOpen, aiRecentCount }, '[WhatsApp] incoming routing')
+          logger.debug({ storeId, isOpen }, '[WhatsApp] incoming routing')
 
           // Helper: enviar direto pelo sendJid (PN JID resolvido, não LID)
           const sendDirect = async (msgText: string) => {
@@ -316,7 +318,16 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             }
           }
 
+          // Marca o cooldown ANTES de enviar — protege contra múltiplas mensagens
+          // chegando em rajada antes do template ser despachado (race condition).
+          const markGreetingSent = () =>
+            prisma.conversation.update({
+              where: { id: conversation.id },
+              data: { lastGreetingAt: new Date() },
+            }).catch((err) => logger.error({ storeId, err }, '[WhatsApp] markGreetingSent falhou'))
+
           if (!isOpen) {
+            await markGreetingSent()
             const { getTemplate } = await import('../admin/whatsapp-messages.service')
             const absenceTemplate = await getTemplate(storeId, 'ABSENCE')
             const absenceMsg = applyTemplateVars(absenceTemplate, { loja: store.name, horario: 'consulte nosso perfil' })
@@ -328,17 +339,18 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
             continue
           }
 
-          // Enviar GREETING se não foi enviada msg de IA/Agente na última hora
-          if (aiRecentCount === 0) {
-            const { getTemplate } = await import('../admin/whatsapp-messages.service')
-            const greetingTemplate = await getTemplate(storeId, 'GREETING')
-            const greetingMsg = applyTemplateVars(greetingTemplate, { loja: store.name })
-            await sendDirect(greetingMsg)
-            const savedGreeting = await prisma.conversationMessage.create({
-              data: { conversationId: conversation.id, role: 'AI', content: greetingMsg },
-            })
-            emit.conversationUpdated(storeId, { conversationId: conversation.id, message: savedGreeting })
-          }
+          // Loja aberta + fora do cooldown → envia GREETING
+          await markGreetingSent()
+          const { getTemplate } = await import('../admin/whatsapp-messages.service')
+          const greetingTemplate = await getTemplate(storeId, 'GREETING')
+          const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+          const link = store.slug ? `https://${store.slug}.${rootDomain}/` : `https://${rootDomain}/`
+          const greetingMsg = applyTemplateVars(greetingTemplate, { loja: store.name, link })
+          await sendDirect(greetingMsg)
+          const savedGreeting = await prisma.conversationMessage.create({
+            data: { conversationId: conversation.id, role: 'AI', content: greetingMsg },
+          })
+          emit.conversationUpdated(storeId, { conversationId: conversation.id, message: savedGreeting })
 
           // Passar para AI handler (passa replyJid para envio direto como personal-ai)
           const { handleIncomingMessage } = await import('./ai-handler.service')
