@@ -80,8 +80,8 @@ function PhoneInput({
   onChange: (digits: string) => void
 }) {
   return (
-    <div className="flex items-stretch gap-2">
-      <span className="inline-flex items-center px-3 rounded-md border border-gray-300 bg-gray-50 text-sm text-gray-500">
+    <div className="flex w-full items-stretch gap-2">
+      <span className="inline-flex shrink-0 items-center px-3 rounded-md border border-gray-300 bg-gray-50 text-sm text-gray-500">
         +55
       </span>
       <input
@@ -91,7 +91,7 @@ function PhoneInput({
         onChange={(e) => onChange(onlyDigits(e.target.value))}
         placeholder="(11) 99999-9999"
         aria-label="WhatsApp"
-        className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="flex-1 min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
     </div>
   )
@@ -350,7 +350,7 @@ export function MotoboysPage() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-sm font-medium text-gray-700 mb-1">WhatsApp</label>
                 <PhoneInput value={phone} onChange={setPhone} />
               </div>
