@@ -178,11 +178,13 @@ Mesas funcionam como **sessões com token**. Não existe mais `?mesa=N` no link 
 
 ### Pedidos — fluxo de confirmação e impressão (v2.8)
 
-**Kanban com 4 colunas** ([OrdersPage.tsx](web/src/modules/admin/pages/OrdersPage.tsx)): `Novos` (WAITING_*) · `Em preparo` (CONFIRMED + PREPARING) · `Saiu pra entrega` (READY + DISPATCHED) · `Concluídos` (DELIVERED). Coluna "Confirmado" foi mesclada em "Em preparo" — auto-confirm dispara ambos no mesmo instante e a separação não agregava operacionalmente.
+**Kanban com 4 colunas** ([OrdersPage.tsx](web/src/modules/admin/pages/OrdersPage.tsx)): `Novos` (WAITING_* + CONFIRMED) · `Em preparo` (PREPARING) · `Saiu pra entrega` (READY + DISPATCHED) · `Concluídos` (DELIVERED).
+
+A coluna `Novos` agrupa **três status** porque o que importa pra cozinha é o passo de "começar a preparar" — antes disso o card fica em "Novos" independentemente de já estar confirmado ou não. Isso vale principalmente quando `autoConfirmOrders` está ON: o pedido nasce em CONFIRMED mas continua exigindo ação humana (clicar "→" ou arrastar) pra entrar em preparo. Auto-confirm elimina só o passo de aprovar manualmente, não o de mandar pra cozinha.
 
 **`Store.autoConfirmOrders`** controla se pedido novo nasce em `CONFIRMED` ou em `WAITING_*`:
-- **ON**: `createOrder` seta status `CONFIRMED` + `confirmedAt: now`, e dispara via `setImmediate` os mesmos side-effects que `updateOrderStatus(→CONFIRMED)`: `autoPrintOrder` + `linkOrderToCashFlow`. Vale **inclusive para PIX** (modal de ativação no front avisa o operador que não há checagem de comprovante — confira o app do banco).
-- **OFF**: pedido nasce em `WAITING_PAYMENT_PROOF` (PIX) ou `WAITING_CONFIRMATION` (demais). Card de Novos mostra botão verde "Confirmar pedido" que chama `updateOrderStatus(→CONFIRMED)`. O "→" (avançar) só aparece depois de confirmar.
+- **ON**: `createOrder` seta status `CONFIRMED` + `confirmedAt: now`, e dispara via `setImmediate` os mesmos side-effects que `updateOrderStatus(→CONFIRMED)`: `autoPrintOrder` + `linkOrderToCashFlow`. Vale **inclusive para PIX** (modal de ativação no front avisa o operador que não há checagem de comprovante — confira o app do banco). O card aparece na coluna **Novos** com o "→" já visível (basta um clique pra ir pra Em preparo).
+- **OFF**: pedido nasce em `WAITING_PAYMENT_PROOF` (PIX) ou `WAITING_CONFIRMATION` (demais). Card em **Novos** mostra botão verde "Confirmar pedido" que chama `updateOrderStatus(→CONFIRMED)`. O "→" só aparece depois de confirmar — mas o card continua em **Novos** até ser avançado pra Em preparo.
 - **Exceção**: pedido agendado (`scheduledFor`) **nunca** auto-confirma — fica em WAITING_* até a hora.
 
 Toggle vive no header da OrdersPage, persiste via `PATCH /admin/store/payment-settings { autoConfirmOrders }`. Ativar abre modal de aviso PIX; desativar é direto.

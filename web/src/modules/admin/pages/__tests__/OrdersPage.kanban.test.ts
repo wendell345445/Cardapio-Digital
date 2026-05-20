@@ -1,6 +1,6 @@
-// ─── A-051: [Pedidos - Kanban] Coluna "Confirmado" ───────────────────────────
-// Valida que pedidos com status CONFIRMED são agrupados na coluna "Confirmado"
-// do Kanban, e que pedidos em outros statuses NÃO aparecem nesta coluna.
+// ─── Kanban v2.9: "Novos" agrupa WAITING_* + CONFIRMED; "Em preparo" só PREPARING
+// Auto-confirm faz o pedido nascer em CONFIRMED, mas ele continua em "Novos" até
+// o operador clicar "→" ou arrastar pra "Em preparo".
 
 import { describe, it, expect } from 'vitest'
 
@@ -9,14 +9,12 @@ import type { Order } from '../../services/orders.service'
 // ─── Reprodução da config do Kanban (fonte: OrdersPage.tsx) ─────────────────
 
 const ACTIVE_COLUMN_CONFIG = [
-  { id: 'novos', label: 'Novos', statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION'] },
-  { id: 'confirmado', label: 'Confirmado', statuses: ['CONFIRMED'] },
+  { id: 'novos', label: 'Novos', statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION', 'CONFIRMED'] },
   { id: 'em_preparo', label: 'Em preparo', statuses: ['PREPARING'] },
-  { id: 'prontos', label: 'Prontos / saída', statuses: ['READY', 'DISPATCHED'] },
+  { id: 'saiu_entrega', label: 'Saiu pra entrega', statuses: ['READY', 'DISPATCHED'] },
   { id: 'concluidos', label: 'Concluídos', statuses: ['DELIVERED'] },
 ]
 
-// Mesma lógica de agrupamento do OrdersPage (linhas 422-426)
 function groupByColumn(orders: Order[]): Record<string, Order[]> {
   const activeOrders = orders.filter((o) => o.status !== 'CANCELLED')
   const byColumn: Record<string, Order[]> = {}
@@ -25,8 +23,6 @@ function groupByColumn(orders: Order[]): Record<string, Order[]> {
   }
   return byColumn
 }
-
-// ─── Factory ────────────────────────────────────────────────────────────────
 
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
@@ -47,107 +43,86 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
   }
 }
 
-// ─── Tests ──────────────────────────────────────────────────────────────────
-
-describe('A-051: [Pedidos - Kanban] Coluna "Confirmado"', () => {
+describe('Kanban v2.9 — "Novos" agrupa WAITING_* + CONFIRMED', () => {
   describe('Configuração do Kanban', () => {
-    it('coluna "confirmado" existe com status CONFIRMED', () => {
-      const col = ACTIVE_COLUMN_CONFIG.find((c) => c.id === 'confirmado')
+    it('coluna "novos" inclui WAITING_PAYMENT_PROOF, WAITING_CONFIRMATION e CONFIRMED', () => {
+      const col = ACTIVE_COLUMN_CONFIG.find((c) => c.id === 'novos')
       expect(col).toBeDefined()
-      expect(col!.statuses).toEqual(['CONFIRMED'])
-      expect(col!.label).toBe('Confirmado')
+      expect(col!.statuses).toEqual(['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION', 'CONFIRMED'])
     })
 
-    it('status CONFIRMED não pertence a nenhuma outra coluna', () => {
-      const otherCols = ACTIVE_COLUMN_CONFIG.filter((c) => c.id !== 'confirmado')
+    it('coluna "em_preparo" contém SÓ PREPARING (CONFIRMED foi pra Novos)', () => {
+      const col = ACTIVE_COLUMN_CONFIG.find((c) => c.id === 'em_preparo')
+      expect(col).toBeDefined()
+      expect(col!.statuses).toEqual(['PREPARING'])
+    })
+
+    it('CONFIRMED não pertence a nenhuma outra coluna além de "novos"', () => {
+      const otherCols = ACTIVE_COLUMN_CONFIG.filter((c) => c.id !== 'novos')
       for (const col of otherCols) {
         expect(col.statuses).not.toContain('CONFIRMED')
       }
     })
-
-    it('coluna "confirmado" é a segunda coluna (após "Novos")', () => {
-      expect(ACTIVE_COLUMN_CONFIG[0].id).toBe('novos')
-      expect(ACTIVE_COLUMN_CONFIG[1].id).toBe('confirmado')
-    })
   })
 
-  describe('Agrupamento de pedidos', () => {
-    it('pedido CONFIRMED aparece na coluna "confirmado"', () => {
+  describe('Agrupamento — auto-confirm ON: pedido nasce em CONFIRMED mas fica em "Novos"', () => {
+    it('pedido CONFIRMED aparece na coluna "novos"', () => {
       const orders = [makeOrder({ status: 'CONFIRMED' })]
       const grouped = groupByColumn(orders)
 
-      expect(grouped['confirmado']).toHaveLength(1)
-      expect(grouped['confirmado'][0].status).toBe('CONFIRMED')
+      expect(grouped['novos']).toHaveLength(1)
+      expect(grouped['novos'][0].status).toBe('CONFIRMED')
     })
 
-    it('pedido CONFIRMED NÃO aparece na coluna "novos"', () => {
-      const orders = [makeOrder({ status: 'CONFIRMED' })]
-      const grouped = groupByColumn(orders)
-
-      expect(grouped['novos']).toHaveLength(0)
-    })
-
-    it('pedido CONFIRMED NÃO aparece em nenhuma outra coluna ativa', () => {
+    it('pedido CONFIRMED NÃO aparece na coluna "em_preparo"', () => {
       const orders = [makeOrder({ status: 'CONFIRMED' })]
       const grouped = groupByColumn(orders)
 
       expect(grouped['em_preparo']).toHaveLength(0)
-      expect(grouped['prontos']).toHaveLength(0)
-      expect(grouped['concluidos']).toHaveLength(0)
     })
 
-    it('pedidos em "Novos" (WAITING_PAYMENT_PROOF, WAITING_CONFIRMATION) não aparecem em "confirmado"', () => {
-      const orders = [
-        makeOrder({ id: 'a', status: 'WAITING_PAYMENT_PROOF' }),
-        makeOrder({ id: 'b', status: 'WAITING_CONFIRMATION' }),
-      ]
+    it('só status PREPARING aparece em "Em preparo"', () => {
+      const orders = [makeOrder({ status: 'PREPARING' })]
       const grouped = groupByColumn(orders)
 
-      expect(grouped['confirmado']).toHaveLength(0)
-      expect(grouped['novos']).toHaveLength(2)
-    })
-
-    it('pedido com status PENDING (descontinuado) não aparece em nenhuma coluna do Kanban', () => {
-      const orders = [makeOrder({ id: 'a', status: 'PENDING' })]
-      const grouped = groupByColumn(orders)
-
-      for (const col of ACTIVE_COLUMN_CONFIG) {
-        expect(grouped[col.id]).toHaveLength(0)
-      }
+      expect(grouped['em_preparo']).toHaveLength(1)
+      expect(grouped['novos']).toHaveLength(0)
     })
   })
 
-  describe('Fluxo de pagamento confirmado → coluna Confirmado', () => {
-    it('pedido Pix (WAITING_PAYMENT_PROOF → CONFIRMED): sai de "novos" e entra em "confirmado"', () => {
-      // Estado ANTES da confirmação
-      const before = [makeOrder({ status: 'WAITING_PAYMENT_PROOF', paymentMethod: 'PIX' })]
+  describe('Fluxo de transição: Novos → Em preparo', () => {
+    it('pedido auto-confirmado (CONFIRMED) está em "Novos" antes de avançar', () => {
+      const before = [makeOrder({ status: 'CONFIRMED', confirmedAt: new Date().toISOString() })]
       const groupedBefore = groupByColumn(before)
       expect(groupedBefore['novos']).toHaveLength(1)
-      expect(groupedBefore['confirmado']).toHaveLength(0)
-
-      // Estado DEPOIS da confirmação
-      const after = [makeOrder({ status: 'CONFIRMED', paymentMethod: 'PIX', confirmedAt: new Date().toISOString() })]
-      const groupedAfter = groupByColumn(after)
-      expect(groupedAfter['novos']).toHaveLength(0)
-      expect(groupedAfter['confirmado']).toHaveLength(1)
+      expect(groupedBefore['em_preparo']).toHaveLength(0)
     })
 
-    it('pedido dinheiro (WAITING_CONFIRMATION → CONFIRMED): sai de "novos" e entra em "confirmado"', () => {
-      const before = [makeOrder({ status: 'WAITING_CONFIRMATION', paymentMethod: 'CASH_ON_DELIVERY' })]
-      const groupedBefore = groupByColumn(before)
-      expect(groupedBefore['novos']).toHaveLength(1)
-      expect(groupedBefore['confirmado']).toHaveLength(0)
-
-      const after = [makeOrder({ status: 'CONFIRMED', paymentMethod: 'CASH_ON_DELIVERY', confirmedAt: new Date().toISOString() })]
+    it('depois de avançar (CONFIRMED → PREPARING): sai de "Novos" e entra em "Em preparo"', () => {
+      const after = [makeOrder({ status: 'PREPARING', confirmedAt: new Date().toISOString() })]
       const groupedAfter = groupByColumn(after)
       expect(groupedAfter['novos']).toHaveLength(0)
-      expect(groupedAfter['confirmado']).toHaveLength(1)
+      expect(groupedAfter['em_preparo']).toHaveLength(1)
     })
 
+    it('fluxo manual: WAITING_CONFIRMATION → CONFIRMED → PREPARING, ambos os primeiros em "Novos"', () => {
+      // Estado 1: aguardando confirmação
+      let grouped = groupByColumn([makeOrder({ status: 'WAITING_CONFIRMATION' })])
+      expect(grouped['novos']).toHaveLength(1)
+
+      // Estado 2: confirmado manualmente — ainda em Novos, aguardando "→"
+      grouped = groupByColumn([makeOrder({ status: 'CONFIRMED' })])
+      expect(grouped['novos']).toHaveLength(1)
+
+      // Estado 3: em preparo — finalmente saiu de Novos
+      grouped = groupByColumn([makeOrder({ status: 'PREPARING' })])
+      expect(grouped['novos']).toHaveLength(0)
+      expect(grouped['em_preparo']).toHaveLength(1)
+    })
   })
 
   describe('Cenários com múltiplos pedidos', () => {
-    it('kanban distribui pedidos corretamente entre todas as colunas', () => {
+    it('kanban distribui corretamente — Novos junta WAITING_* + CONFIRMED', () => {
       const orders = [
         makeOrder({ id: '1', status: 'WAITING_PAYMENT_PROOF' }),
         makeOrder({ id: '2', status: 'WAITING_CONFIRMATION' }),
@@ -161,15 +136,14 @@ describe('A-051: [Pedidos - Kanban] Coluna "Confirmado"', () => {
       ]
       const grouped = groupByColumn(orders)
 
-      expect(grouped['novos']).toHaveLength(2) // WAITING_PAYMENT_PROOF + WAITING_CONFIRMATION
-      expect(grouped['confirmado']).toHaveLength(2)
-      expect(grouped['em_preparo']).toHaveLength(1)
-      expect(grouped['prontos']).toHaveLength(2) // READY + DISPATCHED
+      expect(grouped['novos']).toHaveLength(4) // WAITING_PAYMENT_PROOF + WAITING_CONFIRMATION + 2 CONFIRMED
+      expect(grouped['em_preparo']).toHaveLength(1) // só PREPARING
+      expect(grouped['saiu_entrega']).toHaveLength(2) // READY + DISPATCHED
       expect(grouped['concluidos']).toHaveLength(1)
       // CANCELLED não aparece em nenhuma coluna ativa
     })
 
-    it('pedidos cancelados NÃO aparecem na coluna "confirmado" nem em outra coluna ativa', () => {
+    it('pedidos cancelados NÃO aparecem em nenhuma coluna ativa', () => {
       const orders = [makeOrder({ status: 'CANCELLED' })]
       const grouped = groupByColumn(orders)
 

@@ -107,17 +107,20 @@ export function requiresMotoboyConfirmation(
   )
 }
 
-// v2.8: Kanban com 4 colunas. CONFIRMED foi mesclado em "Em preparo" porque
-// na prática a cozinha não precisa de um passo intermediário entre confirmar e
-// começar a preparar (auto-confirm dispara ambos no mesmo instante).
+// v2.9: Kanban com 4 colunas. "Novos" agrupa WAITING_* + CONFIRMED — com
+// autoConfirmOrders ON o pedido nasce em CONFIRMED mas continua exigindo ação
+// do operador (clicar "→" ou arrastar) pra ir pra Em preparo. Auto-confirm
+// elimina apenas o passo manual de aprovar, não o de entrar pra cozinha.
+// "Em preparo" fica exclusivo pra PREPARING.
 const ACTIVE_COLUMN_CONFIG = [
   {
     id: 'novos',
     label: 'Novos',
-    // Pedidos nascem em WAITING_PAYMENT_PROOF (PIX) ou WAITING_CONFIRMATION.
-    // Com Store.autoConfirmOrders ON, nascem direto em CONFIRMED — então a
-    // coluna "Novos" fica vazia (vai direto pra "Em preparo").
-    statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION'],
+    // WAITING_*: pedido aguardando ação humana (confirmar / aprovar comprovante).
+    // CONFIRMED: pedido auto-confirmado (ou confirmado manualmente) aguardando
+    // o operador mandar pra cozinha. Pra cozinha, o disparo de auto-print + cash
+    // flow já aconteceu — esta coluna é só "aceito, aguardando início do preparo".
+    statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION', 'CONFIRMED'],
     color: 'border-yellow-200',
     headerColor: 'bg-yellow-50',
     icon: ClipboardList,
@@ -127,7 +130,7 @@ const ACTIVE_COLUMN_CONFIG = [
   {
     id: 'em_preparo',
     label: 'Em preparo',
-    statuses: ['CONFIRMED', 'PREPARING'],
+    statuses: ['PREPARING'],
     color: 'border-blue-200',
     headerColor: 'bg-blue-50',
     icon: ChefHat,
@@ -249,13 +252,15 @@ function OrderCard({
     order.status === 'DISPATCHED' &&
     order.paymentMethod !== 'PENDING' &&
     !order.paymentReceivedAt
-  // v2.8: pedido em WAITING_* exige confirmação explícita (botão "Confirmar"
-  // verde) antes de avançar. Sem isso, o "→" some — o card fica "preso" em
-  // Novos. Isso vale tanto pra fluxo manual quanto pra Pix aguardando
-  // comprovante (PIX usa o fluxo existente de aprovar comprovante).
-  const isWaitingConfirmation = order.status === 'WAITING_CONFIRMATION'
+  // v2.8/v2.9: pedido em WAITING_* exige confirmação explícita (botão verde
+  // "Confirmar pedido") antes de aparecer o "→". CONFIRMED (auto-confirmado ou
+  // confirmado manualmente) mostra o "→" e ao clicar vai pra PREPARING.
+  // PIX (WAITING_PAYMENT_PROOF) usa o fluxo de aprovar comprovante — não cai aqui.
+  const isWaitingHumanAction =
+    order.status === 'WAITING_CONFIRMATION' ||
+    order.status === 'WAITING_PAYMENT_PROOF'
   const canAdvanceDirect = !readonly && nextStatus
-    && !isWaitingConfirmation
+    && !isWaitingHumanAction
     && !(order.status === 'READY' && order.type === 'DELIVERY')
     && !needsPaymentConfirm
 
@@ -265,7 +270,7 @@ function OrderCard({
   // v2.8: botão "Confirmar" no card Novos quando autoConfirmOrders está OFF.
   // PIX (WAITING_PAYMENT_PROOF) tem fluxo próprio de aprovação de comprovante
   // — não cai aqui.
-  const showConfirmOrderButton = !readonly && isWaitingConfirmation
+  const showConfirmOrderButton = !readonly && order.status === 'WAITING_CONFIRMATION'
 
   const confirmPaymentMutation = useConfirmOrderPayment()
   const updateStatusMutation = useUpdateOrderStatus()
