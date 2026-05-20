@@ -44,12 +44,17 @@ const PIX_TYPES = [
 function TabDados() {
   const { data: store, isLoading } = useStore()
   const updateStoreMutation = useUpdateStore()
+  const updateWhatsappMutation = useUpdateWhatsapp()
 
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [logo, setLogo] = useState('')
   const [address, setAddress] = useState('')
   const [initialized, setInitialized] = useState(false)
+
+  const [phone, setPhone] = useState('')
+  const [phonePassword, setPhonePassword] = useState('')
+  const [phoneInitialized, setPhoneInitialized] = useState(false)
 
   if (store && !initialized) {
     setName(store.name ?? '')
@@ -59,11 +64,28 @@ function TabDados() {
     setInitialized(true)
   }
 
+  if (store && !phoneInitialized) {
+    setPhone(store.phone ?? '')
+    setPhoneInitialized(true)
+  }
+
   function handleSave(e: React.FormEvent) {
     e.preventDefault()
     updateStoreMutation.mutate(
       { name, description, logo, address },
       { onError: () => alert('Erro ao salvar dados da loja.') }
+    )
+  }
+
+  function handleSaveWhatsapp(e: React.FormEvent) {
+    e.preventDefault()
+    if (!phone.trim() || !phonePassword.trim()) return
+    updateWhatsappMutation.mutate(
+      { phone: phone.trim(), password: phonePassword },
+      {
+        onSuccess: () => setPhonePassword(''),
+        onError: () => alert('Erro ao atualizar WhatsApp. Verifique a senha.'),
+      }
     )
   }
 
@@ -136,79 +158,7 @@ function TabDados() {
           </div>
         </form>
       </div>
-    </div>
-  )
-}
 
-function TabPagamentos() {
-  const { data: store, isLoading } = useStore()
-  const updateWhatsappMutation = useUpdateWhatsapp()
-  const updatePixMutation = useUpdatePix()
-  const updatePaymentMutation = useUpdatePaymentSettings()
-
-  // WhatsApp form state
-  const [phone, setPhone] = useState('')
-  const [phonePassword, setPhonePassword] = useState('')
-
-  // Pix form state
-  const [pixKey, setPixKey] = useState('')
-  const [pixKeyType, setPixKeyType] = useState('EVP')
-  const [pixPassword, setPixPassword] = useState('')
-
-  // Payment settings state
-  const [allowCashOnDelivery, setAllowCashOnDelivery] = useState(false)
-  const [allowPix, setAllowPix] = useState(false)
-  const [allowPickup, setAllowPickup] = useState(false)
-  const [settingsInitialized, setSettingsInitialized] = useState(false)
-
-  if (store && !settingsInitialized) {
-    setPhone(store.phone ?? '')
-    setPixKey(store.pixKey ?? '')
-    setPixKeyType(store.pixKeyType ?? 'EVP')
-    setAllowCashOnDelivery(store.allowCashOnDelivery)
-    setAllowPix(store.features?.allowPix === true)
-    setAllowPickup(store.allowPickup)
-    setSettingsInitialized(true)
-  }
-
-  function handleSaveWhatsapp(e: React.FormEvent) {
-    e.preventDefault()
-    if (!phone.trim() || !phonePassword.trim()) return
-    updateWhatsappMutation.mutate(
-      { phone: phone.trim(), password: phonePassword },
-      {
-        onSuccess: () => setPhonePassword(''),
-        onError: () => alert('Erro ao atualizar WhatsApp. Verifique a senha.'),
-      }
-    )
-  }
-
-  function handleSavePix(e: React.FormEvent) {
-    e.preventDefault()
-    if (!pixKey.trim() || !pixPassword.trim()) return
-    updatePixMutation.mutate(
-      { pixKey: pixKey.trim(), pixKeyType, password: pixPassword },
-      {
-        onSuccess: () => setPixPassword(''),
-        onError: () => alert('Erro ao atualizar Pix. Verifique a senha.'),
-      }
-    )
-  }
-
-  function handleSavePaymentSettings(e: React.FormEvent) {
-    e.preventDefault()
-    updatePaymentMutation.mutate(
-      { allowCashOnDelivery, allowPix, allowPickup },
-      { onError: () => alert('Erro ao salvar configurações de pagamento.') }
-    )
-  }
-
-  if (isLoading) {
-    return <p className="text-sm text-gray-500 py-6 text-center">Carregando...</p>
-  }
-
-  return (
-    <div className="space-y-8">
       {/* WhatsApp */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-800 mb-1">WhatsApp</h2>
@@ -254,7 +204,61 @@ function TabPagamentos() {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
 
+function TabPagamentos() {
+  const { data: store, isLoading } = useStore()
+  const updatePixMutation = useUpdatePix()
+  const updatePaymentMutation = useUpdatePaymentSettings()
+
+  // Pix form state
+  const [pixKey, setPixKey] = useState('')
+  const [pixKeyType, setPixKeyType] = useState('EVP')
+  const [pixPassword, setPixPassword] = useState('')
+
+  // Payment settings state
+  const [allowCashOnDelivery, setAllowCashOnDelivery] = useState(false)
+  const [allowPix, setAllowPix] = useState(false)
+  const [allowPickup, setAllowPickup] = useState(false)
+  const [settingsInitialized, setSettingsInitialized] = useState(false)
+
+  if (store && !settingsInitialized) {
+    setPixKey(store.pixKey ?? '')
+    setPixKeyType(store.pixKeyType ?? 'EVP')
+    setAllowCashOnDelivery(store.allowCashOnDelivery)
+    setAllowPix(store.features?.allowPix === true)
+    setAllowPickup(store.allowPickup)
+    setSettingsInitialized(true)
+  }
+
+  function handleSavePix(e: React.FormEvent) {
+    e.preventDefault()
+    if (!pixKey.trim() || !pixPassword.trim()) return
+    updatePixMutation.mutate(
+      { pixKey: pixKey.trim(), pixKeyType, password: pixPassword },
+      {
+        onSuccess: () => setPixPassword(''),
+        onError: () => alert('Erro ao atualizar Pix. Verifique a senha.'),
+      }
+    )
+  }
+
+  function handleSavePaymentSettings(e: React.FormEvent) {
+    e.preventDefault()
+    updatePaymentMutation.mutate(
+      { allowCashOnDelivery, allowPix, allowPickup },
+      { onError: () => alert('Erro ao salvar configurações de pagamento.') }
+    )
+  }
+
+  if (isLoading) {
+    return <p className="text-sm text-gray-500 py-6 text-center">Carregando...</p>
+  }
+
+  return (
+    <div className="space-y-8">
       {/* Pix */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <h2 className="text-base font-semibold text-gray-800 mb-1">Chave Pix</h2>
