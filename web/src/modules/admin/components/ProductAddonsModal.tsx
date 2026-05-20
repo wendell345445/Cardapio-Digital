@@ -125,7 +125,7 @@ export function ProductAddonsModal({ open, productId, productName, initialAddonI
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-3">
+            <div className="flex-1 overflow-y-auto px-6 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {activeCategory && activeCategory.addons.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">Nenhum adicional nessa categoria.</p>
               ) : (
