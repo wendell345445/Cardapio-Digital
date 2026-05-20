@@ -13,8 +13,8 @@ export function MotoboyLoginPage() {
   }
 
   const title = slug && slug !== '__custom_domain__'
-    ? `Painel do Motoboy — ${slug}`
-    : 'Painel do Motoboy'
+    ? `Painel do Entregador — ${slug}`
+    : 'Painel do Entregador'
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12">

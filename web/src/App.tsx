@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 
 import { LoginPage } from '@/modules/auth/pages/LoginPage'
+import { MotoboyLoginPage } from '@/modules/auth/pages/MotoboyLoginPage'
 import { OAuthCallbackPage } from '@/modules/auth/pages/OAuthCallbackPage'
 import { RegisterStorePage } from '@/modules/auth/pages/RegisterStorePage'
 import { AdminLayout } from '@/modules/admin/components/AdminLayout'
@@ -343,6 +344,7 @@ export function App() {
           <Route path="/admin/tables-legacy" element={<Navigate to="/admin/mesas" replace />} />
 
           {/* Motoboy */}
+          <Route path="/motoboy/login" element={<MotoboyLoginPage />} />
           <Route path="/motoboy" element={<MotoboyPage />} />
           <Route path="/:slug/motoboy" element={<MotoboyPage />} />
 
