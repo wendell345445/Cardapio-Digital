@@ -383,7 +383,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
               {/* Motoboy */}
               {order.motoboy && (
                 <div className="text-sm text-gray-700">
-                  <span className="font-medium">Motoboy:</span>{' '}
+                  <span className="font-medium">Entregador:</span>{' '}
                   {order.motoboy.name ?? 'Não identificado'}
                 </div>
               )}
@@ -515,7 +515,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                         onClick={() => setShowMotoboyPicker(true)}
                         className="w-full rounded-lg bg-indigo-600 text-white py-2 text-sm font-medium hover:bg-indigo-700 transition-colors"
                       >
-                        Atribuir Motoboy e Despachar
+                        Atribuir Entregador e Despachar
                       </button>
                     ) : (
                       <form onSubmit={handleAssignMotoboy} className="space-y-2">
@@ -525,7 +525,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                           required
                           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         >
-                          <option value="">Selecione o motoboy...</option>
+                          <option value="">Selecione o entregador...</option>
                           {motoboys?.map((m) => (
                             <option key={m.id} value={m.id}>
                               {m.name}

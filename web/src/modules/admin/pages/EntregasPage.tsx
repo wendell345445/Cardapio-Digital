@@ -5,6 +5,8 @@ import { useStore, useUpdatePaymentSettings } from '../hooks/useStore'
 
 import { DeliveryPage } from './DeliveryPage'
 
+import { formatBrPhone } from '@/shared/lib/masks'
+
 // ─── A-032 / Entregas: painel operacional da entrega ─────────────────────────
 // Unifica:
 //   - Toggle geral "Aceitando entregas" (Store.allowDelivery)
@@ -15,7 +17,7 @@ type Tab = 'status' | 'motoboys' | 'taxas'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'status', label: 'Status' },
-  { id: 'motoboys', label: 'Motoboys' },
+  { id: 'motoboys', label: 'Entregadores' },
   { id: 'taxas', label: 'Taxas' },
 ]
 
@@ -152,9 +154,9 @@ function TabMotoboys() {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
         <p className="text-sm text-gray-500">
-          Nenhum motoboy cadastrado. Cadastre em{' '}
-          <a href="/admin/configuracoes" className="text-red-500 hover:underline">
-            Configurações &gt; Motoboys
+          Nenhum entregador cadastrado. Cadastre em{' '}
+          <a href="/admin/motoboys" className="text-red-500 hover:underline">
+            Entregadores
           </a>
           .
         </p>
@@ -168,7 +170,7 @@ function TabMotoboys() {
         <div className="px-5 py-3 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">Disponibilidade do dia</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            Ative cada motoboy que veio trabalhar hoje. A disponibilidade é resetada automaticamente à meia-noite.
+            Ative cada entregador que veio trabalhar hoje. A disponibilidade é resetada automaticamente à meia-noite.
           </p>
         </div>
         <ul className="divide-y divide-gray-50">
@@ -179,7 +181,7 @@ function TabMotoboys() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-gray-900 truncate">{m.name}</p>
                   <p className="text-xs text-gray-500">
-                    {m.whatsapp ?? m.email ?? '—'}
+                    {formatBrPhone(m.whatsapp) || m.email || '—'}
                     {m.lastAssignedAt && (
                       <> · Última atribuição: {new Date(m.lastAssignedAt).toLocaleString('pt-BR')}</>
                     )}
@@ -229,7 +231,7 @@ export function EntregasPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Entregas</h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Status operacional, disponibilidade dos motoboys e taxas de entrega.
+          Status operacional, disponibilidade dos entregadores e taxas de entrega.
         </p>
       </div>
 

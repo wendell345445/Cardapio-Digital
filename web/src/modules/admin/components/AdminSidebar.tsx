@@ -33,7 +33,7 @@ const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | 
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Entregas', to: '/admin/entregas', icon: Truck },
-  { label: 'Motoboys', to: '/admin/motoboys', icon: Bike },
+  { label: 'Entregadores', to: '/admin/motoboys', icon: Bike },
   { label: 'Pedidos', to: '/admin/pedidos', icon: ShoppingBag, badge: true },
   { label: 'Mesas', to: '/admin/mesas', icon: UtensilsCrossed },
   { label: 'Clientes', to: '/admin/clientes', icon: Users },
