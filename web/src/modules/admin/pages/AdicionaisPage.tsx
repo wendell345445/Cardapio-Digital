@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Search, Plus, Pencil, X } from 'lucide-react'
 
 import {
@@ -12,9 +12,76 @@ import {
 import type { Addon, AddonCategory } from '../services/additionals.service'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
+import { api } from '@/shared/lib/api'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Thumb com upload inline: clica abre file picker → POST /admin/upload → onChange(url).
+// Usado na linha do adicional (create + edit). Tamanho fixo 40x40 pra alinhar com a UI.
+function AddonThumb({
+  value,
+  onChange,
+  size = 40,
+}: {
+  value?: string | null
+  onChange: (url: string) => void
+  size?: number
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('image', file)
+      const { data } = await api.post('/admin/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      onChange(data.data.url)
+    } catch {
+      // erro silencioso — UI volta pro estado anterior
+    } finally {
+      setLoading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => inputRef.current?.click()}
+      disabled={loading}
+      className="relative rounded-lg overflow-hidden border border-gray-200 hover:border-gray-400 transition-colors flex-shrink-0 group"
+      style={{ width: size, height: size }}
+      title={value ? 'Trocar imagem' : 'Adicionar imagem'}
+    >
+      {value ? (
+        <>
+          <img src={resolveImageUrl(value)} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Pencil className="w-3.5 h-3.5 text-white" />
+          </div>
+        </>
+      ) : (
+        <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 text-base">
+          {loading ? '…' : '📷'}
+        </div>
+      )}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFile}
+      />
+    </button>
+  )
 }
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: () => void; disabled?: boolean }) {
@@ -33,6 +100,7 @@ interface EditAddonState {
   id: string
   name: string
   price: string
+  imageUrl: string | null
 }
 
 function CategoryContent({ category }: { category: AddonCategory }) {
@@ -43,6 +111,7 @@ function CategoryContent({ category }: { category: AddonCategory }) {
   const [editState, setEditState] = useState<EditAddonState | null>(null)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState('')
+  const [newImageUrl, setNewImageUrl] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [toDelete, setToDelete] = useState<Addon | null>(null)
 
@@ -50,11 +119,17 @@ function CategoryContent({ category }: { category: AddonCategory }) {
     e.preventDefault()
     if (!newName.trim() || !newPrice) return
     createAddon.mutate(
-      { categoryId: category.id, name: newName.trim(), price: Number(newPrice) },
+      {
+        categoryId: category.id,
+        name: newName.trim(),
+        price: Number(newPrice),
+        imageUrl: newImageUrl,
+      },
       {
         onSuccess: () => {
           setNewName('')
           setNewPrice('')
+          setNewImageUrl(null)
           setShowAdd(false)
         },
       }
@@ -65,7 +140,14 @@ function CategoryContent({ category }: { category: AddonCategory }) {
     e.preventDefault()
     if (!editState) return
     updateAddon.mutate(
-      { id: editState.id, dto: { name: editState.name, price: Number(editState.price) } },
+      {
+        id: editState.id,
+        dto: {
+          name: editState.name,
+          price: Number(editState.price),
+          imageUrl: editState.imageUrl,
+        },
+      },
       { onSuccess: () => setEditState(null) }
     )
   }
@@ -77,6 +159,10 @@ function CategoryContent({ category }: { category: AddonCategory }) {
           <div key={addon.id} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
             {editState?.id === addon.id ? (
               <form onSubmit={handleSaveEdit} className="flex-1 flex items-center gap-2">
+                <AddonThumb
+                  value={editState.imageUrl}
+                  onChange={(url) => setEditState((s) => s && { ...s, imageUrl: url })}
+                />
                 <input
                   type="text"
                   value={editState.name}
@@ -100,13 +186,10 @@ function CategoryContent({ category }: { category: AddonCategory }) {
               </form>
             ) : (
               <>
-                {addon.imageUrl ? (
-                  <img src={addon.imageUrl} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-xs flex-shrink-0">
-                    📷
-                  </div>
-                )}
+                <AddonThumb
+                  value={addon.imageUrl}
+                  onChange={(url) => updateAddon.mutate({ id: addon.id, dto: { imageUrl: url } })}
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900">{addon.name}</p>
                   <p className="text-sm text-gray-500">{fmt(addon.price)}</p>
@@ -121,7 +204,14 @@ function CategoryContent({ category }: { category: AddonCategory }) {
                     />
                   </div>
                   <button
-                    onClick={() => setEditState({ id: addon.id, name: addon.name, price: String(addon.price) })}
+                    onClick={() =>
+                      setEditState({
+                        id: addon.id,
+                        name: addon.name,
+                        price: String(addon.price),
+                        imageUrl: addon.imageUrl ?? null,
+                      })
+                    }
                     className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1"
                   >
                     <Pencil className="w-3 h-3" />
@@ -142,6 +232,7 @@ function CategoryContent({ category }: { category: AddonCategory }) {
 
       {showAdd ? (
         <form onSubmit={handleCreate} className="flex items-center gap-2 px-5 py-3 border-t border-gray-100">
+          <AddonThumb value={newImageUrl} onChange={setNewImageUrl} />
           <input
             type="text"
             placeholder="Nome do adicional"
@@ -163,7 +254,14 @@ function CategoryContent({ category }: { category: AddonCategory }) {
           <button type="submit" disabled={createAddon.isPending} className="px-3 py-1.5 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 disabled:opacity-50">
             Adicionar
           </button>
-          <button type="button" onClick={() => setShowAdd(false)} className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg">
+          <button
+            type="button"
+            onClick={() => {
+              setShowAdd(false)
+              setNewImageUrl(null)
+            }}
+            className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg"
+          >
             Cancelar
           </button>
         </form>
