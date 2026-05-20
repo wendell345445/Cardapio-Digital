@@ -25,14 +25,20 @@ export const createOrderSchema = z.object({
   // — sem ele, type=TABLE é rejeitado (link antigo ?mesa=N perde o poder).
   tableSessionToken: z.string().min(20).optional(),
   deviceName: z.string().trim().max(40).optional(),
+  // Modo bairro: cliente seleciona um bairro cadastrado e backend cobra a taxa fixa.
+  // Quando enviado, ignora address.manualCoordinates / geocode para fins de taxa.
+  deliveryNeighborhoodId: z.string().uuid().optional(),
   address: z
     .object({
       zipCode: z.string().optional(),
       street: z.string().min(1),
       number: z.string().min(1),
       complement: z.string().optional(),
-      neighborhood: z.string().min(1),
-      city: z.string().min(1),
+      // No modo bairro o cliente não preenche cidade (o sheet esconde o campo) —
+      // a cidade vem implícita pelo bairro cadastrado pela loja. Por isso
+      // city/neighborhood são opcionais aqui; o service valida coerência.
+      neighborhood: z.string().min(1).optional(),
+      city: z.string().min(1).optional(),
       state: z.string().optional(),
       // Cliente preenche manualmente quando o Google não acha o endereço:
       // copia lat/lng do Google Maps. Backend confia, pula geocoding e usa

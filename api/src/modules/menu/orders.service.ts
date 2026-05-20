@@ -84,6 +84,21 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   if (data.type === 'DELIVERY' && !data.address) {
     throw new AppError('Endereço é obrigatório para entrega', 422)
   }
+  // 3b. Granularidade por modalidade de entrega (distância vs bairro).
+  if (data.type === 'DELIVERY') {
+    if (data.deliveryNeighborhoodId && !store.deliveryByNeighborhoodEnabled) {
+      throw new AppError('Entrega por bairro está desativada nesta loja', 422)
+    }
+    if (!data.deliveryNeighborhoodId && !store.deliveryByDistanceEnabled) {
+      throw new AppError('Entrega por endereço está desativada nesta loja', 422)
+    }
+    // Modo distância exige city/neighborhood pro geocoding; modo bairro não.
+    if (!data.deliveryNeighborhoodId && data.address) {
+      if (!data.address.city?.trim() || !data.address.neighborhood?.trim()) {
+        throw new AppError('Bairro e cidade são obrigatórios', 422)
+      }
+    }
+  }
   const isOnDeliveryPayment =
     data.paymentMethod === 'CASH_ON_DELIVERY' ||
     data.paymentMethod === 'CREDIT_ON_DELIVERY' ||
@@ -241,44 +256,64 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   //       alguém digitar o mesmo endereço, sai do cache sem custo).
   //   (b) Google Geocoding (cacheado em Redis 7d) — caminho normal.
   let deliveryFee = 0
-  if (data.type === 'DELIVERY' && data.address) {
-    let coords: { latitude: number; longitude: number }
-    if (data.address.manualCoordinates) {
-      coords = data.address.manualCoordinates
-      await primeGeocodeCacheFromManual(
-        {
+  let resolvedNeighborhoodId: string | null = null
+  if (data.type === 'DELIVERY') {
+    if (data.deliveryNeighborhoodId) {
+      // Modo bairro: taxa fixa baseada no bairro selecionado.
+      const result = await calculateDeliveryFee(store.id, {
+        neighborhoodId: data.deliveryNeighborhoodId,
+      })
+      deliveryFee = result.fee
+      resolvedNeighborhoodId = data.deliveryNeighborhoodId
+    } else if (data.address) {
+      // Modo distância: geocode + haversine.
+      let coords: { latitude: number; longitude: number }
+      if (data.address.manualCoordinates) {
+        coords = data.address.manualCoordinates
+        await primeGeocodeCacheFromManual(
+          {
+            cep: data.address.zipCode,
+            street: data.address.street,
+            number: data.address.number,
+            neighborhood: data.address.neighborhood,
+            city: data.address.city,
+            state: data.address.state ?? undefined,
+          },
+          coords
+        )
+      } else {
+        const result = await geocodeAddress({
           cep: data.address.zipCode,
           street: data.address.street,
           number: data.address.number,
           neighborhood: data.address.neighborhood,
           city: data.address.city,
           state: data.address.state ?? undefined,
-        },
-        coords
-      )
-    } else {
-      const result = await geocodeAddress({
-        cep: data.address.zipCode,
-        street: data.address.street,
-        number: data.address.number,
-        neighborhood: data.address.neighborhood,
-        city: data.address.city,
-        state: data.address.state ?? undefined,
-      })
-      coords = { latitude: result.latitude, longitude: result.longitude }
-    }
+        })
+        coords = { latitude: result.latitude, longitude: result.longitude }
+      }
 
-    try {
-      const result = await calculateDeliveryFee(store.id, coords)
-      deliveryFee = result.fee
-    } catch (err) {
-      // Se loja não tem coords/faixas, fee = 0. Erros de "fora da área" propagam.
-      const message = err instanceof AppError ? err.message : ''
-      const isConfigMissing =
-        message === 'Coordenadas da loja não configuradas' ||
-        message === 'Nenhuma faixa de distância configurada'
-      if (!isConfigMissing) throw err
+      try {
+        const result = await calculateDeliveryFee(store.id, coords)
+        deliveryFee = result.fee
+      } catch (err) {
+        // Se loja não tem coords/faixas, fee = 0. Erros de "fora da área" propagam.
+        const message = err instanceof AppError ? err.message : ''
+        const isConfigMissing =
+          message === 'Coordenadas da loja não configuradas' ||
+          message === 'Nenhuma faixa de distância configurada'
+        if (!isConfigMissing) throw err
+      }
     }
+  }
+
+  // Frete grátis acima de R$ X (loja-wide). Zera deliveryFee se subtotal cobre.
+  if (
+    data.type === 'DELIVERY' &&
+    store.freeDeliveryAboveCents != null &&
+    Math.round(subtotal * 100) >= store.freeDeliveryAboveCents
+  ) {
+    deliveryFee = 0
   }
 
   const total = subtotal - discount + deliveryFee
@@ -327,6 +362,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         tableSessionId: resolvedTableSessionId,
         deviceName: data.deviceName?.trim() || null,
         couponId,
+        deliveryNeighborhoodId: resolvedNeighborhoodId,
         scheduledFor: data.scheduledFor,
         customerSessionId: data.customerSessionId ?? null,
         notifyOnStatusChange: false,

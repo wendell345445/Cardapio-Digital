@@ -18,6 +18,8 @@ export interface StoreInfo {
   id: string; name: string; slug: string; description?: string; logo?: string
   address?: string; phone: string; pixKey?: string; pixKeyType?: string
   allowCashOnDelivery: boolean; allowPickup: boolean; allowDelivery: boolean
+  deliveryByDistanceEnabled?: boolean
+  deliveryByNeighborhoodEnabled?: boolean
   features?: { allowPix?: boolean } | null
   storeStatus: 'open' | 'closed' | 'suspended'
   nextOpenLabel?: string | null

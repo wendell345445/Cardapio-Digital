@@ -1,10 +1,17 @@
 // Cobre: haversine (puro), distance CRUD, setStoreCoordinates, calculateDeliveryFee.
-// Regressão: após remoção do modo "por bairro", calculateDeliveryFee SEMPRE exige
-// lat/lng do cliente + lat/lng da loja + ao menos 1 faixa.
+// Calc usa maxKm-only (cliente cai no primeiro raio com dist <= maxKm). isAvailable=false
+// é pulado.
 
 jest.mock('../../../shared/prisma/prisma', () => ({
   prisma: {
     deliveryDistance: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    deliveryNeighborhood: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -40,11 +47,11 @@ const DIST_ID = 'dist-1'
 const mockDistance = {
   id: DIST_ID,
   storeId: STORE_ID,
-  minKm: 0,
   maxKm: 5,
   fee: 8.0,
-  createdAt: new Date(),
-  updatedAt: new Date(),
+  etaMin: 15,
+  isAvailable: true,
+  sortOrder: 0,
 }
 
 beforeEach(() => jest.clearAllMocks())
@@ -81,20 +88,23 @@ describe('createDistance', () => {
   it('cria faixa de distância válida', async () => {
     ;(mockPrisma.deliveryDistance.create as jest.Mock).mockResolvedValue(mockDistance)
 
-    const result = await createDistance(STORE_ID, { minKm: 0, maxKm: 5, fee: 8.0 })
+    const result = await createDistance(STORE_ID, {
+      maxKm: 5,
+      fee: 8.0,
+      etaMin: 15,
+      isAvailable: true,
+    })
 
     expect(mockPrisma.deliveryDistance.create).toHaveBeenCalledWith({
-      data: { storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 8.0 },
+      data: {
+        storeId: STORE_ID,
+        maxKm: 5,
+        fee: 8.0,
+        etaMin: 15,
+        isAvailable: true,
+      },
     })
     expect(result.id).toBe(DIST_ID)
-  })
-
-  it('lança 422 quando minKm >= maxKm', async () => {
-    await expect(
-      createDistance(STORE_ID, { minKm: 5, maxKm: 5, fee: 8.0 })
-    ).rejects.toMatchObject({ status: 422 })
-
-    expect(mockPrisma.deliveryDistance.create).not.toHaveBeenCalled()
   })
 })
 
@@ -287,9 +297,9 @@ describe('calculateDeliveryFee', () => {
       longitude: -46.6558,
     })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
-      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
-      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
-      { id: 'd3', storeId: STORE_ID, minKm: 10, maxKm: 20, fee: 18.0 },
+      { id: 'd1', storeId: STORE_ID, maxKm: 5, fee: 5.0, etaMin: 10, isAvailable: true },
+      { id: 'd2', storeId: STORE_ID, maxKm: 10, fee: 10.0, etaMin: 20, isAvailable: true },
+      { id: 'd3', storeId: STORE_ID, maxKm: 20, fee: 18.0, etaMin: 30, isAvailable: true },
     ])
 
     const result = await calculateDeliveryFee(STORE_ID, {
@@ -297,9 +307,13 @@ describe('calculateDeliveryFee', () => {
       longitude: -46.6388,
     })
 
-    expect(result.fee).toBe(5.0)
-    expect(result.distance).toBeGreaterThan(0)
-    expect(result.distance).toBeLessThan(5)
+    if ('distance' in result) {
+      expect(result.fee).toBe(5.0)
+      expect(result.distance).toBeGreaterThan(0)
+      expect(result.distance).toBeLessThan(5)
+    } else {
+      throw new Error('esperado retorno por distância')
+    }
   })
 
   it('retorna taxa da faixa correta para distância maior', async () => {
@@ -308,9 +322,9 @@ describe('calculateDeliveryFee', () => {
       longitude: -46.6333,
     })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
-      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
-      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
-      { id: 'd3', storeId: STORE_ID, minKm: 10, maxKm: 20, fee: 18.0 },
+      { id: 'd1', storeId: STORE_ID, maxKm: 5, fee: 5.0, etaMin: 10, isAvailable: true },
+      { id: 'd2', storeId: STORE_ID, maxKm: 10, fee: 10.0, etaMin: 20, isAvailable: true },
+      { id: 'd3', storeId: STORE_ID, maxKm: 20, fee: 18.0, etaMin: 30, isAvailable: true },
     ])
 
     // Cliente em Guarulhos (~15km)
@@ -319,9 +333,37 @@ describe('calculateDeliveryFee', () => {
       longitude: -46.5333,
     })
 
-    expect(result.fee).toBe(18.0)
-    expect(result.distance).toBeGreaterThan(10)
-    expect(result.distance).toBeLessThan(20)
+    if ('distance' in result) {
+      expect(result.fee).toBe(18.0)
+      expect(result.distance).toBeGreaterThan(10)
+      expect(result.distance).toBeLessThan(20)
+    } else {
+      throw new Error('esperado retorno por distância')
+    }
+  })
+
+  it('pula raios indisponíveis e cai no próximo (filtro isAvailable)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      latitude: -23.5614,
+      longitude: -46.6558,
+    })
+    // Calc service só consulta isAvailable=true, então mock retorna só os disponíveis.
+    ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
+      { id: 'd2', storeId: STORE_ID, maxKm: 10, fee: 10.0, etaMin: 20, isAvailable: true },
+      { id: 'd3', storeId: STORE_ID, maxKm: 20, fee: 18.0, etaMin: 30, isAvailable: true },
+    ])
+
+    const result = await calculateDeliveryFee(STORE_ID, {
+      latitude: -23.5889,
+      longitude: -46.6388,
+    })
+
+    if ('distance' in result) {
+      // dist ~3km — raio 0-5 estava indisponível, cai no raio 10km.
+      expect(result.fee).toBe(10.0)
+    } else {
+      throw new Error('esperado retorno por distância')
+    }
   })
 
   it('lança 422 quando distância fora de todas as faixas', async () => {
@@ -330,13 +372,49 @@ describe('calculateDeliveryFee', () => {
       longitude: -46.6333,
     })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
-      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
-      { id: 'd2', storeId: STORE_ID, minKm: 5, maxKm: 10, fee: 10.0 },
+      { id: 'd1', storeId: STORE_ID, maxKm: 5, fee: 5.0, etaMin: 10, isAvailable: true },
+      { id: 'd2', storeId: STORE_ID, maxKm: 10, fee: 10.0, etaMin: 20, isAvailable: true },
     ])
 
     // Cliente no Rio (~357km) — fora de qualquer faixa
     await expect(
       calculateDeliveryFee(STORE_ID, { latitude: -22.9068, longitude: -43.1729 })
     ).rejects.toMatchObject({ status: 422, message: 'Distância fora da área de entrega' })
+  })
+
+  it('calcula taxa por bairro quando neighborhoodId é informado', async () => {
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue({
+      id: 'n1',
+      storeId: STORE_ID,
+      name: 'Vila Madalena',
+      fee: 7.5,
+      etaMin: 25,
+      isAvailable: true,
+    })
+
+    const result = await calculateDeliveryFee(STORE_ID, { neighborhoodId: 'n1' })
+
+    if ('neighborhoodId' in result) {
+      expect(result.fee).toBe(7.5)
+      expect(result.etaMin).toBe(25)
+      expect(result.neighborhoodName).toBe('Vila Madalena')
+    } else {
+      throw new Error('esperado retorno por bairro')
+    }
+  })
+
+  it('lança 422 quando bairro está indisponível', async () => {
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue({
+      id: 'n1',
+      storeId: STORE_ID,
+      name: 'Bairro X',
+      fee: 5,
+      etaMin: 20,
+      isAvailable: false,
+    })
+
+    await expect(
+      calculateDeliveryFee(STORE_ID, { neighborhoodId: 'n1' })
+    ).rejects.toMatchObject({ status: 422, message: 'Bairro indisponível para entrega' })
   })
 })

@@ -170,6 +170,7 @@ export function PagamentoPage() {
       notes: finalNotes || undefined,
       couponCode: navState?.couponCode,
       address: navState?.address,
+      deliveryNeighborhoodId: navState?.deliveryNeighborhoodId,
       tableSessionToken: inTableMode && tableSessionToken ? tableSessionToken : undefined,
       deviceName: inTableMode && deviceName ? deviceName : undefined,
       items: items.map((i) => ({
@@ -189,8 +190,8 @@ export function PagamentoPage() {
           street: dto.address.street,
           number: dto.address.number,
           complement: dto.address.complement,
-          neighborhood: dto.address.neighborhood,
-          city: dto.address.city,
+          neighborhood: dto.address.neighborhood ?? '',
+          city: dto.address.city ?? '',
           state: dto.address.state,
           zipCode: dto.address.zipCode,
         })
@@ -355,14 +356,31 @@ export function PagamentoPage() {
               </div>
             </div>
 
-            {mutation.error && (
-              <p className="mt-3 text-center text-[12px] text-menu-primary">
-                {(mutation.error as { response?: { data?: { error?: string; message?: string } } })?.response
-                  ?.data?.error ||
-                  (mutation.error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-                  'Erro ao criar pedido'}
-              </p>
-            )}
+            {mutation.error && (() => {
+              const err = mutation.error as {
+                response?: {
+                  data?: {
+                    error?: string
+                    message?: string
+                    details?: Array<{ path: (string | number)[]; message: string }>
+                  }
+                }
+              }
+              const baseMsg =
+                err?.response?.data?.error ||
+                err?.response?.data?.message ||
+                'Erro ao criar pedido'
+              const details = err?.response?.data?.details
+              const detailMsg = Array.isArray(details)
+                ? details.map((d) => `${d.path.join('.')}: ${d.message}`).join('; ')
+                : ''
+              return (
+                <p className="mt-3 text-center text-[12px] text-menu-primary">
+                  {baseMsg}
+                  {detailMsg ? ` — ${detailMsg}` : ''}
+                </p>
+              )
+            })()}
           </section>
         </main>
       </div>

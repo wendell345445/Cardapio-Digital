@@ -5,21 +5,28 @@ import { geocodeAddress } from '../menu/geocoding.service'
 import {
   calculateDeliverySchema,
   createDistanceSchema,
+  createNeighborhoodSchema,
   geocodeAddressSchema,
   setStoreCoordinatesSchema,
+  updateDeliverySettingsSchema,
   updateDistanceSchema,
+  updateNeighborhoodSchema,
 } from './delivery.schema'
 import {
   calculateDeliveryFee,
   createDistance,
+  createNeighborhood,
   deleteDistance,
+  deleteNeighborhood,
   getDeliveryConfig,
+  listAvailableNeighborhoods,
   listDistances,
+  listNeighborhoods,
   setStoreCoordinates,
+  updateDeliverySettings,
   updateDistance,
+  updateNeighborhood,
 } from './delivery.service'
-
-// Controllers da área de entrega admin (só distância).
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -42,6 +49,21 @@ export async function setStoreCoordinatesController(
     const storeId = req.tenant!.storeId
     const input = setStoreCoordinatesSchema.parse(req.body)
     const result = await setStoreCoordinates(storeId, input)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateDeliverySettingsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const input = updateDeliverySettingsSchema.parse(req.body)
+    const result = await updateDeliverySettings(storeId, input)
     res.json({ success: true, data: result })
   } catch (err) {
     next(err)
@@ -91,6 +113,61 @@ export async function deleteDistanceController(req: Request, res: Response, next
   }
 }
 
+// ── Neighborhoods ─────────────────────────────────────────────────────────────
+
+export async function listNeighborhoodsController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const storeId = req.tenant!.storeId
+    res.json({ success: true, data: await listNeighborhoods(storeId) })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createNeighborhoodController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const input = createNeighborhoodSchema.parse(req.body)
+    const n = await createNeighborhood(storeId, input)
+    res.status(201).json({ success: true, data: n })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateNeighborhoodController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const input = updateNeighborhoodSchema.parse(req.body)
+    const n = await updateNeighborhood(storeId, req.params.id, input)
+    res.json({ success: true, data: n })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteNeighborhoodController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    await deleteNeighborhood(storeId, req.params.id)
+    res.json({ success: true })
+  } catch (err) {
+    next(err)
+  }
+}
+
 // ── Geocode (admin: busca endereço → lat/lng) ────────────────────────────────
 
 export async function geocodeAddressController(
@@ -119,6 +196,22 @@ export async function calculateDeliveryController(
     const input = calculateDeliverySchema.parse(req.body)
     const result = await calculateDeliveryFee(storeId, input)
     res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
+// ── Public list of available neighborhoods (used in checkout select) ─────────
+
+export async function listAvailableNeighborhoodsController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { storeId } = req.params
+    const data = await listAvailableNeighborhoods(storeId)
+    res.json({ success: true, data })
   } catch (err) {
     next(err)
   }

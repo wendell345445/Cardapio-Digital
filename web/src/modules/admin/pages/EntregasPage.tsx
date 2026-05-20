@@ -31,6 +31,8 @@ function TabStatus() {
   const allowDelivery = store.allowDelivery !== false
   const allowPickup = !!store.allowPickup
   const allowTable = store.allowTable !== false
+  const deliveryByDistance = store.deliveryByDistanceEnabled !== false
+  const deliveryByNeighborhood = store.deliveryByNeighborhoodEnabled !== false
 
   function toggleDelivery() {
     updateMutation.mutate(
@@ -53,6 +55,20 @@ function TabStatus() {
     )
   }
 
+  function toggleByDistance() {
+    updateMutation.mutate(
+      { deliveryByDistanceEnabled: !deliveryByDistance },
+      { onError: () => alert('Erro ao atualizar entrega por raio.') }
+    )
+  }
+
+  function toggleByNeighborhood() {
+    updateMutation.mutate(
+      { deliveryByNeighborhoodEnabled: !deliveryByNeighborhood },
+      { onError: () => alert('Erro ao atualizar entrega por bairro.') }
+    )
+  }
+
   const neitherAccepted = !allowDelivery && !allowPickup && !allowTable
 
   return (
@@ -72,6 +88,34 @@ function TabStatus() {
           disabled={updateMutation.isPending}
           onChange={toggleDelivery}
         />
+
+        {allowDelivery && (
+          <div className="ml-6 pl-4 border-l-2 border-gray-100 space-y-1">
+            <ToggleRow
+              label="📏 Entrega por raio (Km)"
+              description="Cobra taxa baseada na distância da loja até o endereço do cliente."
+              checked={deliveryByDistance}
+              disabled={updateMutation.isPending}
+              onChange={toggleByDistance}
+            />
+            <ToggleRow
+              label="📍 Entrega por bairro"
+              description="Cobra taxa fixa por bairro cadastrado. Cliente seleciona o bairro no checkout."
+              checked={deliveryByNeighborhood}
+              disabled={updateMutation.isPending}
+              onChange={toggleByNeighborhood}
+            />
+            {!deliveryByDistance && !deliveryByNeighborhood && (
+              <div className="mt-2 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                <span>⚠️</span>
+                <p>
+                  Com as duas modalidades de entrega desativadas, o cliente não consegue pedir
+                  delivery. Ative pelo menos uma ou desligue a Entrega acima.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         <ToggleRow
           label="🏪 Retirada no local"

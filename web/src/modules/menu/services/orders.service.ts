@@ -4,7 +4,9 @@ const menuApi = createPublicApi()
 
 export interface OrderAddress {
   zipCode?: string
-  street: string; number: string; complement?: string; neighborhood: string; city: string; state?: string
+  // neighborhood/city são opcionais no modo bairro (a cidade não é coletada
+  // quando o cliente seleciona um bairro pré-cadastrado pela loja).
+  street: string; number: string; complement?: string; neighborhood?: string; city?: string; state?: string
   /**
    * Cliente colou lat/lng do Google Maps quando o Google Geocoding não achou
    * o endereço (ex: loteamento novo, cidade pequena). Backend confia, pula
@@ -39,6 +41,8 @@ export interface CreateOrderDto {
   deviceName?: string
   scheduledFor?: string
   items: OrderItem[]
+  /** Modo bairro: id do bairro escolhido no checkout. Quando setado, backend cobra a taxa fixa do bairro. */
+  deliveryNeighborhoodId?: string
 }
 
 export interface OrderResult {
@@ -95,13 +99,29 @@ export async function geocodeAddress(payload: GeocodeAddressPayload): Promise<Ge
 export interface DeliveryFeeResult {
   fee: number
   distance?: number
+  etaMin?: number
+  neighborhoodId?: string
+  neighborhoodName?: string
 }
 
 export async function calculateDeliveryFee(
-  latitude: number,
-  longitude: number
+  payload:
+    | { latitude: number; longitude: number }
+    | { neighborhoodId: string }
 ): Promise<DeliveryFeeResult> {
-  const { data } = await menuApi.post('/menu/delivery/calculate', { latitude, longitude })
+  const { data } = await menuApi.post('/menu/delivery/calculate', payload)
+  return data.data
+}
+
+export interface PublicNeighborhood {
+  id: string
+  name: string
+  fee: number
+  etaMin: number
+}
+
+export async function listAvailableNeighborhoods(): Promise<PublicNeighborhood[]> {
+  const { data } = await menuApi.get('/menu/delivery/neighborhoods')
   return data.data
 }
 

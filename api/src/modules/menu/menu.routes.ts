@@ -7,7 +7,7 @@ import { publicTenantMiddleware } from '../../shared/middleware/tenant.middlewar
 import { prisma } from '../../shared/prisma/prisma'
 import { validateCoupon } from '../admin/coupons.service'
 import { calculateDeliverySchema, geocodeAddressSchema } from '../admin/delivery.schema'
-import { calculateDeliveryFee } from '../admin/delivery.service'
+import { calculateDeliveryFee, listAvailableNeighborhoods } from '../admin/delivery.service'
 
 import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
@@ -90,6 +90,20 @@ menuRouter.post(
       const input = calculateDeliverySchema.parse(req.body)
       const result = await calculateDeliveryFee(storeId, input)
       res.json({ success: true, data: result })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// GET /menu/delivery/neighborhoods — bairros disponíveis para o select do checkout.
+menuRouter.get(
+  '/delivery/neighborhoods',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const storeId = req.store!.id
+      const data = await listAvailableNeighborhoods(storeId)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }

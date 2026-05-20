@@ -10,46 +10,50 @@ datasource db {
 // ─── STORE (TENANT) ───────────────────────────────────────────────
 
 model Store {
-  id                   String        @id @default(uuid())
-  name                 String
-  slug                 String        @unique
-  customDomain         String?       @unique
-  description          String?
-  logo                 String?
+  id                            String        @id @default(uuid())
+  name                          String
+  slug                          String        @unique
+  customDomain                  String?       @unique
+  description                   String?
+  logo                          String?
   /// @deprecated v2.5 — substituído por cep/street/number/neighborhood/city/state. Remover em v2.6.
-  address              String?
-  segment              StoreSegment?
-  cep                  String?
-  street               String?
-  number               String?
-  neighborhood         String?
-  city                 String?
-  state                String?
-  phone                String
-  plan                 StorePlan     @default(PROFESSIONAL)
-  status               StoreStatus   @default(TRIAL)
-  features             Json
-  pixKey               String?
-  pixKeyType           PixKeyType?
-  latitude             Float?
-  longitude            Float?
-  addressLabel         String?
-  serviceChargePercent Float?
-  allowCashOnDelivery  Boolean       @default(true)
-  allowPickup          Boolean       @default(false)
-  allowDelivery        Boolean       @default(true)
-  allowTable           Boolean       @default(true)
-  manualOpen           Boolean       @default(false)
-  whatsappMode         WhatsAppMode  @default(WHATSAPP)
+  address                       String?
+  segment                       StoreSegment?
+  cep                           String?
+  street                        String?
+  number                        String?
+  neighborhood                  String?
+  city                          String?
+  state                         String?
+  phone                         String
+  plan                          StorePlan     @default(PROFESSIONAL)
+  status                        StoreStatus   @default(TRIAL)
+  features                      Json
+  pixKey                        String?
+  pixKeyType                    PixKeyType?
+  latitude                      Float?
+  longitude                     Float?
+  addressLabel                  String?
+  serviceChargePercent          Float?
+  allowCashOnDelivery           Boolean       @default(true)
+  allowPickup                   Boolean       @default(false)
+  allowDelivery                 Boolean       @default(true)
+  allowTable                    Boolean       @default(true)
+  manualOpen                    Boolean       @default(false)
+  prepTimeMin                   Int           @default(30)
+  freeDeliveryAboveCents        Int?
+  deliveryByDistanceEnabled     Boolean       @default(true)
+  deliveryByNeighborhoodEnabled Boolean       @default(true)
+  whatsappMode                  WhatsAppMode  @default(WHATSAPP)
   /// Número WhatsApp pareado (ex: "5511999999999"). Único globalmente — uma mesma
   /// conta WA não pode estar pareada em duas lojas, senão recebem o mesmo evento
   /// messages.upsert e respondem cada uma com greeting/IA própria, confundindo o cliente.
-  whatsappPairedNumber String?       @unique
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  stripeTrialEndsAt    DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  whatsappPairedNumber          String?       @unique
+  stripeCustomerId              String?
+  stripeSubscriptionId          String?
+  stripeTrialEndsAt             DateTime?
+  createdAt                     DateTime      @default(now())
+  updatedAt                     DateTime      @updatedAt
 
   users                 User[]
   products              Product[]
@@ -60,6 +64,7 @@ model Store {
   coupons               Coupon[]
   cashFlows             CashFlow[]
   deliveryDistances     DeliveryDistance[]
+  deliveryNeighborhoods DeliveryNeighborhood[]
   businessHours         BusinessHour[]
   clientPaymentAccesses ClientPaymentAccess[]
   auditLogs             AuditLog[]
@@ -251,40 +256,41 @@ model CustomerPhone {
 // ─── ORDERS ───────────────────────────────────────────────────────
 
 model Order {
-  id                   String        @id @default(uuid())
-  storeId              String
-  number               Int
-  clientId             String?
-  clientWhatsapp       String?
-  clientName           String?
-  type                 OrderType
-  status               OrderStatus   @default(WAITING_CONFIRMATION)
-  paymentMethod        PaymentMethod
-  deliveryFee          Float         @default(0)
-  subtotal             Float
-  discount             Float         @default(0)
-  total                Float
-  address              Json?
-  notes                String?
-  tableId              String?
-  tableSessionId       String?
-  deviceName           String?
-  motoboyId            String?
-  couponId             String?
-  scheduledFor         DateTime?
-  confirmedAt          DateTime?
-  preparedAt           DateTime?
-  dispatchedAt         DateTime?
-  deliveredAt          DateTime?
-  cancelledAt          DateTime?
-  cancellationReason   String?
-  deliveryIssueReason  String?
-  notifyOnStatusChange Boolean       @default(false)
-  customerSessionId    String?
-  paymentReceivedAt    DateTime?
-  paymentReceivedById  String?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  id                     String        @id @default(uuid())
+  storeId                String
+  number                 Int
+  clientId               String?
+  clientWhatsapp         String?
+  clientName             String?
+  type                   OrderType
+  status                 OrderStatus   @default(WAITING_CONFIRMATION)
+  paymentMethod          PaymentMethod
+  deliveryFee            Float         @default(0)
+  subtotal               Float
+  discount               Float         @default(0)
+  total                  Float
+  address                Json?
+  notes                  String?
+  tableId                String?
+  tableSessionId         String?
+  deviceName             String?
+  motoboyId              String?
+  couponId               String?
+  deliveryNeighborhoodId String?
+  scheduledFor           DateTime?
+  confirmedAt            DateTime?
+  preparedAt             DateTime?
+  dispatchedAt           DateTime?
+  deliveredAt            DateTime?
+  cancelledAt            DateTime?
+  cancellationReason     String?
+  deliveryIssueReason    String?
+  notifyOnStatusChange   Boolean       @default(false)
+  customerSessionId      String?
+  paymentReceivedAt      DateTime?
+  paymentReceivedById    String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   store             Store         @relation(fields: [storeId], references: [id])
   client            User?         @relation("ClientOrders", fields: [clientId], references: [id])
@@ -338,15 +344,15 @@ model OrderItemAdditional {
 // ─── TABLE / COMANDA ──────────────────────────────────────────────
 
 model Table {
-  id         String   @id @default(uuid())
-  storeId    String
-  number     Int
-  isOccupied Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id          String   @id @default(uuid())
+  storeId     String
+  number      Int
+  isOccupied  Boolean  @default(false)
+  createdAt   DateTime @default(now())
   // Hash não-adivinhável que vai no QR (URL: /mesa/<accessToken>). Sem isso,
   // qualquer cliente conseguiria abrir sessão da mesa do vizinho digitando o
   // número. Fixo por mesa — bookmark do cliente continua valendo entre sessões.
-  accessToken String  @unique
+  accessToken String   @unique
 
   store    Store          @relation(fields: [storeId], references: [id])
   orders   Order[]
@@ -361,14 +367,14 @@ model Table {
 // no banco que só pode haver UMA sessão OPEN por mesa — segunda tentativa de
 // abrir falha com violation, então o front sempre cai no caminho "join".
 model TableSession {
-  id       String             @id @default(uuid())
-  storeId  String
-  tableId  String
-  token    String             @unique
-  status   TableSessionStatus @default(OPEN)
-  openedAt DateTime           @default(now())
-  closedAt DateTime?
-  closedBy String?
+  id               String             @id @default(uuid())
+  storeId          String
+  tableId          String
+  token            String             @unique
+  status           TableSessionStatus @default(OPEN)
+  openedAt         DateTime           @default(now())
+  closedAt         DateTime?
+  closedBy         String?
   // Cliente clicou em "Pedir conta" no /comanda — admin precisa atender.
   // Limpa quando garçom recebe o pagamento (ou quando reseta manualmente).
   checkRequestedAt DateTime?
@@ -477,14 +483,32 @@ model BusinessHour {
 }
 
 model DeliveryDistance {
-  id      String @id @default(uuid())
-  storeId String
-  minKm   Float
-  maxKm   Float
-  fee     Float
+  id          String  @id @default(uuid())
+  storeId     String
+  maxKm       Float
+  fee         Float
+  etaMin      Int     @default(0)
+  isAvailable Boolean @default(true)
+  sortOrder   Int     @default(0)
 
   store Store @relation(fields: [storeId], references: [id])
 
+  @@index([storeId])
+}
+
+model DeliveryNeighborhood {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  fee         Float
+  etaMin      Int      @default(0)
+  isAvailable Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, name])
   @@index([storeId])
 }
 

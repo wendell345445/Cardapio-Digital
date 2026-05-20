@@ -57,6 +57,10 @@ export const updatePaymentSettingsSchema = z.object({
   allowPickup: z.boolean().optional(),
   allowDelivery: z.boolean().optional(),
   allowTable: z.boolean().optional(),
+  // Granularidade dentro de Entrega: distância (Haversine) e/ou bairros cadastrados.
+  // allowDelivery=false desliga ambas no checkout independente desses flags.
+  deliveryByDistanceEnabled: z.boolean().optional(),
+  deliveryByNeighborhoodEnabled: z.boolean().optional(),
   serviceChargePercent: z.number().min(0).max(100).nullable().optional(),
 })
 

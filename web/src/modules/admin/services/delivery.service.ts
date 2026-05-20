@@ -4,30 +4,64 @@ import { api } from '@/shared/lib/api'
 
 export interface DistanceRange {
   id: string
-  minKm: number
   maxKm: number
   fee: number
+  etaMin: number
+  isAvailable: boolean
+  sortOrder?: number
 }
 
-export interface DeliveryConfig {
+export interface Neighborhood {
+  id: string
+  name: string
+  fee: number
+  etaMin: number
+  isAvailable: boolean
+  sortOrder?: number
+}
+
+export interface DeliverySettings {
+  prepTimeMin: number
+  freeDeliveryAboveCents: number | null
+}
+
+export interface DeliveryConfig extends DeliverySettings {
   latitude: number | null
   longitude: number | null
   addressLabel: string | null
   distances: DistanceRange[]
+  neighborhoods: Neighborhood[]
 }
 
 export interface CreateDistanceData {
-  minKm: number
   maxKm: number
   fee: number
+  etaMin: number
+  isAvailable: boolean
 }
 
 export type UpdateDistanceData = Partial<CreateDistanceData>
+
+export interface CreateNeighborhoodData {
+  name: string
+  fee: number
+  etaMin: number
+  isAvailable: boolean
+}
+
+export type UpdateNeighborhoodData = Partial<CreateNeighborhoodData>
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
 export async function getDeliveryConfig(): Promise<DeliveryConfig> {
   const { data } = await api.get('/admin/delivery')
+  return data.data
+}
+
+export async function updateDeliverySettings(
+  payload: Partial<DeliverySettings>
+): Promise<DeliverySettings & { id: string }> {
+  const { data } = await api.patch('/admin/delivery/settings', payload)
   return data.data
 }
 
@@ -46,6 +80,25 @@ export async function updateDistance(
 
 export async function deleteDistance(id: string): Promise<void> {
   await api.delete(`/admin/delivery/distances/${id}`)
+}
+
+export async function createNeighborhood(
+  payload: CreateNeighborhoodData
+): Promise<Neighborhood> {
+  const { data } = await api.post('/admin/delivery/neighborhoods', payload)
+  return data.data
+}
+
+export async function updateNeighborhood(
+  id: string,
+  payload: UpdateNeighborhoodData
+): Promise<Neighborhood> {
+  const { data } = await api.patch(`/admin/delivery/neighborhoods/${id}`, payload)
+  return data.data
+}
+
+export async function deleteNeighborhood(id: string): Promise<void> {
+  await api.delete(`/admin/delivery/neighborhoods/${id}`)
 }
 
 export async function setStoreCoordinates(

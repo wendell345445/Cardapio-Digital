@@ -10,6 +10,7 @@ jest.mock('../../shared/prisma/prisma', () => ({
     product: { findUnique: jest.fn() },
     coupon: { findUnique: jest.fn(), findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
     deliveryDistance: { findMany: jest.fn() },
+    deliveryNeighborhood: { findMany: jest.fn(), findUnique: jest.fn() },
     user: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
     order: { findFirst: jest.fn(), findUnique: jest.fn(), findMany: jest.fn(), create: jest.fn() },
     customer: { findUnique: jest.fn() },
@@ -98,6 +99,10 @@ const mockStore = {
   allowCashOnDelivery: true,
   allowPickup: true,
   allowDelivery: true,
+  allowTable: true,
+  deliveryByDistanceEnabled: true,
+  deliveryByNeighborhoodEnabled: true,
+  freeDeliveryAboveCents: null,
   manualOpen: true,
   features: { allowPix: true },
   plan: 'PROFESSIONAL',
@@ -672,7 +677,7 @@ describe('POST /api/v1/menu/delivery/calculate', () => {
       .mockResolvedValueOnce(mockStore)
       .mockResolvedValueOnce({ latitude: -23.5505, longitude: -46.6333 })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
-      { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 10.0 },
+      { id: 'd1', storeId: STORE_ID, maxKm: 50, fee: 10.0, etaMin: 30, isAvailable: true },
     ])
 
     const res = await request(app)
@@ -684,7 +689,7 @@ describe('POST /api/v1/menu/delivery/calculate', () => {
     expect(res.body.data.fee).toBe(10.0)
   })
 
-  it('retorna 400 quando payload não tem lat/lng (regressão: campo `neighborhood` não aceito)', async () => {
+  it('retorna 400 quando payload não tem lat/lng nem neighborhoodId', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
 
     const res = await request(app)

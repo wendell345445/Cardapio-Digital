@@ -8,6 +8,8 @@ import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import {
   calculateDeliveryFee as fetchDeliveryFee,
   geocodeAddress as fetchGeocode,
+  listAvailableNeighborhoods,
+  type PublicNeighborhood,
   validateCouponPublic,
 } from '../services/orders.service'
 import { getCustomerName } from '../lib/customerName'
@@ -36,13 +38,16 @@ export interface CheckoutNavState {
     street: string
     number: string
     complement?: string
-    neighborhood: string
-    city: string
+    // Opcionais no modo bairro (cidade não é coletada).
+    neighborhood?: string
+    city?: string
     state?: string
     zipCode?: string
     /** Coords resolvidas pelo Google Geocoding ou coladas pelo cliente. */
     manualCoordinates?: { latitude: number; longitude: number }
   }
+  /** Modo bairro: id do bairro escolhido. Backend cobra a taxa fixa cadastrada. */
+  deliveryNeighborhoodId?: string
   couponCode?: string
   notes?: string
 }
@@ -172,6 +177,32 @@ export function CheckoutPage() {
   const [feeError, setFeeError] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
 
+  // Modo "Por bairro": se a loja cadastrou bairros, o cliente escolhe um no
+  // sheet de endereço (substitui o input livre) e a taxa vem fixa do backend.
+  const [availableNeighborhoods, setAvailableNeighborhoods] = useState<PublicNeighborhood[]>([])
+  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(null)
+
+  const deliveryByDistanceOn = menu?.store?.deliveryByDistanceEnabled !== false
+  const deliveryByNeighborhoodOn = menu?.store?.deliveryByNeighborhoodEnabled !== false
+
+  useEffect(() => {
+    if (!deliveryByNeighborhoodOn) {
+      setAvailableNeighborhoods([])
+      return
+    }
+    let cancelled = false
+    listAvailableNeighborhoods()
+      .then((list) => {
+        if (!cancelled) setAvailableNeighborhoods(list)
+      })
+      .catch(() => {
+        // Loja sem bairros cadastrados → mantém fluxo de endereço/distância.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [deliveryByNeighborhoodOn])
+
   // Cart vazio → cardápio (proteção contra entrar direto na URL).
   useEffect(() => {
     if (items.length === 0) navigate('/', { replace: true })
@@ -217,7 +248,10 @@ export function CheckoutPage() {
 
         // Já temos coords — calcula a taxa contra a loja.
         try {
-          const result = await fetchDeliveryFee(resolved.latitude, resolved.longitude)
+          const result = await fetchDeliveryFee({
+            latitude: resolved.latitude,
+            longitude: resolved.longitude,
+          })
           setDeliveryFee(result.fee)
           setDeliveryDistance(result.distance ?? null)
         } catch (feeErr: unknown) {
@@ -262,6 +296,8 @@ export function CheckoutPage() {
   // Quando endereço fica completo no modo "endereco" → busca coords + taxa.
   // Se já temos coords (vieram do Google Places ou modal manual), passa
   // direto pra `lookupDeliveryFee` que pula o geocoding e calcula taxa.
+  // Modo bairro: se selectedNeighborhoodId estiver setado, calcula taxa
+  // direto via id (taxa fixa do bairro) e ignora geocode.
   useEffect(() => {
     if (deliveryMethod !== 'endereco') {
       setCoords(null)
@@ -270,6 +306,30 @@ export function CheckoutPage() {
       setFeeError('')
       return
     }
+
+    if (selectedNeighborhoodId) {
+      let cancelled = false
+      setFeeLoading(true)
+      setFeeError('')
+      fetchDeliveryFee({ neighborhoodId: selectedNeighborhoodId })
+        .then((r) => {
+          if (cancelled) return
+          setDeliveryFee(r.fee)
+          setDeliveryDistance(null)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setFeeError('Não foi possível calcular a taxa do bairro.')
+          setDeliveryFee(0)
+        })
+        .finally(() => {
+          if (!cancelled) setFeeLoading(false)
+        })
+      return () => {
+        cancelled = true
+      }
+    }
+
     if (!isAddressComplete(address)) return
 
     lookupDeliveryFee(
@@ -283,6 +343,7 @@ export function CheckoutPage() {
     )
   }, [
     deliveryMethod,
+    selectedNeighborhoodId,
     address.street,
     address.number,
     address.noNumber,
@@ -332,7 +393,13 @@ export function CheckoutPage() {
   if (items.length === 0) return null
 
   const store = menu?.store
-  const allowDelivery = store?.allowDelivery !== false
+  // Granularidade: a loja pode ter Entrega global ligada mas todas as sub-modalidades
+  // desligadas — nesse caso, esconde delivery do checkout. Se distância está off e
+  // não há bairros cadastrados, também não há como atender.
+  const hasAnyDeliveryMode =
+    (deliveryByDistanceOn) ||
+    (deliveryByNeighborhoodOn && availableNeighborhoods.length > 0)
+  const allowDelivery = store?.allowDelivery !== false && hasAnyDeliveryMode
   const allowPickup = !!store?.allowPickup
 
   // "Fora da área de entrega" bloqueia o avanço — não faz sentido o cliente
@@ -343,7 +410,11 @@ export function CheckoutPage() {
     if (inTableMode) return true
     if (!deliveryMethod) return false
     if (deliveryMethod === 'endereco') {
-      if (!isAddressComplete(address)) return false
+      // Modo bairro não exige cidade (escondida no sheet): basta rua+número+bairro.
+      const ok = selectedNeighborhoodId
+        ? !!address.street.trim() && (!!address.number.trim() || address.noNumber)
+        : isAddressComplete(address)
+      if (!ok) return false
       if (feeLoading) return false
       if (isOutOfArea) return false
       // Outros erros de cálculo (loja sem faixas configuradas, etc) — a loja
@@ -366,21 +437,22 @@ export function CheckoutPage() {
       clientName,
       couponCode: appliedCoupon?.code,
       notes: notes.trim() || undefined,
+      deliveryNeighborhoodId:
+        deliveryMethod === 'endereco' && !inTableMode && selectedNeighborhoodId
+          ? selectedNeighborhoodId
+          : undefined,
       address:
         deliveryMethod === 'endereco' && !inTableMode
           ? {
               zipCode: address.cep.replace(/\D/g, '') || undefined,
               street: address.street.trim(),
               number: address.noNumber ? 'S/N' : address.number.trim(),
-              // Complemento + referência viram um campo só pro backend
-              // (modelo Order só tem `complement`). Separa por " | " quando
-              // os dois existem.
               complement:
                 [address.complement.trim(), address.reference.trim()]
                   .filter(Boolean)
                   .join(' | ') || undefined,
-              neighborhood: address.neighborhood.trim(),
-              city: address.city.trim(),
+              neighborhood: address.neighborhood.trim() || undefined,
+              city: address.city.trim() || undefined,
               state: address.state.trim() || undefined,
               manualCoordinates: coords ?? undefined,
             }
@@ -813,15 +885,17 @@ export function CheckoutPage() {
       {showAddressSheet && (
         <AddressBottomSheet
           initial={address}
+          neighborhoods={availableNeighborhoods}
+          initialNeighborhoodId={selectedNeighborhoodId}
           onClose={() => setShowAddressSheet(false)}
-          onSave={(saved, placesCoords) => {
+          onSave={(saved, placesCoords, neighborhoodId) => {
             setAddress(saved)
             setDeliveryMethod('endereco')
             setShowAddressSheet(false)
-            // Se cliente usou Places ou CEP do Google, já temos lat/lng
-            // confiável — pula geocoding e usa direto pra calcular taxa.
-            // Caso contrário, reseta coords pra forçar geocoding no useEffect.
-            setCoords(placesCoords ?? null)
+            setSelectedNeighborhoodId(neighborhoodId ?? null)
+            // Se modo bairro, coords não importam pro cálculo de taxa.
+            // Caso contrário, reaplica coords vindas do Places se houver.
+            setCoords(neighborhoodId ? null : (placesCoords ?? null))
           }}
         />
       )}
@@ -1143,12 +1217,20 @@ function SavedAddressSheet({
 
 function AddressBottomSheet({
   initial,
+  neighborhoods,
+  initialNeighborhoodId,
   onClose,
   onSave,
 }: {
   initial: AddressSheetState
+  neighborhoods: PublicNeighborhood[]
+  initialNeighborhoodId: string | null
   onClose: () => void
-  onSave: (addr: AddressSheetState, coords?: { latitude: number; longitude: number }) => void
+  onSave: (
+    addr: AddressSheetState,
+    coords?: { latitude: number; longitude: number },
+    neighborhoodId?: string | null
+  ) => void
 }) {
   const [draft, setDraft] = useState<AddressSheetState>(initial)
   const [cepLoading, setCepLoading] = useState(false)
@@ -1159,7 +1241,19 @@ function AddressBottomSheet({
   const [placeCoords, setPlaceCoords] = useState<{ latitude: number; longitude: number } | null>(
     null
   )
-  const canSave = isAddressComplete(draft)
+  const [selectedNeighborhoodId, setSelectedNeighborhoodId] = useState<string | null>(
+    initialNeighborhoodId
+  )
+  const hasNeighborhoodMode = neighborhoods.length > 0
+  // Quando a loja entrega por bairro, o sheet abre em modo bairro por padrão.
+  // Cliente pode trocar pra CEP (form completo) via link no topo.
+  // Se o cliente já tinha um endereço sem neighborhoodId salvo, abre em CEP.
+  const [useCepMode, setUseCepMode] = useState<boolean>(
+    !hasNeighborhoodMode || (!initialNeighborhoodId && isAddressComplete(initial))
+  )
+  const canSave = useCepMode
+    ? isAddressComplete(draft)
+    : !!selectedNeighborhoodId && !!draft.street.trim() && (!!draft.number.trim() || draft.noNumber)
 
   const update = <K extends keyof AddressSheetState>(field: K, value: AddressSheetState[K]) => {
     setDraft((d) => ({ ...d, [field]: value }))
@@ -1325,49 +1419,75 @@ function AddressBottomSheet({
           </button>
         </div>
 
+        {/* Toggle de modo (só quando loja tem bairros cadastrados).
+            Modo bairro = select de bairro + rua + número (sem CEP/cidade).
+            Modo CEP = fluxo completo com lookup automático. */}
+        {hasNeighborhoodMode && (
+          <button
+            type="button"
+            onClick={() => {
+              setUseCepMode((v) => !v)
+              // Limpa estado oposto pra não enviar dado misturado.
+              if (!useCepMode) {
+                // entrando em modo CEP
+                setSelectedNeighborhoodId(null)
+              } else {
+                // voltando pra bairro
+                setDraft((d) => ({ ...d, cep: '', city: '', state: '' }))
+                setCepError('')
+                setNeedsPlaces(false)
+              }
+            }}
+            className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-semibold text-menu-primary"
+          >
+            {useCepMode ? '← Selecionar bairro' : 'Buscar por endereço (CEP) →'}
+          </button>
+        )}
+
         <div className="mt-4 grid grid-cols-1 gap-3">
           {/* CEP — auto-preenche os outros campos via /cep/lookup. Não bloqueia
               o cliente: se não souber, pode pular e preencher manual. */}
-          <label className="block">
-            <span className="mb-1.5 flex items-center justify-between">
-              <span className="text-[11px] font-semibold leading-none tracking-[-0.1px] text-[#5f5656]">
-                CEP
-              </span>
-              {cepLoading && (
-                <span className="text-[10px] text-menu-text-soft">Buscando…</span>
-              )}
-            </span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              placeholder="00000-000"
-              value={draft.cep}
-              onChange={(e) => handleCepChange(e.target.value)}
-              maxLength={9}
-              className="h-[44px] w-full rounded-[15px] bg-white px-3 text-[13px] font-medium text-menu-text outline-none placeholder:text-[#aaa0a0]"
-              style={{ border: '0.6px solid rgba(65, 57, 57, 0.13)', fontSize: 16 }}
-            />
-            {cepError && (
-              <span className="mt-1 block text-[10px] text-amber-600">
-                {cepError} — preencha os campos manualmente.
-              </span>
-            )}
-          </label>
+          {useCepMode && (
+            <>
+              <label className="block">
+                <span className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold leading-none tracking-[-0.1px] text-[#5f5656]">
+                    CEP
+                  </span>
+                  {cepLoading && (
+                    <span className="text-[10px] text-menu-text-soft">Buscando…</span>
+                  )}
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="00000-000"
+                  value={draft.cep}
+                  onChange={(e) => handleCepChange(e.target.value)}
+                  maxLength={9}
+                  className="h-[44px] w-full rounded-[15px] bg-white px-3 text-[13px] font-medium text-menu-text outline-none placeholder:text-[#aaa0a0]"
+                  style={{ border: '0.6px solid rgba(65, 57, 57, 0.13)', fontSize: 16 }}
+                />
+                {cepError && (
+                  <span className="mt-1 block text-[10px] text-amber-600">
+                    {cepError} — preencha os campos manualmente.
+                  </span>
+                )}
+              </label>
 
-          {/* Places fallback: ViaCEP retornou CEP genérico (sem rua/bairro).
-              Cliente busca pelo nome do logradouro e Places preenche tudo
-              + lat/lng. Continua editável depois — se mexer manualmente,
-              perdemos o lat/lng do Places e voltamos pro Google Geocoding. */}
-          {needsPlaces && (
-            <div className="rounded-[15px] bg-[#fff8f0] px-3 py-3" style={{ border: '0.6px solid rgba(202, 138, 4, 0.20)' }}>
-              <p className="mb-2 text-[11px] font-semibold leading-[14px] tracking-[-0.1px] text-amber-700">
-                Esse CEP é genérico — busque pelo nome da rua:
-              </p>
-              <AddressAutocomplete
-                onSelect={handlePlaceSelect}
-                placeholder="Ex: Rua Raul Soares, Salinas..."
-              />
-            </div>
+              {/* Places fallback: ViaCEP retornou CEP genérico (sem rua/bairro). */}
+              {needsPlaces && (
+                <div className="rounded-[15px] bg-[#fff8f0] px-3 py-3" style={{ border: '0.6px solid rgba(202, 138, 4, 0.20)' }}>
+                  <p className="mb-2 text-[11px] font-semibold leading-[14px] tracking-[-0.1px] text-amber-700">
+                    Esse CEP é genérico — busque pelo nome da rua:
+                  </p>
+                  <AddressAutocomplete
+                    onSelect={handlePlaceSelect}
+                    placeholder="Ex: Rua Raul Soares, Salinas..."
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <AddressField
@@ -1423,19 +1543,52 @@ function AddressBottomSheet({
             </button>
           </div>
 
-          <AddressField
-            label="Bairro"
-            placeholder="Centro"
-            value={draft.neighborhood}
-            onChange={(v) => update('neighborhood', v)}
-          />
-
-          <AddressField
-            label="Cidade"
-            placeholder="Salinas"
-            value={draft.city}
-            onChange={(v) => update('city', v)}
-          />
+          {hasNeighborhoodMode && !useCepMode ? (
+            <div>
+              <span className="mb-1.5 block text-[11px] font-semibold leading-none tracking-[-0.1px] text-[#5f5656]">
+                Bairro <span className="text-menu-primary">*</span>
+              </span>
+              <select
+                value={selectedNeighborhoodId ?? ''}
+                onChange={(e) => {
+                  const id = e.target.value || null
+                  setSelectedNeighborhoodId(id)
+                  const picked = neighborhoods.find((n) => n.id === id)
+                  if (picked) {
+                    setDraft((d) => ({ ...d, neighborhood: picked.name }))
+                  }
+                }}
+                className="h-[44px] w-full rounded-[15px] bg-white px-3 text-[13px] font-medium text-menu-text outline-none"
+                style={{ border: '0.6px solid rgba(65, 57, 57, 0.13)', fontSize: 16 }}
+              >
+                <option value="">Selecione um bairro…</option>
+                {neighborhoods.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[10px] text-menu-text-soft">
+                Atendemos apenas os bairros listados. Se o seu não estiver aqui, use a busca por
+                CEP acima.
+              </p>
+            </div>
+          ) : (
+            <>
+              <AddressField
+                label="Bairro"
+                placeholder="Centro"
+                value={draft.neighborhood}
+                onChange={(v) => update('neighborhood', v)}
+              />
+              <AddressField
+                label="Cidade"
+                placeholder="Salinas"
+                value={draft.city}
+                onChange={(v) => update('city', v)}
+              />
+            </>
+          )}
 
           <AddressField
             label="Complemento"
@@ -1493,7 +1646,14 @@ function AddressBottomSheet({
           </button>
           <button
             type="button"
-            onClick={() => canSave && onSave(draft, placeCoords ?? undefined)}
+            onClick={() =>
+              canSave &&
+              onSave(
+                draft,
+                placeCoords ?? undefined,
+                useCepMode ? null : selectedNeighborhoodId
+              )
+            }
             disabled={!canSave}
             className={`flex h-[46px] flex-1 items-center justify-center rounded-full text-[14px] font-bold active:scale-[0.99] ${
               canSave

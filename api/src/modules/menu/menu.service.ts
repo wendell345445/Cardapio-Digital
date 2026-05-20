@@ -147,6 +147,8 @@ export async function getMenu(slug: string) {
       allowCashOnDelivery: true,
       allowPickup: true,
       allowDelivery: true,
+      deliveryByDistanceEnabled: true,
+      deliveryByNeighborhoodEnabled: true,
       manualOpen: true,
       features: true,
       plan: true,

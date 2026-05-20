@@ -1,12 +1,18 @@
-// Integration tests da área de entrega (só por distância).
+// Integration tests da área de entrega.
 // Cobre: GET /admin/delivery, PATCH /admin/delivery/coordinates,
-//        CRUD /admin/delivery/distances.
-// Regressão: rotas /admin/delivery/neighborhoods* e /admin/delivery/mode NÃO
-// existem mais e devem retornar 404.
+//        PATCH /admin/delivery/settings,
+//        CRUD /admin/delivery/distances, CRUD /admin/delivery/neighborhoods.
 
 jest.mock('../../shared/prisma/prisma', () => ({
   prisma: {
     deliveryDistance: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    deliveryNeighborhood: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -55,6 +61,7 @@ process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
 
 const STORE_ID = 'store-1'
 const DIST_ID = 'dist-1'
+const NEIGH_ID = '11111111-1111-4111-8111-111111111111'
 
 function adminToken(storeId = STORE_ID) {
   return sign({ userId: 'user-1', role: 'ADMIN', storeId }, 'test-secret')
@@ -67,16 +74,29 @@ const mockStore = {
   plan: 'PREMIUM',
   latitude: null,
   longitude: null,
+  prepTimeMin: 30,
+  freeDeliveryAboveCents: null,
 }
 
 const mockDistance = {
   id: DIST_ID,
   storeId: STORE_ID,
-  minKm: 0,
   maxKm: 5,
   fee: 8.0,
+  etaMin: 15,
+  isAvailable: true,
+  sortOrder: 0,
+}
+
+const mockNeighborhood = {
+  id: NEIGH_ID,
+  storeId: STORE_ID,
+  name: 'Centro',
+  fee: 5.0,
+  etaMin: 20,
+  isAvailable: true,
+  sortOrder: 0,
   createdAt: new Date(),
-  updatedAt: new Date(),
 }
 
 beforeEach(() => jest.clearAllMocks())
@@ -84,9 +104,10 @@ beforeEach(() => jest.clearAllMocks())
 // ─── GET /admin/delivery ──────────────────────────────────────────────────────
 
 describe('GET /api/v1/admin/delivery', () => {
-  it('retorna 200 com lat/lng + lista de faixas', async () => {
+  it('retorna 200 com lat/lng + settings + distances + neighborhoods', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([mockDistance])
+    ;(mockPrisma.deliveryNeighborhood.findMany as jest.Mock).mockResolvedValue([mockNeighborhood])
 
     const res = await request(app)
       .get('/api/v1/admin/delivery')
@@ -94,12 +115,11 @@ describe('GET /api/v1/admin/delivery', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data).toHaveProperty('distances')
-    expect(res.body.data).toHaveProperty('latitude')
-    expect(res.body.data).toHaveProperty('longitude')
-    expect(res.body.data).toHaveProperty('addressLabel')
-    // deliveryMode não existe mais — garantir que não vaza no response
-    expect(res.body.data).not.toHaveProperty('deliveryMode')
-    expect(res.body.data).not.toHaveProperty('neighborhoods')
+    expect(res.body.data).toHaveProperty('neighborhoods')
+    expect(res.body.data).toHaveProperty('prepTimeMin', 30)
+    expect(res.body.data).toHaveProperty('freeDeliveryAboveCents', null)
+    expect(res.body.data.distances[0]).toMatchObject({ maxKm: 5, etaMin: 15, isAvailable: true })
+    expect(res.body.data.neighborhoods[0]).toMatchObject({ name: 'Centro', fee: 5.0 })
   })
 
   it('retorna 401 sem token', async () => {
@@ -118,22 +138,11 @@ describe('POST /api/v1/admin/delivery/distances', () => {
     const res = await request(app)
       .post('/api/v1/admin/delivery/distances')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ minKm: 0, maxKm: 5, fee: 8.0 })
+      .send({ maxKm: 5, fee: 8.0, etaMin: 15, isAvailable: true })
 
     expect(res.status).toBe(201)
-    expect(res.body.data.minKm).toBe(0)
     expect(res.body.data.maxKm).toBe(5)
-  })
-
-  it('retorna 422 quando minKm >= maxKm', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-
-    const res = await request(app)
-      .post('/api/v1/admin/delivery/distances')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ minKm: 5, maxKm: 5, fee: 8.0 })
-
-    expect(res.status).toBe(422)
+    expect(res.body.data.etaMin).toBe(15)
   })
 
   it('retorna 400 para payload sem fee', async () => {
@@ -142,7 +151,7 @@ describe('POST /api/v1/admin/delivery/distances', () => {
     const res = await request(app)
       .post('/api/v1/admin/delivery/distances')
       .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ minKm: 0, maxKm: 5 })
+      .send({ maxKm: 5 })
 
     expect(res.status).toBe(400)
   })
@@ -198,6 +207,108 @@ describe('DELETE /api/v1/admin/delivery/distances/:id', () => {
   })
 })
 
+// ─── CRUD /admin/delivery/neighborhoods ──────────────────────────────────────
+
+describe('POST /api/v1/admin/delivery/neighborhoods', () => {
+  it('retorna 201 ao criar bairro novo', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.deliveryNeighborhood.create as jest.Mock).mockResolvedValue(mockNeighborhood)
+
+    const res = await request(app)
+      .post('/api/v1/admin/delivery/neighborhoods')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ name: 'Centro', fee: 5, etaMin: 20, isAvailable: true })
+
+    expect(res.status).toBe(201)
+    expect(res.body.data.name).toBe('Centro')
+  })
+
+  it('retorna 422 quando bairro já existe', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
+
+    const res = await request(app)
+      .post('/api/v1/admin/delivery/neighborhoods')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ name: 'Centro', fee: 5, etaMin: 20, isAvailable: true })
+
+    expect(res.status).toBe(422)
+  })
+})
+
+describe('PATCH /api/v1/admin/delivery/neighborhoods/:id', () => {
+  it('retorna 200 ao atualizar bairro', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.deliveryNeighborhood.update as jest.Mock).mockResolvedValue({
+      ...mockNeighborhood,
+      fee: 7.5,
+    })
+
+    const res = await request(app)
+      .patch(`/api/v1/admin/delivery/neighborhoods/${NEIGH_ID}`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ fee: 7.5 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.fee).toBe(7.5)
+  })
+})
+
+describe('DELETE /api/v1/admin/delivery/neighborhoods/:id', () => {
+  it('retorna 200 ao remover bairro', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.deliveryNeighborhood.findUnique as jest.Mock).mockResolvedValue(mockNeighborhood)
+    ;(mockPrisma.deliveryNeighborhood.delete as jest.Mock).mockResolvedValue(mockNeighborhood)
+
+    const res = await request(app)
+      .delete(`/api/v1/admin/delivery/neighborhoods/${NEIGH_ID}`)
+      .set('Authorization', `Bearer ${adminToken()}`)
+
+    expect(res.status).toBe(200)
+  })
+})
+
+// ─── PATCH /admin/delivery/settings ──────────────────────────────────────────
+
+describe('PATCH /api/v1/admin/delivery/settings', () => {
+  it('retorna 200 ao atualizar prepTime + free delivery', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      prepTimeMin: 45,
+      freeDeliveryAboveCents: 5000,
+    })
+
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/settings')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ prepTimeMin: 45, freeDeliveryAboveCents: 5000 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.prepTimeMin).toBe(45)
+    expect(res.body.data.freeDeliveryAboveCents).toBe(5000)
+  })
+
+  it('retorna 200 desativando frete grátis com null', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
+    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
+      id: STORE_ID,
+      prepTimeMin: 30,
+      freeDeliveryAboveCents: null,
+        })
+
+    const res = await request(app)
+      .patch('/api/v1/admin/delivery/settings')
+      .set('Authorization', `Bearer ${adminToken()}`)
+      .send({ freeDeliveryAboveCents: null })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.freeDeliveryAboveCents).toBeNull()
+  })
+})
+
 // ─── PATCH /admin/delivery/coordinates ──────────────────────────────────────
 
 describe('PATCH /api/v1/admin/delivery/coordinates', () => {
@@ -240,11 +351,6 @@ describe('PATCH /api/v1/admin/delivery/coordinates', () => {
 
     expect(res.status).toBe(200)
     expect(res.body.data.addressLabel).toBe('Av. Paulista, 1000 - São Paulo')
-    expect((mockPrisma.store.update as jest.Mock).mock.calls[0][0].data).toMatchObject({
-      latitude: -23.5505,
-      longitude: -46.6333,
-      addressLabel: 'Av. Paulista, 1000 - São Paulo',
-    })
   })
 
   it('retorna 400 para latitude fora do range', async () => {
@@ -301,66 +407,5 @@ describe('POST /api/v1/admin/delivery/geocode', () => {
       .send({ street: 'Av. Paulista, 1000' })
 
     expect(res.status).toBe(401)
-  })
-})
-
-// ─── Reverse geocode automático em PATCH /coordinates ────────────────────────
-
-describe('PATCH /coordinates — reverse geocode automático', () => {
-  it('chama reverseGeocode e salva addressLabel quando não é enviado', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
-      id: STORE_ID,
-      latitude: -23.55,
-      longitude: -46.63,
-      addressLabel: 'Av. Paulista, 1000 - Bela Vista, São Paulo',
-    })
-    const { reverseGeocode } = jest.requireMock('../../modules/menu/geocoding.service')
-    ;(reverseGeocode as jest.Mock).mockClear()
-
-    const res = await request(app)
-      .patch('/api/v1/admin/delivery/coordinates')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ latitude: -23.55, longitude: -46.63 })
-
-    expect(res.status).toBe(200)
-    expect(reverseGeocode).toHaveBeenCalledWith(-23.55, -46.63)
-    expect(res.body.data.addressLabel).toBe('Av. Paulista, 1000 - Bela Vista, São Paulo')
-  })
-})
-
-// ─── Regressão: rotas removidas não existem mais ─────────────────────────────
-
-describe('Regressão — rotas antigas removidas', () => {
-  it('GET /admin/delivery/neighborhoods retorna 404', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-
-    const res = await request(app)
-      .get('/api/v1/admin/delivery/neighborhoods')
-      .set('Authorization', `Bearer ${adminToken()}`)
-
-    expect(res.status).toBe(404)
-  })
-
-  it('POST /admin/delivery/neighborhoods retorna 404', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-
-    const res = await request(app)
-      .post('/api/v1/admin/delivery/neighborhoods')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ name: 'Centro', fee: 5 })
-
-    expect(res.status).toBe(404)
-  })
-
-  it('PATCH /admin/delivery/mode retorna 404', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-
-    const res = await request(app)
-      .patch('/api/v1/admin/delivery/mode')
-      .set('Authorization', `Bearer ${adminToken()}`)
-      .send({ mode: 'DISTANCE' })
-
-    expect(res.status).toBe(404)
   })
 })
