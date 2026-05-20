@@ -67,8 +67,8 @@ export function OrderSentAnimation() {
             <feDropShadow dx="0" dy="10" stdDeviation="10" floodColor="#403939" floodOpacity="0.10" />
           </filter>
           <linearGradient id="chefRed" x1="72" y1="80" x2="168" y2="170" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#f53b3b" />
-            <stop offset="1" stopColor="#c91f25" />
+            <stop stopColor="var(--menu-gradient-from)" />
+            <stop offset="1" stopColor="var(--menu-gradient-to)" />
           </linearGradient>
           <linearGradient id="paperGradient" x1="137" y1="61" x2="196" y2="170" gradientUnits="userSpaceOnUse">
             <stop stopColor="#ffffff" />
@@ -85,8 +85,8 @@ export function OrderSentAnimation() {
         <g filter="url(#chefSoftShadow)" style={{ animation: 'subtleFloat 3.4s ease-in-out infinite 0.9s' }}>
           <g style={{ animation: 'chefRise 0.78s cubic-bezier(0.22, 1, 0.36, 1) both' }}>
             <path d="M70 151C70 121.7 88.2 101 112 101C135.8 101 154 121.7 154 151V172H70V151Z" fill="#ffffff" stroke="rgba(65,57,57,0.10)" strokeWidth="1" />
-            <path d="M86 127H138" stroke="#ef2a30" strokeOpacity="0.22" strokeWidth="2" strokeLinecap="round" />
-            <path d="M94 139H130" stroke="#ef2a30" strokeOpacity="0.14" strokeWidth="2" strokeLinecap="round" />
+            <path d="M86 127H138" stroke="var(--menu-primary)" strokeOpacity="0.22" strokeWidth="2" strokeLinecap="round" />
+            <path d="M94 139H130" stroke="var(--menu-primary)" strokeOpacity="0.14" strokeWidth="2" strokeLinecap="round" />
             <circle cx="112" cy="84" r="27" fill="#f1c4ad" />
             <path d="M90 75C95 58 128 57 134 75C124 68 102 68 90 75Z" fill="#403939" fillOpacity="0.16" />
             <path d="M101 84H101.5" stroke="#403939" strokeWidth="3.4" strokeLinecap="round" />

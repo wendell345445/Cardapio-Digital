@@ -345,7 +345,7 @@ export function PagamentoPage() {
                   disabled={!canSubmit || mutation.isPending || availableOptions.length === 0 && !inTableMode}
                   className={`flex h-[42px] shrink-0 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-transform active:scale-[0.98] ${
                     canSubmit && !mutation.isPending
-                      ? 'bg-menu-primary text-white shadow-[0_6px_18px_rgba(239,42,48,0.25)]'
+                      ? 'bg-menu-primary text-white shadow-menu-lg'
                       : 'bg-[#f0eaea] text-[#9b9292]'
                   }`}
                 >
@@ -554,7 +554,7 @@ function CashChangeBottomSheet({
         <button
           type="button"
           onClick={onClose}
-          className="mt-4 flex h-[44px] w-full items-center justify-center rounded-full bg-menu-primary px-4 text-[14px] font-bold text-white shadow-[0_5px_16px_rgba(239,42,48,0.22)] active:scale-[0.99]"
+          className="mt-4 flex h-[44px] w-full items-center justify-center rounded-full bg-menu-primary px-4 text-[14px] font-bold text-white shadow-menu-md active:scale-[0.99]"
         >
           Confirmar
         </button>

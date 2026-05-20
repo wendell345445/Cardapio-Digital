@@ -19,7 +19,7 @@ export function SearchBar({ value, onChange, placeholder = 'Pesquisar' }: Props)
       </label>
 
       <div
-        className="relative flex h-[42px] w-full items-center overflow-hidden rounded-full bg-white shadow-[0_2px_8px_rgba(64,57,57,0.06)] transition-all duration-200 focus-within:shadow-[0_3px_12px_rgba(239,42,48,0.10)]"
+        className="relative flex h-[42px] w-full items-center overflow-hidden rounded-full bg-white shadow-[0_2px_8px_rgba(64,57,57,0.06)] transition-all duration-200 focus-within:shadow-menu-sm"
         style={{ border: '0.3px solid rgba(191, 180, 180, 0.4)' }}
       >
         <Search

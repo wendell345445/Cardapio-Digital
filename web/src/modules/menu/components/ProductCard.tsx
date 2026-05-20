@@ -115,8 +115,11 @@ export function ProductCard({ product, onNavigate }: Props) {
           type="button"
           aria-label={canQuickAdd ? `Adicionar ${product.name} ao carrinho` : `Ver opções de ${product.name}`}
           onClick={handleQuickAdd}
-          className="absolute bottom-[6px] right-[6px] flex h-5 w-5 items-center justify-center rounded-full shadow-[0_2px_8px_rgba(239,42,48,0.35)] transition-transform active:scale-90"
-          style={{ background: 'linear-gradient(135deg,#f53b3b 0%,#c91f25 100%)' }}
+          className="absolute bottom-[6px] right-[6px] flex h-5 w-5 items-center justify-center rounded-full shadow-menu-sm transition-transform active:scale-90"
+          style={{
+            background:
+              'linear-gradient(135deg, var(--menu-gradient-from) 0%, var(--menu-gradient-to) 100%)',
+          }}
         >
           <Plus className="h-[10px] w-[10px] text-white" strokeWidth={3} />
         </button>

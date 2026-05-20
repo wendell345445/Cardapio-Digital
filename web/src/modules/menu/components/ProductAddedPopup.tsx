@@ -133,7 +133,7 @@ export function ProductAddedPopup({
             </span>
 
             <div
-              className="flex h-[24px] min-w-[76px] items-center justify-between rounded-full bg-menu-primary px-1.5 text-white shadow-[0_3px_10px_rgba(239,42,48,0.18)]"
+              className="flex h-[24px] min-w-[76px] items-center justify-between rounded-full bg-menu-primary px-1.5 text-white shadow-menu-sm"
               role="group"
               aria-label="Controle de quantidade no carrinho"
             >
@@ -190,7 +190,7 @@ export function ProductAddedPopup({
             type="button"
             onClick={onContinueShopping}
             className="flex h-[42px] w-full items-center justify-center rounded-full bg-white text-[13px] font-bold leading-[18px] text-menu-primary transition-transform active:scale-[0.99]"
-            style={{ border: '1px solid rgba(239, 42, 48, 0.72)' }}
+            style={{ border: '1px solid color-mix(in srgb, var(--menu-primary) 72%, transparent)' }}
           >
             Continuar comprando
           </button>
@@ -198,7 +198,7 @@ export function ProductAddedPopup({
           <button
             type="button"
             onClick={onGoToCart}
-            className="flex h-[42px] w-full items-center justify-center rounded-full bg-menu-primary text-[13px] font-bold leading-[18px] text-white shadow-[0_5px_16px_rgba(239,42,48,0.22)] transition-transform active:scale-[0.99]"
+            className="flex h-[42px] w-full items-center justify-center rounded-full bg-menu-primary text-[13px] font-bold leading-[18px] text-white shadow-menu-md transition-transform active:scale-[0.99]"
           >
             Avançar para o carrinho
           </button>

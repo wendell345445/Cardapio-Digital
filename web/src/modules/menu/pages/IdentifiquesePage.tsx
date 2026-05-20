@@ -154,7 +154,7 @@ export function IdentifiquesePage() {
                 disabled={!canContinue}
                 className={`mt-2 flex h-12 w-full items-center justify-center rounded-full px-4 text-[15px] font-bold leading-[19px] transition-all duration-200 active:scale-[0.99] ${
                   canContinue
-                    ? 'bg-menu-primary text-white shadow-[0_6px_18px_rgba(239,42,48,0.22)]'
+                    ? 'bg-menu-primary text-white shadow-menu-lg'
                     : 'bg-[#f0eaea] text-[#9b9292]'
                 }`}
               >

@@ -144,7 +144,7 @@ export function CartPage() {
           <button
             type="button"
             onClick={handleCheckout}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-menu-primary px-4 text-base font-bold text-white shadow-[0_6px_18px_rgba(239,42,48,0.22)] transition-all duration-200 active:scale-[0.99]"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-menu-primary px-4 text-base font-bold text-white shadow-menu-lg transition-all duration-200 active:scale-[0.99]"
           >
             <span>Avançar</span>
             <span>{fmt(subtotalValue)}</span>
@@ -233,7 +233,7 @@ function CartProductCard({
           </p>
 
           <div
-            className="flex h-[28px] w-[82px] shrink-0 items-center justify-between rounded-full bg-menu-primary px-1.5 shadow-[0_3px_10px_rgba(239,42,48,0.18)]"
+            className="flex h-[28px] w-[82px] shrink-0 items-center justify-between rounded-full bg-menu-primary px-1.5 shadow-menu-sm"
             role="group"
             aria-label={`Controles de quantidade para ${name}`}
           >
@@ -375,7 +375,7 @@ function EmptyCart({ onBackToMenu }: { onBackToMenu: () => void }) {
       <button
         type="button"
         onClick={onBackToMenu}
-        className="mt-5 flex h-[42px] items-center justify-center rounded-full bg-menu-primary px-5 text-[13px] font-bold text-white shadow-[0_6px_18px_rgba(239,42,48,0.20)] active:scale-[0.99]"
+        className="mt-5 flex h-[42px] items-center justify-center rounded-full bg-menu-primary px-5 text-[13px] font-bold text-white shadow-menu-lg active:scale-[0.99]"
       >
         Ver produtos
       </button>

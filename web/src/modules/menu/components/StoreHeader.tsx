@@ -7,7 +7,7 @@ interface Props {
 export function StoreHeader({ storeName, onMenuClick, onShareClick }: Props) {
   return (
     <section
-      className="relative h-[49px] w-full overflow-hidden bg-gradient-to-r from-menu-gradient-from to-menu-gradient-to shadow-[0_6px_20px_rgba(201,31,37,0.20)]"
+      className="relative h-[49px] w-full overflow-hidden bg-gradient-to-r from-menu-gradient-from to-menu-gradient-to shadow-menu-xl"
       aria-label="Cabeçalho da loja"
     >
       <button

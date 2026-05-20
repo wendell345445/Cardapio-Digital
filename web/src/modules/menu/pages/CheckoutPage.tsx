@@ -541,7 +541,7 @@ export function CheckoutPage() {
                   onClick={() => navigate('/identifique-se')}
                   aria-label="Trocar destinatário"
                   className="flex h-[32px] shrink-0 self-center items-center justify-center gap-1.5 rounded-[7px] bg-white px-3.5 text-[12px] font-semibold leading-none tracking-[-0.15px] text-menu-primary transition-transform active:scale-95"
-                  style={{ border: '0.8px solid rgba(239, 42, 48, 0.65)' }}
+                  style={{ border: '0.8px solid color-mix(in srgb, var(--menu-primary) 65%, transparent)' }}
                 >
                   <span>Trocar</span>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -857,7 +857,7 @@ export function CheckoutPage() {
           disabled={!canAdvance}
           className={`flex h-12 w-full items-center justify-center rounded-full px-4 text-base font-bold transition-all duration-200 active:scale-[0.99] ${
             canAdvance
-              ? 'bg-menu-primary text-white shadow-[0_6px_18px_rgba(239,42,48,0.22)]'
+              ? 'bg-menu-primary text-white shadow-menu-lg'
               : 'bg-[#f0eaea] text-[#9b9292]'
           }`}
         >
@@ -966,7 +966,7 @@ function DeliveryMethodCard({
       onClick={onClick}
       className="relative min-h-[112px] overflow-hidden rounded-[22px] border border-black/15 bg-white p-4 text-left shadow-[0_6px_20px_rgba(64,57,57,0.055)] transition-all duration-200 active:scale-[0.99]"
     >
-      <span className="flex h-[42px] w-[42px] items-center justify-center rounded-[16px] bg-menu-primary shadow-[0_5px_14px_rgba(239,42,48,0.22)]">
+      <span className="flex h-[42px] w-[42px] items-center justify-center rounded-[16px] bg-menu-primary shadow-menu-md">
         {children}
       </span>
       <span className="mt-3 block text-[14px] font-semibold leading-none tracking-[-0.2px] text-menu-text">
@@ -1027,7 +1027,7 @@ function SelectedDeliveryCard({
           type="button"
           onClick={onChange}
           className="flex h-[32px] shrink-0 items-center justify-center gap-1 rounded-[7px] bg-white px-3 text-[12px] font-semibold tracking-[-0.15px] text-menu-primary transition-transform active:scale-95"
-          style={{ border: '0.8px solid rgba(239, 42, 48, 0.65)' }}
+          style={{ border: '0.8px solid color-mix(in srgb, var(--menu-primary) 65%, transparent)' }}
         >
           {isPickup ? 'Trocar' : 'Editar'}
         </button>
@@ -1201,7 +1201,7 @@ function SavedAddressSheet({
                   type="button"
                   aria-label={`Remover ${saved.street}`}
                   onClick={() => onRemove(saved.id)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-menu-text-soft transition-colors hover:bg-red-50 hover:text-menu-primary"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-menu-text-soft transition-colors hover:bg-menu-primary/10 hover:text-menu-primary"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path
@@ -1221,7 +1221,7 @@ function SavedAddressSheet({
             type="button"
             onClick={onAddNew}
             className="mt-2 flex h-[48px] w-full items-center justify-center gap-2 rounded-full bg-white text-[14px] font-semibold text-menu-primary transition-transform active:scale-[0.99]"
-            style={{ border: '1.5px dashed rgba(239, 42, 48, 0.5)' }}
+            style={{ border: '1.5px dashed color-mix(in srgb, var(--menu-primary) 50%, transparent)' }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path
@@ -1642,12 +1642,12 @@ function AddressBottomSheet({
                     onClick={() => update('label', opt)}
                     className={`flex h-[38px] items-center justify-center rounded-[14px] text-[12px] font-semibold capitalize transition-all active:scale-[0.98] ${
                       isSelected
-                        ? 'bg-menu-primary text-white shadow-[0_5px_14px_rgba(239,42,48,0.20)]'
+                        ? 'bg-menu-primary text-white shadow-menu-md'
                         : 'bg-white text-[#5f5656]'
                     }`}
                     style={{
                       border: isSelected
-                        ? '0.6px solid rgba(239, 42, 48, 0.25)'
+                        ? '0.6px solid color-mix(in srgb, var(--menu-primary) 25%, transparent)'
                         : '0.6px solid rgba(65, 57, 57, 0.12)',
                     }}
                   >
@@ -1681,7 +1681,7 @@ function AddressBottomSheet({
             disabled={!canSave}
             className={`flex h-[46px] flex-1 items-center justify-center rounded-full text-[14px] font-bold active:scale-[0.99] ${
               canSave
-                ? 'bg-menu-primary text-white shadow-[0_6px_18px_rgba(239,42,48,0.22)]'
+                ? 'bg-menu-primary text-white shadow-menu-lg'
                 : 'bg-[#f0eaea] text-[#9b9292]'
             }`}
           >

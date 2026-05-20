@@ -35,7 +35,7 @@ export function CartSummaryBar({ quantity, total, onClick, bottomOffset = 86 }: 
         </div>
 
         <span
-          className="flex h-[38px] shrink-0 items-center justify-center rounded-full bg-menu-primary px-5 text-[13px] font-bold leading-[17px] text-white shadow-[0_5px_14px_rgba(239,42,48,0.22)]"
+          className="flex h-[38px] shrink-0 items-center justify-center rounded-full bg-menu-primary px-5 text-[13px] font-bold leading-[17px] text-white shadow-menu-md"
         >
           Ver carrinho
         </span>

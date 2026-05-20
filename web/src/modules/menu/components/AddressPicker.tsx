@@ -40,9 +40,9 @@ export function AddressPicker({
 
   if (!expanded && selected) {
     return (
-      <div className="border-2 border-red-500 rounded-lg p-3 bg-red-50/40">
+      <div className="border-2 border-menu-primary rounded-lg p-3 bg-menu-primary/5">
         <div className="flex items-start gap-2">
-          <MapPin className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <MapPin className="w-4 h-4 text-menu-primary flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">{formatLine1(selected)}</p>
             <p className="text-xs text-gray-500 truncate">{formatLine2(selected)}</p>
@@ -50,7 +50,7 @@ export function AddressPicker({
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            className="text-xs font-medium text-red-500 hover:text-red-600 whitespace-nowrap"
+            className="text-xs font-medium text-menu-primary hover:opacity-80 whitespace-nowrap"
           >
             Trocar
           </button>
@@ -67,7 +67,7 @@ export function AddressPicker({
           <div
             key={a.id}
             className={`flex items-start gap-2 p-3 rounded-lg border-2 transition-colors ${
-              isSelected ? 'border-red-500 bg-red-50/40' : 'border-gray-200 bg-white'
+              isSelected ? 'border-menu-primary bg-menu-primary/5' : 'border-gray-200 bg-white'
             }`}
           >
             <button
@@ -79,7 +79,7 @@ export function AddressPicker({
               className="flex-1 flex items-start gap-2 text-left min-w-0"
             >
               <span className={`w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5 flex items-center justify-center ${
-                isSelected ? 'border-red-500 bg-red-500' : 'border-gray-300'
+                isSelected ? 'border-menu-primary bg-menu-primary' : 'border-gray-300'
               }`}>
                 {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
               </span>
@@ -92,7 +92,7 @@ export function AddressPicker({
               type="button"
               aria-label="Remover endereço"
               onClick={() => onRemove(a.id)}
-              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full flex-shrink-0"
+              className="w-7 h-7 flex items-center justify-center text-gray-300 hover:text-menu-primary hover:bg-menu-primary/10 rounded-full flex-shrink-0"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -106,7 +106,7 @@ export function AddressPicker({
           onUseNew()
           setExpanded(false)
         }}
-        className="w-full flex items-center gap-2 p-3 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-red-300 hover:text-red-500 transition-colors"
+        className="w-full flex items-center gap-2 p-3 rounded-lg border-2 border-dashed border-gray-300 text-sm text-gray-600 hover:border-menu-primary/50 hover:text-menu-primary transition-colors"
       >
         <Plus className="w-4 h-4" />
         Informar novo endereço

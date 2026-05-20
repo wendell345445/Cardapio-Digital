@@ -45,12 +45,15 @@ export function CategoryChips({ categories, activeId, onSelect }: Props) {
                 onClick={() => onSelect(category.id)}
                 className={`relative z-20 flex h-[31px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] px-4 transition-all duration-200 ${
                   isActive
-                    ? 'shadow-[0_5px_12px_rgba(201,31,37,0.20)]'
+                    ? 'shadow-menu-md'
                     : 'border border-[#ece7e7] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.07)]'
                 }`}
                 style={
                   isActive
-                    ? { background: 'linear-gradient(135deg,#f53b3b 0%,#c91f25 100%)' }
+                    ? {
+                        background:
+                          'linear-gradient(135deg, var(--menu-gradient-from) 0%, var(--menu-gradient-to) 100%)',
+                      }
                     : undefined
                 }
               >

@@ -160,7 +160,10 @@ export function OrderTrackingPage() {
         {/* Header gradiente */}
         <header
           className="-mx-4 flex flex-col items-center px-4 py-6 text-white sm:-mx-6 sm:px-6 md:-mx-8 md:px-8"
-          style={{ background: 'linear-gradient(135deg,#f53b3b 0%,#c91f25 100%)' }}
+          style={{
+            background:
+              'linear-gradient(135deg, var(--menu-gradient-from) 0%, var(--menu-gradient-to) 100%)',
+          }}
         >
           <p className="text-sm opacity-80">Pedido #{order.number}</p>
           <div className="mt-2 flex items-center gap-2">
@@ -205,7 +208,7 @@ export function OrderTrackingPage() {
                   className="h-[3px] w-full"
                   style={{
                     background:
-                      'linear-gradient(90deg, rgba(245,59,59,0.18) 0%, rgba(201,31,37,0.55) 50%, rgba(245,59,59,0.18) 100%)',
+                      'linear-gradient(90deg, color-mix(in srgb, var(--menu-gradient-from) 18%, transparent) 0%, color-mix(in srgb, var(--menu-gradient-to) 55%, transparent) 50%, color-mix(in srgb, var(--menu-gradient-from) 18%, transparent) 100%)',
                   }}
                 />
                 <div className="flex flex-col items-center px-5 py-3">
@@ -299,7 +302,7 @@ export function OrderTrackingPage() {
                     <button
                       type="button"
                       onClick={handleCopyPix}
-                      className="flex min-h-[40px] items-center gap-1 whitespace-nowrap rounded-[10px] bg-menu-primary px-3 py-2 text-sm font-bold text-white shadow-[0_5px_14px_rgba(239,42,48,0.22)] active:scale-[0.98]"
+                      className="flex min-h-[40px] items-center gap-1 whitespace-nowrap rounded-[10px] bg-menu-primary px-3 py-2 text-sm font-bold text-white shadow-menu-md active:scale-[0.98]"
                     >
                       {copied ? <Check size={16} /> : <Copy size={16} />}
                       {copied ? 'Copiado' : 'Copiar'}
@@ -381,13 +384,13 @@ export function OrderTrackingPage() {
             <section className="space-y-2">
               <Link
                 to="/comanda"
-                className="block w-full rounded-full bg-menu-primary py-3.5 text-center text-sm font-bold text-white shadow-[0_5px_14px_rgba(239,42,48,0.22)] active:scale-[0.98]"
+                className="block w-full rounded-full bg-menu-primary py-3.5 text-center text-sm font-bold text-white shadow-menu-md active:scale-[0.98]"
               >
                 Ver comanda completa da mesa
               </Link>
               <Link
                 to="/"
-                className="block w-full rounded-full border-2 border-menu-primary py-3.5 text-center text-sm font-bold text-menu-primary transition-colors hover:bg-red-50"
+                className="block w-full rounded-full border-2 border-menu-primary py-3.5 text-center text-sm font-bold text-menu-primary transition-colors hover:bg-menu-primary/10"
               >
                 Voltar ao cardápio e pedir mais
               </Link>

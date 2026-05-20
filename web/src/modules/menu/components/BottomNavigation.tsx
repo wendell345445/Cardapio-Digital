@@ -36,7 +36,7 @@ export function BottomNavigation({ cartQuantity, onCartClick, tableMode = false 
           className="absolute left-0 top-0 h-px w-full"
           style={{
             background:
-              'linear-gradient(90deg,transparent 5%,rgba(245,59,59,0.35) 40%,rgba(201,31,37,0.35) 60%,transparent 95%)',
+              'linear-gradient(90deg, transparent 5%, color-mix(in srgb, var(--menu-gradient-from) 35%, transparent) 40%, color-mix(in srgb, var(--menu-gradient-to) 35%, transparent) 60%, transparent 95%)',
           }}
         />
 
@@ -91,9 +91,9 @@ function NavItem({ label, icon, active, onClick, badge }: NavItemProps) {
         active
           ? {
               background:
-                'linear-gradient(160deg,rgba(255,237,237,0.9) 0%,rgba(255,215,215,0.7) 100%)',
+                'linear-gradient(160deg, color-mix(in srgb, var(--menu-primary) 12%, white) 0%, color-mix(in srgb, var(--menu-primary) 22%, white) 100%)',
               boxShadow:
-                '0 2px 16px rgba(239,42,48,0.18), inset 0 1px 0 rgba(255,255,255,0.8)',
+                '0 2px 16px color-mix(in srgb, var(--menu-primary) 18%, transparent), inset 0 1px 0 rgba(255,255,255,0.8)',
             }
           : undefined
       }
@@ -102,8 +102,9 @@ function NavItem({ label, icon, active, onClick, badge }: NavItemProps) {
         <span
           className="absolute left-1/2 top-0 h-[3.5px] w-9 -translate-x-1/2 rounded-b-full"
           style={{
-            background: 'linear-gradient(90deg,#f85c5c,#b91c1c)',
-            boxShadow: '0 1px 6px rgba(239,42,48,0.5)',
+            background:
+              'linear-gradient(90deg, var(--menu-gradient-from), var(--menu-gradient-to))',
+            boxShadow: '0 1px 6px rgba(0,0,0,0.18)',
           }}
         />
       )}
@@ -113,8 +114,9 @@ function NavItem({ label, icon, active, onClick, badge }: NavItemProps) {
           <span
             className="absolute -right-[7px] -top-[6px] flex h-[17px] min-w-[17px] items-center justify-center rounded-full px-[3px] text-[9px] font-bold text-white"
             style={{
-              background: 'linear-gradient(135deg,#f85c5c,#b91c1c)',
-              boxShadow: '0 2px 8px rgba(239,42,48,0.5)',
+              background:
+                'linear-gradient(135deg, var(--menu-gradient-from), var(--menu-gradient-to))',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.22)',
             }}
           >
             {badge}

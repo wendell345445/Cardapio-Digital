@@ -56,6 +56,30 @@
   }
 }
 
+/* Sombras coloridas do cardápio público — usam a cor de marca da loja
+   (`--menu-primary`). Substituem `shadow-[0_X_Y_rgba(239,42,48,A)]` que
+   estava hardcoded em vários componentes. */
+@layer utilities {
+  .shadow-menu-sm {
+    box-shadow: 0 3px 10px color-mix(in srgb, var(--menu-primary) 18%, transparent);
+  }
+  .shadow-menu-md {
+    box-shadow: 0 5px 14px color-mix(in srgb, var(--menu-primary) 22%, transparent);
+  }
+  .shadow-menu-lg {
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--menu-primary) 22%, transparent);
+  }
+  .shadow-menu-xl {
+    box-shadow: 0 6px 20px color-mix(in srgb, var(--menu-primary) 22%, transparent);
+  }
+  .border-menu {
+    border-color: color-mix(in srgb, var(--menu-primary) 65%, transparent);
+  }
+  .border-menu-soft {
+    border-color: color-mix(in srgb, var(--menu-primary) 25%, transparent);
+  }
+}
+
 /* Google Places Autocomplete dropdown — sobe pra cima de modais e bottom-sheets.
    Por padrão o `.pac-container` é appended em document.body com z-index:1000,
    o que fica abaixo dos nossos overlays (z-[80] do AddressBottomSheet). */

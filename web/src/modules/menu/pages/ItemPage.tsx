@@ -403,7 +403,7 @@ export function ItemPage() {
                           }`}
                           style={{
                             border: isSelected
-                              ? '0.6px solid rgba(239, 42, 48, 0.30)'
+                              ? '0.6px solid color-mix(in srgb, var(--menu-primary) 30%, transparent)'
                               : '0.6px solid rgba(65, 57, 57, 0.16)',
                           }}
                         >
@@ -421,7 +421,7 @@ export function ItemPage() {
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                               <path
                                 d="M12 5V19M5 12H19"
-                                stroke="#ef2a30"
+                                stroke="var(--menu-primary)"
                                 strokeWidth="2.3"
                                 strokeLinecap="round"
                               />
@@ -486,7 +486,7 @@ export function ItemPage() {
           </output>
 
           <div
-            className="flex h-[30px] w-[86px] shrink-0 items-center justify-between rounded-full bg-menu-primary px-1.5 shadow-[0_3px_10px_rgba(239,42,48,0.18)]"
+            className="flex h-[30px] w-[86px] shrink-0 items-center justify-between rounded-full bg-menu-primary px-1.5 shadow-menu-sm"
             role="group"
             aria-label="Controle de quantidade"
           >
@@ -514,7 +514,7 @@ export function ItemPage() {
           type="button"
           onClick={handleAdd}
           aria-label="Adicionar produto ao carrinho"
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-menu-primary px-4 text-base font-bold text-white shadow-[0_6px_18px_rgba(239,42,48,0.22)] transition-all duration-200 active:scale-[0.99]"
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-menu-primary px-4 text-base font-bold text-white shadow-menu-lg transition-all duration-200 active:scale-[0.99]"
         >
           {/* Sacola — SVG idêntico ao MenuPanda */}
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
