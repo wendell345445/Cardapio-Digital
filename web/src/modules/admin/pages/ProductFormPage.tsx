@@ -11,6 +11,7 @@ import { useCategories, useCreateCategory } from '../hooks/useCategories'
 import { useCreateProduct, useProduct, useUpdateProduct } from '../hooks/useProducts'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
+import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 // ─── TASK-041: Produtos CRUD Individual ──────────────────────────────────────
 
@@ -100,6 +101,9 @@ export function ProductFormPage() {
   } = useFieldArray({ control, name: 'additionals' })
 
   const imageUrl = watch('imageUrl')
+  const previewName = watch('name')
+  const previewDescription = watch('description')
+  const previewBasePrice = watch('basePrice')
 
   // Pré-preenche o form ao editar
   useEffect(() => {
@@ -201,8 +205,8 @@ export function ProductFormPage() {
         </h1>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <main className="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 lg:col-span-2">
           {/* Dados principais */}
           <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-800">Dados do produto</h2>
@@ -274,14 +278,19 @@ export function ProductFormPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Preço base</label>
-                <input
-                  {...register('basePrice')}
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0,00"
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">
+                    R$
+                  </span>
+                  <input
+                    {...register('basePrice')}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0,00"
+                    className="w-full rounded-md border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
                 {errors.basePrice && (
                   <p className="mt-1 text-xs text-red-600">{errors.basePrice.message}</p>
                 )}
@@ -359,14 +368,19 @@ export function ProductFormPage() {
                 </div>
                 <div className="w-32">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Preço</label>
-                  <input
-                    {...register(`variations.${index}.price`)}
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="0,00"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      {...register(`variations.${index}.price`)}
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0,00"
+                      className="w-full rounded-md border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                   {errors.variations?.[index]?.price && (
                     <p className="mt-1 text-xs text-red-600">
                       {errors.variations[index]?.price?.message}
@@ -418,14 +432,19 @@ export function ProductFormPage() {
                 </div>
                 <div className="w-32">
                   <label className="block text-xs font-medium text-gray-600 mb-1">Preço</label>
-                  <input
-                    {...register(`additionals.${index}.price`)}
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="0,00"
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-gray-500">
+                      R$
+                    </span>
+                    <input
+                      {...register(`additionals.${index}.price`)}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0,00"
+                      className="w-full rounded-md border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                   {errors.additionals?.[index]?.price && (
                     <p className="mt-1 text-xs text-red-600">
                       {errors.additionals[index]?.price?.message}
@@ -472,6 +491,61 @@ export function ProductFormPage() {
             </button>
           </div>
         </form>
+
+        {/* Preview do card do produto */}
+        <aside className="lg:col-span-1">
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden lg:sticky lg:top-6">
+            {imageUrl ? (
+              <img
+                src={resolveImageUrl(imageUrl)}
+                alt="Preview"
+                className="w-full h-56 object-cover"
+              />
+            ) : (
+              <div className="w-full h-56 flex flex-col items-center justify-center bg-red-50 text-red-500">
+                <svg
+                  width={36}
+                  height={36}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <polyline points="9 15 12 12 15 15" />
+                </svg>
+                <p className="mt-2 text-sm font-semibold">Adicione uma foto</p>
+                <p className="mt-1 text-xs text-gray-500 px-4 text-center">
+                  Atraia os clientes com uma foto linda do seu produto.
+                  <br />
+                  (JPEG, PNG até 3MB)
+                </p>
+              </div>
+            )}
+            <div className="p-4 space-y-2">
+              <h3 className="text-base font-semibold text-gray-900">
+                {previewName?.trim() || 'Nome do produto'}
+              </h3>
+              <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                {previewDescription?.trim() || 'Descrição do produto'}
+              </p>
+              {previewBasePrice !== '' && previewBasePrice != null && (
+                <p className="text-base font-bold text-gray-900">
+                  R${' '}
+                  {Number(previewBasePrice).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </p>
+              )}
+            </div>
+          </div>
+        </aside>
       </main>
 
       <ReauthModal
