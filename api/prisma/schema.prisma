@@ -40,6 +40,10 @@ model Store {
   allowDelivery                 Boolean       @default(true)
   allowTable                    Boolean       @default(true)
   manualOpen                    Boolean       @default(false)
+  /// Quando true, pedidos novos pulam WAITING_* e nascem em CONFIRMED, disparando
+  /// auto-print e link de cashflow imediatos. Vale também para PIX — o operador
+  /// é alertado disso pelo modal de ativação porque não há checagem de comprovante.
+  autoConfirmOrders             Boolean       @default(false)
   prepTimeMin                   Int           @default(30)
   freeDeliveryAboveCents        Int?
   deliveryByDistanceEnabled     Boolean       @default(true)
@@ -71,6 +75,7 @@ model Store {
   whatsappTemplates     WhatsAppTemplate[]
   conversations         Conversation[]
   customers             Customer[]
+  printJobs             PrintJob[]
 
   @@index([slug])
   @@index([customDomain])
@@ -301,6 +306,7 @@ model Order {
   coupon            Coupon?       @relation(fields: [couponId], references: [id])
   items             OrderItem[]
   cashFlowItem      CashFlowItem?
+  printJob          PrintJob?
 
   @@unique([storeId, number])
   @@index([storeId])
@@ -649,6 +655,35 @@ enum PixKeyType {
   EMAIL
   PHONE
   EVP
+}
+
+// ─── PRINT JOB ────────────────────────────────────────────────────
+//
+// Fila de impressão consumida pelo app desktop Menuziprinter (polling em
+// /api/print/pending). Quando um pedido vira CONFIRMED, autoPrintOrder enfileira
+// um PrintJob(PENDING). O Menuziprinter imprime localmente na térmica e marca
+// como PRINTED via /api/print/mark-printed. Registros PRINTED > 30 dias são
+// removidos pelo cron de limpeza — não há razão pra reter histórico longo.
+
+model PrintJob {
+  id        String         @id @default(uuid())
+  storeId   String
+  orderId   String         @unique
+  status    PrintJobStatus @default(PENDING)
+  printedAt DateTime?
+  createdAt DateTime       @default(now())
+
+  store Store @relation(fields: [storeId], references: [id])
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, status])
+  @@index([printedAt])
+}
+
+enum PrintJobStatus {
+  PENDING
+  PRINTED
+  FAILED
 }
 
 enum AccessType {

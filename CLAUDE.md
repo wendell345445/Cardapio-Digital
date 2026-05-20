@@ -154,6 +154,31 @@ Mesas funcionam como **sessões com token**. Não existe mais `?mesa=N` no link 
 - **QR Codes** ([QRCodesPanel.tsx](web/src/modules/admin/pages/mesas/QRCodesPanel.tsx)): input "Total de mesas: N" reconcilia (`PUT /admin/tables/count` → cria 1..N e remove > N, falha 422 se tem sessão aberta). Botão "Imprimir todos" baixa PDF único (`GET /admin/tables/qrcode/pdf-all`, 1 mesa por página A4). Lista por mesa com botão individual de PDF.
 - **Histórico** ([HistoricoPanel.tsx](web/src/modules/admin/pages/mesas/HistoricoPanel.tsx)): sessões CLOSED filtradas por data (default = hoje). Mostra mesa, abertura, fechamento, duração, # pedidos, método de pagamento, deviceNames e total. Total da receita do período no canto. Endpoint `GET /admin/tables/sessions/history?from=&to=`.
 
+### Pedidos — fluxo de confirmação e impressão (v2.8)
+
+**Kanban com 4 colunas** ([OrdersPage.tsx](web/src/modules/admin/pages/OrdersPage.tsx)): `Novos` (WAITING_*) · `Em preparo` (CONFIRMED + PREPARING) · `Saiu pra entrega` (READY + DISPATCHED) · `Concluídos` (DELIVERED). Coluna "Confirmado" foi mesclada em "Em preparo" — auto-confirm dispara ambos no mesmo instante e a separação não agregava operacionalmente.
+
+**`Store.autoConfirmOrders`** controla se pedido novo nasce em `CONFIRMED` ou em `WAITING_*`:
+- **ON**: `createOrder` seta status `CONFIRMED` + `confirmedAt: now`, e dispara via `setImmediate` os mesmos side-effects que `updateOrderStatus(→CONFIRMED)`: `autoPrintOrder` + `linkOrderToCashFlow`. Vale **inclusive para PIX** (modal de ativação no front avisa o operador que não há checagem de comprovante — confira o app do banco).
+- **OFF**: pedido nasce em `WAITING_PAYMENT_PROOF` (PIX) ou `WAITING_CONFIRMATION` (demais). Card de Novos mostra botão verde "Confirmar pedido" que chama `updateOrderStatus(→CONFIRMED)`. O "→" (avançar) só aparece depois de confirmar.
+- **Exceção**: pedido agendado (`scheduledFor`) **nunca** auto-confirma — fica em WAITING_* até a hora.
+
+Toggle vive no header da OrdersPage, persiste via `PATCH /admin/store/payment-settings { autoConfirmOrders }`. Ativar abre modal de aviso PIX; desativar é direto.
+
+**Fila de impressão `PrintJob`** ([print.service.ts](api/src/modules/print/print.service.ts) + [admin/print.service.ts](api/src/modules/admin/print.service.ts)): `autoPrintOrder(orderId)` enfileira `PrintJob(orderId, status=PENDING)` em vez de imprimir direto. Feature flag `Store.features.auto_print` (Premium) gate. Idempotente — `PrintJob.orderId` é UNIQUE; segunda chamada engole `Prisma P2002` sem propagar.
+
+**App desktop Menuziprinter** (em [.local/Menuziprinter-module-estavel-final/](.local/Menuziprinter-module-estavel-final/)) consome a fila via polling. Contrato fixo montado em `/api/print/*` **fora** de `/api/v1` para casar com o que o Electron já espera ([electron/services/poller.ts](.local/Menuziprinter-module-estavel-final/electron/services/poller.ts)):
+- `POST /api/print/login { email, password }` → `{ token, restaurant }` — JWT scope=`'print'`, vale 365d.
+- `GET /api/print/me` → `{ restaurant }` — valida sessão na abertura do app.
+- `GET /api/print/pending` → `{ orders: [{ id, orderId, orderNumber, receipt }] }` — polling do operador.
+- `POST /api/print/mark-printed { orderId }` → `{ success: true }` — após imprimir local.
+
+Token JWT do printer tem `scope: 'print'` validado pelo `printerAuthMiddleware` próprio — não passa pelo `authMiddleware` de admin. Mesmo que vaze, atacante só vê fila de impressão (sem acesso a `/admin/*`).
+
+Cron `print-jobs-cleanup` ([jobs/print-jobs-cleanup.job.ts](api/src/jobs/print-jobs-cleanup.job.ts)) roda 03:15 diariamente e remove `PrintJob.status='PRINTED'` com mais de 30 dias (`PRINT_JOBS_RETENTION_DAYS` env). Auditoria fica no `AuditLog` — `PrintJob` é só fila operacional.
+
+**Config inicial do Menuziprinter** (operador da loja, 1ª vez): URL da API + email + senha do admin. Token JWT fica salvo em `electron-store` local — próximas aberturas pulam login.
+
 ### Toast e som compartilhados
 
 [shared/lib/toast.tsx](web/src/shared/lib/toast.tsx) — wrapper sobre `@radix-ui/react-toast` + Zustand. API: `toast.success(title, desc?)`, `toast.error()`, `toast.info()`. Provider global no `App.tsx` envolve o `BrowserRouter`. Estilo: slide-in canto direito-inferior, auto-close 4s. Use em qualquer mutation de admin (em vez de `alert()` ou setState de erro).

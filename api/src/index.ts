@@ -2,6 +2,7 @@ import 'dotenv/config'
 import { createServer } from 'http'
 
 import { app } from './app'
+import { registerPrintJobsCleanupJob } from './jobs/print-jobs-cleanup.job'
 import { registerTrialSuspensionJob } from './jobs/trial-suspension.job'
 import { getWhatsAppQueue } from './modules/whatsapp/whatsapp.queue'
 import { restoreAllSessions } from './modules/whatsapp/whatsapp.service'
@@ -19,6 +20,7 @@ async function bootstrap() {
 
   // Cron jobs (Bull repeatable)
   await registerTrialSuspensionJob()
+  await registerPrintJobsCleanupJob()
 
   // WhatsApp outbox queue — registra o processor antes de restaurar sessões
   // pra garantir que jobs pendentes (persistidos em Redis) comecem a drenar imediatamente.

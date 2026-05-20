@@ -44,6 +44,7 @@ export async function getStore(storeId: string) {
       allowPickup: true,
       allowDelivery: true,
       allowTable: true,
+      autoConfirmOrders: true,
       deliveryByDistanceEnabled: true,
       deliveryByNeighborhoodEnabled: true,
       serviceChargePercent: true,
@@ -342,6 +343,7 @@ export async function updatePaymentSettings(
       ...(data.allowPickup !== undefined && { allowPickup: data.allowPickup }),
       ...(data.allowDelivery !== undefined && { allowDelivery: data.allowDelivery }),
       ...(data.allowTable !== undefined && { allowTable: data.allowTable }),
+      ...(data.autoConfirmOrders !== undefined && { autoConfirmOrders: data.autoConfirmOrders }),
       ...(data.deliveryByDistanceEnabled !== undefined && {
         deliveryByDistanceEnabled: data.deliveryByDistanceEnabled,
       }),
@@ -357,6 +359,7 @@ export async function updatePaymentSettings(
       allowPickup: true,
       allowDelivery: true,
       allowTable: true,
+      autoConfirmOrders: true,
       deliveryByDistanceEnabled: true,
       deliveryByNeighborhoodEnabled: true,
       serviceChargePercent: true,

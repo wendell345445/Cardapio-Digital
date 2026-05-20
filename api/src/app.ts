@@ -5,6 +5,7 @@ import passport from 'passport'
 
 import { configurePassport } from './modules/auth/passport.config'
 import { LOCAL_UPLOAD_DIR } from './modules/admin/upload.service'
+import { printRouter } from './modules/print/print.routes'
 import { errorHandler } from './shared/middleware/error.middleware'
 import { publicRateLimiter } from './shared/middleware/rateLimit.middleware'
 import { router } from './router'
@@ -83,5 +84,8 @@ app.use(
 )
 
 app.use('/api/v1', router)
+// /api/print/* (fora de /api/v1) — contrato fixo consumido pelo app desktop
+// Menuziprinter (login, me, pending, mark-printed).
+app.use('/api/print', printRouter)
 
 app.use(errorHandler)

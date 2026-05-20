@@ -56,6 +56,14 @@ jest.mock('jsonwebtoken', () => ({
   sign: jest.fn().mockReturnValue('mock-jwt-token'),
 }))
 
+jest.mock('../../admin/print.service', () => ({
+  autoPrintOrder: jest.fn().mockResolvedValue(undefined),
+}))
+
+jest.mock('../../admin/cashflow.service', () => ({
+  linkOrderToCashFlow: jest.fn().mockResolvedValue(undefined),
+}))
+
 import { prisma } from '../../../shared/prisma/prisma'
 import { createOrder } from '../orders.service'
 
@@ -889,5 +897,110 @@ describe('createOrder — blacklist (C-027) — TASK-130 parte 2', () => {
 
     expect(mockPrisma.clientPaymentAccess.findFirst).not.toHaveBeenCalled()
     expect(mockPrisma.order.create).toHaveBeenCalled()
+  })
+})
+
+// ─── Store.autoConfirmOrders (v2.8) ───────────────────────────────────────────
+//
+// Quando flag ON, pedido nasce em CONFIRMED (inclusive PIX — operador foi
+// alertado pelo modal de ativação no front). Auto-print + cashflow link
+// disparam imediatamente como side-effects fire-and-forget.
+
+describe('createOrder — Store.autoConfirmOrders (v2.8)', () => {
+  beforeEach(setupDefaultMocks)
+
+  it('quando autoConfirmOrders=true, pedido NÃO-PIX nasce em CONFIRMED com confirmedAt', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: true,
+    })
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' })
+
+    const created = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(created.data.status).toBe('CONFIRMED')
+    expect(created.data.confirmedAt).toBeInstanceOf(Date)
+  })
+
+  it('quando autoConfirmOrders=true, PIX também nasce em CONFIRMED (operador ciente via modal)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: true,
+    })
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'PIX' })
+
+    const created = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(created.data.status).toBe('CONFIRMED')
+  })
+
+  it('quando autoConfirmOrders=false, PIX continua aguardando comprovante (WAITING_PAYMENT_PROOF)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: false,
+    })
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'PIX' })
+
+    const created = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(created.data.status).toBe('WAITING_PAYMENT_PROOF')
+    expect(created.data.confirmedAt).toBeNull()
+  })
+
+  it('pedido agendado NÃO auto-confirma mesmo com flag ON (cai em WAITING_*)', async () => {
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: true,
+    })
+
+    const future = new Date(Date.now() + 4 * 60 * 60 * 1000)
+    await createOrder(SLUG, {
+      ...baseOrderInput,
+      paymentMethod: 'CASH_ON_DELIVERY',
+      scheduledFor: future,
+    })
+
+    const created = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(created.data.status).toBe('WAITING_CONFIRMATION')
+    expect(created.data.confirmedAt).toBeNull()
+  })
+
+  it('dispara autoPrintOrder + linkOrderToCashFlow via setImmediate quando auto-confirma', async () => {
+    const { autoPrintOrder } = jest.requireMock('../../admin/print.service')
+    const { linkOrderToCashFlow } = jest.requireMock('../../admin/cashflow.service')
+
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: true,
+    })
+
+    // Restaurar timer real só para o setImmediate disparar
+    jest.useRealTimers()
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' })
+
+    // setImmediate é assíncrono — aguarda 1 tick do event loop
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(autoPrintOrder).toHaveBeenCalledWith(mockOrder.id)
+    expect(linkOrderToCashFlow).toHaveBeenCalledWith(STORE_ID, mockOrder.id)
+  })
+
+  it('NÃO dispara side-effects quando autoConfirmOrders=false', async () => {
+    const { autoPrintOrder } = jest.requireMock('../../admin/print.service')
+    const { linkOrderToCashFlow } = jest.requireMock('../../admin/cashflow.service')
+
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      autoConfirmOrders: false,
+    })
+
+    jest.useRealTimers()
+
+    await createOrder(SLUG, { ...baseOrderInput, paymentMethod: 'CASH_ON_DELIVERY' })
+    await new Promise((resolve) => setImmediate(resolve))
+
+    expect(autoPrintOrder).not.toHaveBeenCalled()
+    expect(linkOrderToCashFlow).not.toHaveBeenCalled()
   })
 })

@@ -20,6 +20,7 @@ export interface StoreData {
   allowPickup: boolean
   allowDelivery: boolean
   allowTable: boolean
+  autoConfirmOrders: boolean
   deliveryByDistanceEnabled?: boolean
   deliveryByNeighborhoodEnabled?: boolean
   serviceChargePercent: number
@@ -52,6 +53,7 @@ export interface UpdatePaymentSettingsDto {
   allowPickup?: boolean
   allowDelivery?: boolean
   allowTable?: boolean
+  autoConfirmOrders?: boolean
   deliveryByDistanceEnabled?: boolean
   deliveryByNeighborhoodEnabled?: boolean
   serviceChargePercent?: number
