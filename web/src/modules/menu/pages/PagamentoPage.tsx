@@ -178,7 +178,9 @@ export function PagamentoPage() {
         variationId: i.variationId,
         quantity: i.quantity,
         notes: i.notes,
-        additionalIds: i.additionals.map((a) => a.id),
+        // v2.9: ids são de Addon (catálogo de adicionais), não mais ProductAdditional.
+        // Cart guarda a referência em `additionals[].id` (snapshot do Addon.id no momento do "adicionar").
+        addonIds: i.additionals.map((a) => a.id),
       })),
     }
 

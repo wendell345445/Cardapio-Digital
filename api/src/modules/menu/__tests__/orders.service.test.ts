@@ -105,6 +105,8 @@ const mockStore = {
   address: 'Rua A, 123',
 }
 
+// v2.9: adicionais vêm via ProductAddon. ADDITIONAL_ID continua sendo
+// referência do "Addon.id" pra simplificar o rename dos testes existentes.
 const mockProduct = {
   id: PRODUCT_ID,
   storeId: STORE_ID,
@@ -114,8 +116,13 @@ const mockProduct = {
   variations: [
     { id: VARIATION_ID, name: 'Grande', price: 50.0, isActive: true },
   ],
-  additionals: [
-    { id: ADDITIONAL_ID, name: 'Borda Recheada', price: 8.0, isActive: true },
+  addons: [
+    {
+      productId: PRODUCT_ID,
+      addonId: ADDITIONAL_ID,
+      order: 0,
+      addon: { id: ADDITIONAL_ID, name: 'Borda Recheada', price: 8.0, isActive: true },
+    },
   ],
 }
 
@@ -147,7 +154,7 @@ const baseOrderInput = {
     neighborhood: 'Centro',
     city: 'Joinville',
   },
-  items: [{ productId: PRODUCT_ID, variationId: undefined, quantity: 1, notes: undefined, additionalIds: [] }],
+  items: [{ productId: PRODUCT_ID, variationId: undefined, quantity: 1, notes: undefined, addonIds: [] }],
   couponCode: undefined,
   scheduledFor: undefined,
   notes: undefined,
@@ -348,7 +355,7 @@ describe('createOrder — validação de produtos', () => {
 
     const input = {
       ...baseOrderInput,
-      items: [{ ...baseOrderInput.items[0], additionalIds: ['adicional-inexistente'] }],
+      items: [{ ...baseOrderInput.items[0], addonIds: ['adicional-inexistente'] }],
     }
 
     await expect(createOrder(SLUG, input)).rejects.toMatchObject({ status: 404 })
@@ -397,7 +404,7 @@ describe('createOrder — cálculo de total', () => {
 
     const input = {
       ...baseOrderInput,
-      items: [{ ...baseOrderInput.items[0], additionalIds: [ADDITIONAL_ID] }],
+      items: [{ ...baseOrderInput.items[0], addonIds: [ADDITIONAL_ID] }],
     }
 
     await createOrder(SLUG, input)

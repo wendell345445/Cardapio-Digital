@@ -3,11 +3,29 @@ import { createPublicApi } from '../../../shared/lib/publicApi'
 const menuApi = createPublicApi()
 
 export interface ProductVariation { id: string; name: string; price: number; isActive: boolean }
-export interface ProductAdditional { id: string; name: string; price: number; isActive: boolean }
+
+// v2.9: cardápio público traz adicionais via ProductAddon (N:N) com Addon + AddonCategory aninhados.
+export interface PublicAddon {
+  id: string
+  name: string
+  price: number
+  imageUrl?: string | null
+  isActive: boolean
+  order: number
+  category: { id: string; name: string; order: number }
+}
+export interface ProductAddonLink {
+  productId: string
+  addonId: string
+  order: number
+  addon: PublicAddon
+}
+
 export interface Product {
   id: string; name: string; description?: string; imageUrl?: string
   basePrice?: number; isActive: boolean; order: number
-  variations: ProductVariation[]; additionals: ProductAdditional[]
+  variations: ProductVariation[]
+  addons: ProductAddonLink[]
   tags?: string[]
   promoPrice?: number | null
   promoStartsAt?: string | null

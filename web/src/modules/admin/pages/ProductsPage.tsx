@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   Search,
   ArrowUpDown,
@@ -24,6 +24,7 @@ import type { Category } from '../services/categories.service'
 import type { Product } from '../services/products.service'
 import { useCoupons } from '../hooks/useCoupons'
 import { ProductPromoModal } from '../components/ProductPromoModal'
+import { ProductAddonsModal } from '../components/ProductAddonsModal'
 import { SortModal, type SortDirection } from '../components/SortModal'
 
 import { ReauthModal } from '@/modules/auth/components/ReauthModal'
@@ -66,6 +67,7 @@ function CategorySection({
   onToggleProduct,
   onDeleteProduct,
   onDuplicateProduct,
+  onOpenAddons,
   onAddPromo,
   onReorder,
   isUpdating,
@@ -79,6 +81,7 @@ function CategorySection({
   onToggleProduct: (p: Product) => void
   onDeleteProduct: (p: Product) => void
   onDuplicateProduct: (p: Product) => void
+  onOpenAddons: (p: Product) => void
   onAddPromo: (p: Product) => void
   onReorder: (category: Category, products: Product[]) => void
   isUpdating: boolean
@@ -231,12 +234,12 @@ function CategorySection({
                         >
                           Excluir
                         </button>
-                        <Link
-                          to={`/admin/adicionais?productId=${product.id}`}
-                          className="text-xs text-purple-500 hover:text-purple-700"
+                        <button
+                          onClick={() => onOpenAddons(product)}
+                          className="text-xs text-purple-500 hover:text-purple-700 font-medium"
                         >
                           Adicionais
-                        </Link>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -282,6 +285,7 @@ export function ProductsPage() {
   const [search, setSearch] = useState('')
   const [productToDelete, setProductToDelete] = useState<Product | null>(null)
   const [productForPromo, setProductForPromo] = useState<Product | null>(null)
+  const [productForAddons, setProductForAddons] = useState<Product | null>(null)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
   const [toast, setToast] = useState<string | null>(null)
 
@@ -449,6 +453,7 @@ export function ProductsPage() {
                 onToggleProduct={handleToggleActive}
                 onDeleteProduct={handleDelete}
                 onDuplicateProduct={handleDuplicate}
+                onOpenAddons={(p) => setProductForAddons(p)}
                 onAddPromo={(p) => setProductForPromo(p)}
                 onReorder={(category, products) =>
                   setSortProductsOf({ category, products })
@@ -478,6 +483,14 @@ export function ProductsPage() {
       <ProductPromoModal
         product={productForPromo}
         onClose={() => setProductForPromo(null)}
+      />
+
+      <ProductAddonsModal
+        open={!!productForAddons}
+        productId={productForAddons?.id ?? ''}
+        productName={productForAddons?.name ?? ''}
+        initialAddonIds={productForAddons?.addons.map((a) => a.addonId) ?? []}
+        onClose={() => setProductForAddons(null)}
       />
 
       <SortModal

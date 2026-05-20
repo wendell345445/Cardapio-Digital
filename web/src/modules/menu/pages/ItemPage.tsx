@@ -6,7 +6,7 @@ import { useMenu } from '../hooks/useMenu'
 import { useCartStore } from '../store/useCartStore'
 import { ProductAddedPopup } from '../components/ProductAddedPopup'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
-import type { ProductVariation, ProductAdditional } from '../services/menu.service'
+import type { ProductVariation, PublicAddon } from '../services/menu.service'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
@@ -28,7 +28,7 @@ export function ItemPage() {
   const cartItems = useCartStore((s) => s.items)
 
   const [selectedVariation, setSelectedVariation] = useState<ProductVariation | null>(null)
-  const [selectedAdditionals, setSelectedAdditionals] = useState<ProductAdditional[]>([])
+  const [selectedAdditionals, setSelectedAdditionals] = useState<PublicAddon[]>([])
   const [quantity, setQuantity] = useState(1)
   const [notes, setNotes] = useState('')
   const [closedWarning, setClosedWarning] = useState(false)
@@ -55,7 +55,26 @@ export function ItemPage() {
   }
 
   const activeVariations = product.variations.filter((v) => v.isActive)
-  const activeAdditionals = product.additionals.filter((a) => a.isActive)
+  // v2.9: addons vêm via ProductAddon. Filtra ativos (backend já filtra mas defendemos),
+  // ordena por addon.order dentro da categoria, e agrupa por addon.category.id.
+  const activeAddons: PublicAddon[] = product.addons
+    .map((link) => link.addon)
+    .filter((a) => a.isActive)
+  const addonCategories = (() => {
+    const map = new Map<string, { id: string; name: string; order: number; addons: PublicAddon[] }>()
+    for (const a of activeAddons) {
+      const key = a.category.id
+      let cat = map.get(key)
+      if (!cat) {
+        cat = { id: a.category.id, name: a.category.name, order: a.category.order, addons: [] }
+        map.set(key, cat)
+      }
+      cat.addons.push(a)
+    }
+    return [...map.values()]
+      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'pt-BR'))
+      .map((c) => ({ ...c, addons: c.addons.sort((a, b) => a.order - b.order) }))
+  })()
   const isOpen = store?.storeStatus === 'open'
 
   const effectiveVariation = selectedVariation ?? (activeVariations.length > 0 ? activeVariations[0] : null)
@@ -75,7 +94,7 @@ export function ItemPage() {
   )
   const total = (basePrice + addTotal) * quantity
 
-  function toggleAdditional(add: ProductAdditional) {
+  function toggleAdditional(add: PublicAddon) {
     setSelectedAdditionals((prev) =>
       prev.find((a) => a.id === add.id) ? prev.filter((a) => a.id !== add.id) : [...prev, add]
     )
@@ -329,88 +348,93 @@ export function ItemPage() {
             </section>
           )}
 
-          {/* Adicionais */}
-          {activeAdditionals.length > 0 && (
-            <section className="mt-8" aria-labelledby="additionals-title">
-              <div className="flex items-end justify-between gap-3 border-b border-menu-divider pb-3">
-                <div>
-                  <h2
-                    id="additionals-title"
-                    className="text-[16px] font-bold leading-[1.2] tracking-[-0.25px] text-menu-text"
-                  >
-                    Complementos
-                  </h2>
-                  <p className="mt-1.5 text-[11px] font-medium leading-[1.2] tracking-[-0.12px] text-menu-text-soft">
-                    Opcional
-                  </p>
+          {/* Adicionais agrupados por categoria (v2.9). Cada AddonCategory vira
+              uma seção; só aparece se tem pelo menos um Addon ativo vinculado
+              ao produto. */}
+          {addonCategories.map((cat) => {
+            const selectedInCat = selectedAdditionals.filter((s) =>
+              cat.addons.some((a) => a.id === s.id)
+            )
+            return (
+              <section key={cat.id} className="mt-8" aria-labelledby={`addon-cat-${cat.id}`}>
+                <div className="flex items-end justify-between gap-3 border-b border-menu-divider pb-3">
+                  <div>
+                    <h2
+                      id={`addon-cat-${cat.id}`}
+                      className="text-[16px] font-bold leading-[1.2] tracking-[-0.25px] text-menu-text"
+                    >
+                      {cat.name}
+                    </h2>
+                    <p className="mt-1.5 text-[11px] font-medium leading-[1.2] tracking-[-0.12px] text-menu-text-soft">
+                      Opcional
+                    </p>
+                  </div>
+
+                  {selectedInCat.length > 0 && (
+                    <span className="rounded-full bg-[#fff0f0] px-2.5 py-1 text-[10px] font-semibold text-menu-primary">
+                      {selectedInCat.length} selecionado{selectedInCat.length > 1 ? 's' : ''}
+                    </span>
+                  )}
                 </div>
 
-                {selectedAdditionals.length > 0 && (
-                  <span className="rounded-full bg-[#fff0f0] px-2.5 py-1 text-[10px] font-semibold text-menu-primary">
-                    {selectedAdditionals.length} selecionado
-                    {selectedAdditionals.length > 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-col">
-                {activeAdditionals.map((a) => {
-                  const isSelected = !!selectedAdditionals.find((s) => s.id === a.id)
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleAdditional(a)}
-                      className="flex min-h-[58px] items-center justify-between gap-3 border-b border-menu-divider py-3 text-left transition-opacity active:opacity-70"
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13px] font-semibold leading-[1.2] tracking-[-0.18px] text-menu-text-muted">
-                          {a.name}
-                        </span>
-                        <span className="mt-1.5 block text-[12px] font-semibold leading-[1.2] tracking-[-0.12px] text-menu-text-soft">
-                          +{fmt(a.price)}
-                        </span>
-                      </span>
-
-                      {/* Botão circular: + vermelho quando solto, check branco em fundo vermelho quando selecionado */}
-                      <span
-                        className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full transition-all ${
-                          isSelected ? 'bg-menu-primary' : 'bg-white'
-                        }`}
-                        style={{
-                          border: isSelected
-                            ? '0.6px solid rgba(239, 42, 48, 0.30)'
-                            : '0.6px solid rgba(65, 57, 57, 0.16)',
-                        }}
+                <div className="flex flex-col">
+                  {cat.addons.map((a) => {
+                    const isSelected = !!selectedAdditionals.find((s) => s.id === a.id)
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => toggleAdditional(a)}
+                        className="flex min-h-[58px] items-center justify-between gap-3 border-b border-menu-divider py-3 text-left transition-opacity active:opacity-70"
                       >
-                        {isSelected ? (
-                          <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                            <path
-                              d="M3.1 7.3L5.7 9.8L10.9 4.2"
-                              stroke="white"
-                              strokeWidth="2.1"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                        ) : (
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path
-                              d="M12 5V19M5 12H19"
-                              stroke="#ef2a30"
-                              strokeWidth="2.3"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                        )}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </section>
-          )}
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13px] font-semibold leading-[1.2] tracking-[-0.18px] text-menu-text-muted">
+                            {a.name}
+                          </span>
+                          <span className="mt-1.5 block text-[12px] font-semibold leading-[1.2] tracking-[-0.12px] text-menu-text-soft">
+                            +{fmt(a.price)}
+                          </span>
+                        </span>
+
+                        <span
+                          className={`flex h-[24px] w-[24px] shrink-0 items-center justify-center rounded-full transition-all ${
+                            isSelected ? 'bg-menu-primary' : 'bg-white'
+                          }`}
+                          style={{
+                            border: isSelected
+                              ? '0.6px solid rgba(239, 42, 48, 0.30)'
+                              : '0.6px solid rgba(65, 57, 57, 0.16)',
+                          }}
+                        >
+                          {isSelected ? (
+                            <svg width="13" height="13" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                              <path
+                                d="M3.1 7.3L5.7 9.8L10.9 4.2"
+                                stroke="white"
+                                strokeWidth="2.1"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          ) : (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path
+                                d="M12 5V19M5 12H19"
+                                stroke="#ef2a30"
+                                strokeWidth="2.3"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          )}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
 
           {/* Observações */}
           <section className="mt-8" aria-labelledby="notes-title">

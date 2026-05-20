@@ -122,6 +122,28 @@ O model `Coupon` cobre dois casos:
 
 Helper `getActiveProductPromos(storeId)` em [coupons.service.ts](api/src/modules/admin/coupons.service.ts) retorna Map\<productId, {promoPrice, startsAt, expiresAt}> das promos vigentes agora. Promo **não se aplica** a produtos com variations (variação tem preço próprio). `validateCoupon` ignora cupons com `productId` (não servem pra checkout manual).
 
+### Adicionais (v2.9 — AddonCategory + Addon + ProductAddon)
+
+Adicionais foram totalmente reformulados. O modelo antigo `ProductAdditional` (lista flat amarrada a 1 produto) foi substituído por 3 entidades:
+
+- **`AddonCategory`** — agrupa adicionais por tema dentro da loja (ex: "Acompanhamentos", "Bebidas adicionais", "Sabores"). `@@unique([storeId, name])`.
+- **`Addon`** — item adicional cadastrado **uma vez por loja**, com foto/preço/disponibilidade. Pertence a uma `AddonCategory`. `@@unique([storeId, categoryId, name])`.
+- **`ProductAddon`** — tabela associativa N:N (`@@id([productId, addonId])`) ligando produto ao adicional, com `order` pra drag-and-drop no modal.
+
+Sem regras de min/max/required — todos opcionais. Agrupamento é só visual: cardápio público renderiza adicionais agrupados por `addon.category.id`, e categoria só aparece se tem ≥1 adicional ativo vinculado ao produto.
+
+**Migration de dados** ([20260521000000_addon_categories_v29](api/prisma/migrations/20260521000000_addon_categories_v29/migration.sql)): deduplica `ProductAdditional` existentes por `(storeId, name, price)` numa `AddonCategory "Geral"` por loja, e cria `ProductAddon` ligando cada produto ao Addon resultante. `OrderItemAdditional` (snapshot em pedidos) **não é tocado** — pedidos antigos seguem íntegros porque já guardam `name+price` congelados.
+
+**Endpoints** em `/admin/additionals/*` (sidebar mantém "Adicionais"):
+- `GET/POST/PATCH/DELETE /categories` — CRUD AddonCategory
+- `GET/POST/PATCH/DELETE /` — CRUD Addon (filtro `?categoryId=`)
+- `POST /:id/duplicate` — duplica addon (gera "X (Cópia)")
+- `PUT /products/:productId { addonIds: string[] }` — substitui vínculos de um produto
+
+**Frontend admin** ([AdicionaisPage.tsx](web/src/modules/admin/pages/AdicionaisPage.tsx)): tabs por categoria, lista addons inline com edição (nome/preço/foto/disponibilidade), botão "Nova categoria". Vínculo produto↔addon é feito em modal aberto pelo card do produto em [ProductsPage.tsx](web/src/modules/admin/pages/ProductsPage.tsx), via [ProductAddonsModal](web/src/modules/admin/components/ProductAddonsModal.tsx).
+
+**Pedidos**: cliente envia `addonIds: string[]` (não mais `additionalIds`). `createOrder` valida via `ProductAddon` que cada Addon está vinculado ao produto antes de aceitar.
+
 ### ENV e domínios
 
 Ver [.claude/projects/.../memory/](memory que o Claude já mantém) sobre:

@@ -72,7 +72,6 @@ const mockProduct = {
   createdAt: new Date(),
   updatedAt: new Date(),
   variations: [],
-  additionals: [],
 }
 
 beforeEach(() => {
@@ -168,7 +167,6 @@ describe('createProduct — validateProductName', () => {
           order: 0,
           isActive: true,
           variations: [],
-          additionals: [],
         },
         USER_ID
       )
@@ -188,7 +186,6 @@ describe('createProduct — validateProductName', () => {
           order: 0,
           isActive: true,
           variations: [],
-          additionals: [],
         },
         USER_ID
       )
@@ -211,7 +208,6 @@ describe('createProduct — validateProductName', () => {
         order: 0,
         isActive: true,
         variations: [{ name: 'Grande', price: 45.9, isActive: true }],
-        additionals: [{ name: 'Borda Catupiry', price: 5.0, isActive: true }],
       },
       USER_ID
     )
@@ -236,7 +232,6 @@ describe('createProduct — validateProductName', () => {
         order: 0,
         isActive: true,
         variations: [],
-        additionals: [],
       },
       USER_ID
     )

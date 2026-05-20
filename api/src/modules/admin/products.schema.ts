@@ -9,12 +9,8 @@ export const variationSchema = z.object({
   isActive: z.boolean().optional().default(true),
 })
 
-export const additionalSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(1).max(100),
-  price: z.number().min(0),
-  isActive: z.boolean().optional().default(true),
-})
+// v2.9: adicionais saíram do produto. Cadastro via /admin/addons (Addon/AddonCategory);
+// vínculo produto↔addon via PUT /admin/products/:id/addons. Schema fica enxuto.
 
 // Aceita URL absoluta (Cloudinary/prod) OU caminho local `/uploads/...` (dev fallback).
 const imageUrlSchema = z
@@ -34,7 +30,6 @@ export const createProductSchema = z.object({
   isActive: z.boolean().optional().default(true),
   order: z.number().int().min(0).optional().default(0),
   variations: z.array(variationSchema).optional().default([]),
-  additionals: z.array(additionalSchema).optional().default([]),
 })
 
 export const updateProductSchema = createProductSchema.partial().extend({

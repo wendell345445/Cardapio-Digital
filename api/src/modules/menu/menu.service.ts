@@ -191,9 +191,14 @@ export async function getMenu(slug: string) {
             where: { isActive: true },
             orderBy: { name: 'asc' },
           },
-          additionals: {
-            where: { isActive: true },
-            orderBy: { name: 'asc' },
+          // v2.9: adicionais via ProductAddon (N:N). Filtra Addon ativo + AddonCategory ativa.
+          // Frontend agrupa por addon.category.id no render.
+          addons: {
+            where: { addon: { isActive: true, category: { isActive: true } } },
+            orderBy: [{ order: 'asc' }],
+            include: {
+              addon: { include: { category: true } },
+            },
           },
         },
         orderBy: [{ order: 'asc' }, { name: 'asc' }],

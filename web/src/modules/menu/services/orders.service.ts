@@ -16,7 +16,9 @@ export interface OrderAddress {
 }
 
 export interface OrderItem {
-  productId: string; variationId?: string; quantity: number; notes?: string; additionalIds: string[]
+  productId: string; variationId?: string; quantity: number; notes?: string
+  /** v2.9: IDs de Addon (catálogo de adicionais), não mais ProductAdditional. */
+  addonIds: string[]
 }
 
 export type PaymentMethod =

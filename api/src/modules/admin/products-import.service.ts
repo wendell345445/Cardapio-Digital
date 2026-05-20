@@ -183,9 +183,9 @@ export async function importProducts(
             data: { description: descricao, basePrice, categoryId },
           })
           productId = existing.id
-          // Recriar variations e additionals
+          // Recriar variations e vínculos de adicional (Addons em si persistem)
           await tx.productVariation.deleteMany({ where: { productId } })
-          await tx.productAdditional.deleteMany({ where: { productId } })
+          await tx.productAddon.deleteMany({ where: { productId } })
         } else {
           const product = await tx.product.create({
             data: { storeId, categoryId, name: nome, description: descricao, basePrice },
@@ -199,9 +199,43 @@ export async function importProducts(
           })
         }
 
+        // v2.9: linha "adicionais" da planilha vira Addons na categoria "Geral".
+        // Upsert por (storeId, categoryId, name) — se já existe Addon com mesmo
+        // nome, reusa (vínculo N:N permite). Pra diferenciar nome+preço diferente
+        // tratamos só nome — preço da planilha vence (atualiza Addon existente).
         if (additionals.length > 0) {
-          await tx.productAdditional.createMany({
-            data: additionals.map((a) => ({ productId, ...a })),
+          // Garante AddonCategory "Geral" da loja.
+          const geral = await tx.addonCategory.upsert({
+            where: { storeId_name: { storeId, name: 'Geral' } },
+            create: { storeId, name: 'Geral' },
+            update: {},
+          })
+
+          const linkOrders: Array<{ addonId: string; order: number }> = []
+          for (let i = 0; i < additionals.length; i++) {
+            const a = additionals[i]
+            // Upsert Addon por (storeId, categoryId, name).
+            const addon = await tx.addon.upsert({
+              where: {
+                storeId_categoryId_name: {
+                  storeId,
+                  categoryId: geral.id,
+                  name: a.name,
+                },
+              },
+              create: {
+                storeId,
+                categoryId: geral.id,
+                name: a.name,
+                price: a.price,
+              },
+              update: { price: a.price, isActive: true },
+            })
+            linkOrders.push({ addonId: addon.id, order: i })
+          }
+
+          await tx.productAddon.createMany({
+            data: linkOrders.map((l) => ({ productId, ...l })),
           })
         }
 

@@ -29,7 +29,11 @@ async function getMenuContext(storeId: string): Promise<{ text: string; json: st
         where: { isActive: true },
         include: {
           variations: { where: { isActive: true } },
-          additionals: { where: { isActive: true } },
+          // v2.9: adicionais via ProductAddon.
+          addons: {
+            where: { addon: { isActive: true } },
+            include: { addon: true },
+          },
         },
       },
     },
@@ -46,7 +50,8 @@ async function getMenuContext(storeId: string): Promise<{ text: string; json: st
       for (const v of p.variations) {
         lines.push(`  Tamanho: ${v.name} (ID: ${v.id}) — R$ ${v.price.toFixed(2)}`)
       }
-      for (const a of p.additionals) {
+      for (const link of p.addons) {
+        const a = link.addon
         lines.push(`  Adicional: ${a.name} (ID: ${a.id}) — +R$ ${a.price.toFixed(2)}`)
       }
     }

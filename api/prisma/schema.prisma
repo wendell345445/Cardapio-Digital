@@ -76,6 +76,8 @@ model Store {
   conversations         Conversation[]
   customers             Customer[]
   printJobs             PrintJob[]
+  addonCategories       AddonCategory[]
+  addons                Addon[]
 
   @@index([slug])
   @@index([customDomain])
@@ -162,12 +164,12 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  store       Store               @relation(fields: [storeId], references: [id])
-  category    Category            @relation(fields: [categoryId], references: [id])
-  variations  ProductVariation[]
-  additionals ProductAdditional[]
-  orderItems  OrderItem[]
-  promotions  Coupon[]
+  store      Store              @relation(fields: [storeId], references: [id])
+  category   Category           @relation(fields: [categoryId], references: [id])
+  variations ProductVariation[]
+  addons     ProductAddon[]
+  orderItems OrderItem[]
+  promotions Coupon[]
 
   @@unique([storeId, name])
   @@index([storeId])
@@ -187,16 +189,59 @@ model ProductVariation {
   @@index([productId])
 }
 
-model ProductAdditional {
-  id        String  @id @default(uuid())
-  productId String
+// v2.9: Adicionais reformulados.
+// AddonCategory agrupa adicionais por tema ("Acompanhamentos", "Bebidas", "Sabores").
+// Addon é o item em si — cadastrado uma vez, vinculado a N produtos via ProductAddon.
+// Sem regras de min/max — todos opcionais. Agrupamento é só visual.
+model AddonCategory {
+  id        String   @id @default(uuid())
+  storeId   String
   name      String
-  price     Float
-  isActive  Boolean @default(true)
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store  Store   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  addons Addon[]
+
+  @@unique([storeId, name])
+  @@index([storeId])
+}
+
+model Addon {
+  id         String   @id @default(uuid())
+  storeId    String
+  categoryId String
+  name       String
+  price      Float
+  imageUrl   String?
+  isActive   Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  store        Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category     AddonCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  productLinks ProductAddon[]
+
+  @@unique([storeId, categoryId, name])
+  @@index([storeId])
+  @@index([categoryId])
+}
+
+// Tabela associativa N:N — mesmo adicional pode estar vinculado a vários produtos.
+// `order` define posição do adicional dentro do produto (drag-and-drop no modal).
+model ProductAddon {
+  productId String
+  addonId   String
+  order     Int    @default(0)
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  addon   Addon   @relation(fields: [addonId], references: [id], onDelete: Cascade)
 
-  @@index([productId])
+  @@id([productId, addonId])
+  @@index([addonId])
 }
 
 // ─── CUSTOMER (profile editável do ranking) ───────────────────────
