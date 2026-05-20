@@ -263,10 +263,14 @@ export function CheckoutPage() {
         }
 
         // Já temos coords — calcula a taxa contra a loja.
+        // subtotalCents permite ao backend zerar a taxa quando bate o limite
+        // de freeDeliveryAboveCents — mesma regra do createOrder, espelhada
+        // aqui pra UI não mostrar R$5 quando o pedido sairia como R$0.
         try {
           const result = await fetchDeliveryFee({
             latitude: resolved.latitude,
             longitude: resolved.longitude,
+            subtotalCents: Math.round(subtotal() * 100),
           })
           setDeliveryFee(result.fee)
           setDeliveryDistance(result.distance ?? null)
@@ -327,7 +331,11 @@ export function CheckoutPage() {
       let cancelled = false
       setFeeLoading(true)
       setFeeError('')
-      fetchDeliveryFee({ neighborhoodId: selectedNeighborhoodId })
+      fetchDeliveryFee({
+        neighborhoodId: selectedNeighborhoodId,
+        // Inclui subtotalCents pra backend aplicar frete grátis se cobrir o limite.
+        subtotalCents: Math.round(subtotal() * 100),
+      })
         .then((r) => {
           if (cancelled) return
           setDeliveryFee(r.fee)

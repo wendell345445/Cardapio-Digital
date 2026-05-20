@@ -102,12 +102,14 @@ export interface DeliveryFeeResult {
   etaMin?: number
   neighborhoodId?: string
   neighborhoodName?: string
+  /** true quando o subtotal cobre o limite de frete grátis e fee foi zerado */
+  freeShippingApplied?: boolean
 }
 
 export async function calculateDeliveryFee(
   payload:
-    | { latitude: number; longitude: number }
-    | { neighborhoodId: string }
+    | { latitude: number; longitude: number; subtotalCents?: number }
+    | { neighborhoodId: string; subtotalCents?: number }
 ): Promise<DeliveryFeeResult> {
   const { data } = await menuApi.post('/menu/delivery/calculate', payload)
   return data.data

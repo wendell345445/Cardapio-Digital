@@ -33,6 +33,10 @@ export const calculateDeliverySchema = z.object({
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   neighborhoodId: z.string().uuid().optional(),
+  // Opcional: quando enviado, o backend zera `fee` se o subtotal cobre o limite
+  // de frete grátis da loja. Sem ele, retorna a taxa bruta (UX antiga). Frontend
+  // deveria sempre mandar pra UI ficar coerente com o que o cliente vai pagar.
+  subtotalCents: z.number().int().nonnegative().optional(),
 }).refine(
   (v) => v.neighborhoodId !== undefined || (v.latitude !== undefined && v.longitude !== undefined),
   { message: 'Informe neighborhoodId ou latitude/longitude' },

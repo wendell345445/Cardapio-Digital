@@ -192,13 +192,30 @@ export async function setStoreCoordinates(
 // Aceita { latitude, longitude } (modo distância) ou { neighborhoodId } (modo bairro).
 
 export async function calculateDeliveryFee(storeId: string, input: CalculateDeliveryInput) {
-  if (input.neighborhoodId) {
-    return calculateByNeighborhood(storeId, input.neighborhoodId)
+  const result = input.neighborhoodId
+    ? await calculateByNeighborhood(storeId, input.neighborhoodId)
+    : (input.latitude === undefined || input.longitude === undefined)
+      ? (() => { throw new AppError('Informe neighborhoodId ou latitude/longitude', 422) })()
+      : await calculateByDistance(storeId, input.latitude, input.longitude)
+
+  // Frete grátis: se o cliente informou subtotalCents e a loja tem
+  // freeDeliveryAboveCents configurado, zera a taxa quando cobre. Espelha a
+  // mesma regra do createOrder (orders.service.ts) — sem isso o checkout
+  // mostra R$5 e o pedido sai como R$0, confundindo o cliente.
+  if (input.subtotalCents !== undefined) {
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { freeDeliveryAboveCents: true },
+    })
+    if (
+      store?.freeDeliveryAboveCents != null &&
+      input.subtotalCents >= store.freeDeliveryAboveCents
+    ) {
+      return { ...result, fee: 0, freeShippingApplied: true }
+    }
   }
-  if (input.latitude === undefined || input.longitude === undefined) {
-    throw new AppError('Informe neighborhoodId ou latitude/longitude', 422)
-  }
-  return calculateByDistance(storeId, input.latitude, input.longitude)
+
+  return { ...result, freeShippingApplied: false }
 }
 
 export async function calculateByDistance(storeId: string, latitude: number, longitude: number) {
