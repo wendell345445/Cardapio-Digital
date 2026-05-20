@@ -23,7 +23,15 @@ export async function getOrderTrackingController(req: Request, res: Response, ne
         // (Store.whatsappPairedNumber), porque é ele que recebe inbound e
         // dispara o handler de opt-in. Store.phone é cadastro manual e pode
         // estar diferente do que o WhatsApp Web está conectado.
-        store: { select: { slug: true, name: true, whatsappPairedNumber: true } },
+        store: {
+          select: {
+            slug: true,
+            name: true,
+            whatsappPairedNumber: true,
+            primaryColor: true,
+            secondaryColor: true,
+          },
+        },
         table: { select: { number: true } },
       },
     })

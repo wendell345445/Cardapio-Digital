@@ -6,6 +6,7 @@ import { useMenu } from '../hooks/useMenu'
 import { useCartStore } from '../store/useCartStore'
 import { ProductAddedPopup } from '../components/ProductAddedPopup'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
+import { ThemeInjector } from '../components/ThemeInjector'
 import type { ProductVariation, PublicAddon } from '../services/menu.service'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
@@ -173,6 +174,10 @@ export function ItemPage() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={data?.store.primaryColor}
+        secondaryColor={data?.store.secondaryColor}
+      />
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg"
         style={{ paddingBottom: 'calc(160px + env(safe-area-inset-bottom))' }}

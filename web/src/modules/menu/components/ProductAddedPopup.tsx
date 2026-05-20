@@ -69,8 +69,8 @@ export function ProductAddedPopup({
                   gradientUnits="userSpaceOnUse"
                 />
                 <linearGradient id="bagRedGradient">
-                  <stop stopOpacity="1" stopColor="#ff8787" offset="0" />
-                  <stop stopOpacity="1" stopColor="#ff2929" offset="1" />
+                  <stop stopOpacity="1" stopColor="var(--menu-gradient-from)" offset="0" />
+                  <stop stopOpacity="1" stopColor="var(--menu-gradient-to)" offset="1" />
                 </linearGradient>
                 <linearGradient
                   xlinkHref="#bagRedGradient"

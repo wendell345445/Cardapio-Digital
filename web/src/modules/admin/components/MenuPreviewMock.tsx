@@ -1,4 +1,4 @@
-import { resolveImageUrl } from '@/shared/lib/imageUrl'
+import { StoreAvatar } from '@/shared/components/StoreAvatar'
 import { DEFAULT_PRIMARY, DEFAULT_SECONDARY, readableTextColor } from '@/shared/lib/theme'
 
 interface MenuPreviewMockProps {
@@ -38,18 +38,13 @@ export function MenuPreviewMock({
           className="px-4 py-5 flex items-center gap-3 border-b border-gray-100"
           style={{ backgroundColor: secondary }}
         >
-          <div className="h-12 w-12 rounded-full overflow-hidden bg-white shrink-0 ring-2 ring-white shadow-sm flex items-center justify-center">
-            {logoUrl ? (
-              <img src={resolveImageUrl(logoUrl)} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <div
-                className="h-full w-full flex items-center justify-center text-sm font-bold"
-                style={{ color: primary }}
-              >
-                {storeName.charAt(0).toUpperCase() || '?'}
-              </div>
-            )}
-          </div>
+          <StoreAvatar
+            name={storeName}
+            logoUrl={logoUrl}
+            fallbackBg={primary}
+            size={48}
+            className="shrink-0 ring-2 ring-white shadow-sm"
+          />
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-bold text-gray-900 truncate">
               {storeName || 'Sua loja'}

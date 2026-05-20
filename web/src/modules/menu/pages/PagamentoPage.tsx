@@ -8,6 +8,7 @@ import { useCreateOrder } from '../hooks/useOrder'
 import { saveAddress } from '../lib/customerAddresses'
 import { saveCustomerName } from '../lib/customerName'
 import { getCustomerSessionId } from '../lib/customerSession'
+import { ThemeInjector } from '../components/ThemeInjector'
 
 import type { CheckoutNavState } from './CheckoutPage'
 
@@ -212,6 +213,10 @@ export function PagamentoPage() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={menu?.store.primaryColor}
+        secondaryColor={menu?.store.secondaryColor}
+      />
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom))' }}

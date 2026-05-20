@@ -2,9 +2,13 @@ import { FormEvent, useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { useCartStore } from '../store/useCartStore'
+import { useMenu } from '../hooks/useMenu'
 import { getCustomerName, saveCustomerName } from '../lib/customerName'
 import { getCustomerWhatsapp, saveCustomerWhatsapp } from '../lib/customerWhatsapp'
 import { useTableMode } from '../hooks/useTableMode'
+import { ThemeInjector } from '../components/ThemeInjector'
+
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 
 // O número do WhatsApp aparece como campo na tela só pra alinhar visualmente
 // com o protótipo MenuPanda. NÃO é persistido no localStorage nem enviado
@@ -21,6 +25,8 @@ const onlyDigits = (value: string) => value.replace(/\D/g, '')
 
 export function IdentifiquesePage() {
   const navigate = useNavigate()
+  const slug = useStoreSlug()
+  const { data: menu } = useMenu(slug)
   const items = useCartStore((s) => s.items)
   const { tableNumber, deviceName } = useTableMode()
   const whatsappId = useId()
@@ -65,6 +71,10 @@ export function IdentifiquesePage() {
 
   return (
     <main className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={menu?.store.primaryColor}
+        secondaryColor={menu?.store.secondaryColor}
+      />
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}

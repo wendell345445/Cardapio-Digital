@@ -13,6 +13,7 @@ import {
 } from '../hooks/useStore'
 
 import { PasswordInput } from '@/shared/components/PasswordInput'
+import { StoreAvatar } from '@/shared/components/StoreAvatar'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import {
   DEFAULT_PRIMARY,
@@ -392,26 +393,18 @@ function TabPersonalizacao() {
   const [logo, setLogo] = useState<string>('')
   const [primaryColor, setPrimaryColor] = useState<string>(DEFAULT_PRIMARY)
   const [secondaryColor, setSecondaryColor] = useState<string>(DEFAULT_SECONDARY)
-  const [showCustom, setShowCustom] = useState(false)
   const [initialized, setInitialized] = useState(false)
 
   if (store && !initialized) {
     setLogo(store.logo ?? '')
     setPrimaryColor(store.primaryColor ?? DEFAULT_PRIMARY)
     setSecondaryColor(store.secondaryColor ?? DEFAULT_SECONDARY)
-    // Se a cor salva não bate em nenhum preset, abrir picker custom já aberto.
-    const matchesPreset = PALETTE_PRESETS.some(
-      (p) =>
-        p.primary.toLowerCase() === (store.primaryColor ?? DEFAULT_PRIMARY).toLowerCase()
-    )
-    setShowCustom(!matchesPreset)
     setInitialized(true)
   }
 
   function applyPreset(preset: PalettePreset) {
     setPrimaryColor(preset.primary)
     setSecondaryColor(preset.secondary)
-    setShowCustom(false)
   }
 
   function handleSave(e: React.FormEvent) {
@@ -429,7 +422,6 @@ function TabPersonalizacao() {
   function handleResetDefault() {
     setPrimaryColor(DEFAULT_PRIMARY)
     setSecondaryColor(DEFAULT_SECONDARY)
-    setShowCustom(false)
   }
 
   if (isLoading) {
@@ -452,17 +444,13 @@ function TabPersonalizacao() {
             Aparece no topo do cardápio público. JPG, PNG ou WebP, até 5MB.
           </p>
           <div className="flex items-start gap-4">
-            <div className="h-24 w-24 shrink-0 rounded-full overflow-hidden border border-gray-200 bg-gray-50 flex items-center justify-center">
-              {logo ? (
-                <img
-                  src={resolveImageUrl(logo)}
-                  alt="Logo"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span className="text-xs text-gray-400">Sem logo</span>
-              )}
-            </div>
+            <StoreAvatar
+              name={store?.name}
+              logoUrl={logo || null}
+              fallbackBg={primaryColor}
+              size={96}
+              className="shrink-0 border border-gray-200 shadow-sm"
+            />
             <div className="flex-1 space-y-2">
               <ImageUpload value={logo} onChange={setLogo} uploadType="logos" />
               {logo && (
@@ -482,13 +470,13 @@ function TabPersonalizacao() {
         <section className="bg-white rounded-lg border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-1">Cores do cardápio</h2>
           <p className="text-sm text-gray-500 mb-4">
-            Escolha uma paleta predefinida ou personalize. A primária aparece em botões e
-            destaques; a secundária, em fundos sutis e ícones.
+            Escolha uma paleta. A primária aparece em botões e destaques; a secundária,
+            em fundos sutis e ícones.
           </p>
 
-          <div className="grid grid-cols-5 sm:grid-cols-10 gap-2 mb-5">
+          <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
             {PALETTE_PRESETS.map((preset) => {
-              const isActive = selectedPresetId === preset.id && !showCustom
+              const isActive = selectedPresetId === preset.id
               return (
                 <button
                   key={preset.id}
@@ -509,31 +497,6 @@ function TabPersonalizacao() {
               )
             })}
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowCustom((s) => !s)}
-            className="text-sm font-medium text-blue-600 hover:underline"
-          >
-            {showCustom ? 'Fechar personalização' : 'Personalizar cor (HEX)'}
-          </button>
-
-          {showCustom && (
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-              <ColorPickerField
-                label="Cor primária"
-                helper="Botões, links, badges"
-                value={primaryColor}
-                onChange={setPrimaryColor}
-              />
-              <ColorPickerField
-                label="Cor secundária"
-                helper="Fundos sutis, ícones"
-                value={secondaryColor}
-                onChange={setSecondaryColor}
-              />
-            </div>
-          )}
         </section>
 
         {/* Ações */}
@@ -567,54 +530,6 @@ function TabPersonalizacao() {
           secondaryColor={secondaryColor}
         />
       </aside>
-    </div>
-  )
-}
-
-interface ColorPickerFieldProps {
-  label: string
-  helper: string
-  value: string
-  onChange: (v: string) => void
-}
-
-function ColorPickerField({ label, helper, value, onChange }: ColorPickerFieldProps) {
-  function handleHexInput(e: React.ChangeEvent<HTMLInputElement>) {
-    let v = e.target.value.trim()
-    if (v && !v.startsWith('#')) v = `#${v}`
-    onChange(v)
-  }
-
-  const isValidHex = /^#[0-9a-fA-F]{6}$/.test(value)
-
-  return (
-    <div>
-      <label className="block text-sm font-medium text-gray-700">{label}</label>
-      <p className="text-xs text-gray-500 mb-2">{helper}</p>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={isValidHex ? value : '#000000'}
-          onChange={(e) => onChange(e.target.value.toUpperCase())}
-          className="h-10 w-12 rounded-md border border-gray-300 cursor-pointer"
-          aria-label={`Escolher ${label.toLowerCase()}`}
-        />
-        <input
-          type="text"
-          value={value.toUpperCase()}
-          onChange={handleHexInput}
-          maxLength={7}
-          className={`flex-1 rounded-md border px-3 py-2 text-sm font-mono uppercase focus:outline-none focus:ring-2 ${
-            isValidHex
-              ? 'border-gray-300 focus:ring-blue-500'
-              : 'border-red-300 focus:ring-red-500'
-          }`}
-          placeholder="#000000"
-        />
-      </div>
-      {!isValidHex && (
-        <p className="mt-1 text-xs text-red-600">Use o formato #RRGGBB.</p>
-      )}
     </div>
   )
 }

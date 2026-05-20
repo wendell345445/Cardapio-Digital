@@ -23,7 +23,7 @@ export function CategoryChips({ categories, activeId, onSelect }: Props) {
           <button
             type="button"
             onClick={() => onSelect(null)}
-            className="whitespace-nowrap text-xs font-medium tracking-[-0.33px] text-[#ff6060] active:scale-95"
+            className="whitespace-nowrap text-xs font-medium tracking-[-0.33px] text-menu-primary active:scale-95"
           >
             Ver todas
           </button>

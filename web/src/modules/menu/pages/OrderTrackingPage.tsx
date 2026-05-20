@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import { OrderSentAnimation } from '../components/OrderSentAnimation'
+import { ThemeInjector } from '../components/ThemeInjector'
 
 import { createPublicApi } from '@/shared/lib/publicApi'
 
@@ -156,6 +157,10 @@ export function OrderTrackingPage() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={order.store?.primaryColor}
+        secondaryColor={order.store?.secondaryColor}
+      />
       <div className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8">
         {/* Header gradiente */}
         <header
@@ -402,14 +407,14 @@ export function OrderTrackingPage() {
             <section className="grid grid-cols-2 gap-2 pt-1">
               <Link
                 to="/"
-                className="flex items-center justify-center gap-1.5 rounded-full border border-menu-card-border py-3 text-sm font-semibold text-menu-text hover:border-menu-text-soft"
+                className="flex items-center justify-center gap-1.5 rounded-full border border-menu-card-border py-3 text-sm font-semibold text-menu-text transition-colors hover:border-menu-primary hover:text-menu-primary"
               >
                 <ArrowLeft size={14} />
                 Cardápio
               </Link>
               <Link
                 to="/meus-pedidos"
-                className="flex items-center justify-center gap-1.5 rounded-full border border-menu-card-border py-3 text-sm font-semibold text-menu-text hover:border-menu-text-soft"
+                className="flex items-center justify-center gap-1.5 rounded-full border border-menu-card-border py-3 text-sm font-semibold text-menu-text transition-colors hover:border-menu-primary hover:text-menu-primary"
               >
                 <ListOrdered size={14} />
                 Meus pedidos

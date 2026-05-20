@@ -1,7 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 
 import { useCartStore } from '../store/useCartStore'
+import { useMenu } from '../hooks/useMenu'
+import { ThemeInjector } from '../components/ThemeInjector'
 
+import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 
 function fmt(v: number) {
@@ -10,6 +13,8 @@ function fmt(v: number) {
 
 export function CartPage() {
   const navigate = useNavigate()
+  const slug = useStoreSlug()
+  const { data: menu } = useMenu(slug)
   const items = useCartStore((s) => s.items)
   const subtotal = useCartStore((s) => s.subtotal)
   const updateQty = useCartStore((s) => s.updateQty)
@@ -36,6 +41,10 @@ export function CartPage() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={menu?.store.primaryColor}
+        secondaryColor={menu?.store.secondaryColor}
+      />
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{

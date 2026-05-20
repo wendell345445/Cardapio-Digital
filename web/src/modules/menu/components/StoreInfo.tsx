@@ -1,28 +1,36 @@
+import { StoreAvatar } from '@/shared/components/StoreAvatar'
+
 interface Props {
   name: string
-  logo?: string
+  logo?: string | null
+  primaryColor?: string | null
   address?: string
   isOpen: boolean
   nextOpenLabel?: string | null
   tableNumber?: number | null
 }
 
-// Logo do app "Menu Panda" — fixo pra todas as lojas (decisão de marca).
-// Ignora store.logo e renderiza sempre o panda em círculo com fundo
-// gradiente vermelho, igual ao protótipo MenuPanda.
-const MENU_PANDA_LOGO = 'https://c.animaapp.com/monm3nfypCyc4K/img/imagem-perfil.png'
-
-export function StoreInfo({ name, address, isOpen, nextOpenLabel, tableNumber }: Props) {
+export function StoreInfo({
+  name,
+  logo,
+  primaryColor,
+  address,
+  isOpen,
+  nextOpenLabel,
+  tableNumber,
+}: Props) {
   return (
     <section
       className="relative flex w-full items-start gap-3.5 sm:gap-4"
       aria-label="Informações do estabelecimento"
     >
       <div className="relative shrink-0">
-        <img
-          className="h-[74px] w-[74px] rounded-full object-cover shadow-[0_8px_22px_rgba(64,57,57,0.14)] sm:h-[78px] sm:w-[78px]"
-          alt={`Logo de ${name}`}
-          src={MENU_PANDA_LOGO}
+        <StoreAvatar
+          name={name}
+          logoUrl={logo ?? null}
+          fallbackBg={primaryColor}
+          size={74}
+          className="shadow-[0_8px_22px_rgba(64,57,57,0.14)] sm:!h-[78px] sm:!w-[78px]"
         />
       </div>
 

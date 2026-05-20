@@ -140,6 +140,8 @@ export function MenuPage() {
         <main className="w-full flex-1 px-4 pt-5 sm:px-6 md:px-8">
           <StoreInfo
             name={store.name}
+            logo={store.logo}
+            primaryColor={store.primaryColor}
             address={store.address}
             isOpen={isOpen}
             nextOpenLabel={store.nextOpenLabel}

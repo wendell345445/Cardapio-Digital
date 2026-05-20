@@ -5,6 +5,7 @@ import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
 import { useTableMode } from '../hooks/useTableMode'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
+import { ThemeInjector } from '../components/ThemeInjector'
 import {
   calculateDeliveryFee as fetchDeliveryFee,
   geocodeAddress as fetchGeocode,
@@ -487,6 +488,10 @@ export function CheckoutPage() {
 
   return (
     <div className="min-h-dvh w-full overflow-x-hidden bg-menu-bg [font-family:'Sen',Helvetica] antialiased text-menu-text">
+      <ThemeInjector
+        primaryColor={menu?.store.primaryColor}
+        secondaryColor={menu?.store.secondaryColor}
+      />
       <div
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}
