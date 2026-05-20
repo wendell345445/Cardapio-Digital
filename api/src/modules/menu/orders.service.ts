@@ -6,7 +6,9 @@ import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 import { enqueueScheduledOrderAlert } from '../../jobs/scheduled-orders.job'
 import { invalidateAnalyticsCache } from '../admin/analytics.service'
+import { linkOrderToCashFlow } from '../admin/cashflow.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
+import { autoPrintOrder } from '../admin/print.service'
 
 import { geocodeAddress, primeGeocodeCacheFromManual } from './geocoding.service'
 import { generatePix } from './pix.service'
@@ -298,11 +300,16 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
   const orderNumber = (lastOrder?.number ?? 0) + 1
 
   // 9. Status baseado no método de pagamento
-  // TABLE+PENDING pula a etapa de pagamento — pedido vai direto pra confirmação/cozinha
-  const status =
-    data.paymentMethod === 'PENDING' ? 'WAITING_CONFIRMATION'
-      : data.paymentMethod === 'PIX' ? 'WAITING_PAYMENT_PROOF'
-        : 'WAITING_CONFIRMATION'
+  // - Padrão: PIX → WAITING_PAYMENT_PROOF (aguarda comprovante), demais → WAITING_CONFIRMATION
+  // - Store.autoConfirmOrders ON → nasce direto em CONFIRMED, inclusive PIX
+  //   (UI alerta o operador sobre essa exceção do PIX no modal de ativação do toggle).
+  // - Pedido agendado nunca auto-confirma — só entra na fila quando o cliente
+  //   chegar a hora; até lá fica em WAITING_* pra dar chance de cancelamento.
+  const shouldAutoConfirm = store.autoConfirmOrders && !data.scheduledFor
+  const status = shouldAutoConfirm
+    ? 'CONFIRMED'
+    : data.paymentMethod === 'PIX' ? 'WAITING_PAYMENT_PROOF'
+      : 'WAITING_CONFIRMATION'
 
   // 10. Cria pedido em transação
   const order = await prisma.$transaction(async (tx) => {
@@ -313,6 +320,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         clientName: data.clientName,
         type: data.type,
         status,
+        confirmedAt: shouldAutoConfirm ? new Date() : null,
         // 'PENDING' vem do schema da camada de menu (TABLE sem método escolhido ainda).
         // Prisma.PaymentMethod não tem 'PENDING', mas o DB aceita — é enum soft.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -373,6 +381,14 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
 
   // 12. Emite evento Socket.io para admin
   emit.orderNew(store.id, order)
+
+  // Auto-confirm: pedido nasceu em CONFIRMED, dispara mesmos side-effects que
+  // updateOrderStatus dispara em CONFIRMED (auto-print + link cashflow).
+  // Fire-and-forget: erros não quebram a criação do pedido.
+  if (shouldAutoConfirm) {
+    setImmediate(() => autoPrintOrder(order.id))
+    setImmediate(() => linkOrderToCashFlow(store.id, order.id).catch(() => void 0))
+  }
 
   // TASK-092: Agenda alerta 15 min antes se pedido agendado
   if (data.scheduledFor) {

@@ -20,6 +20,7 @@ export interface StoreData {
   allowPickup: boolean
   allowDelivery: boolean
   allowTable: boolean
+  autoConfirmOrders: boolean
   serviceChargePercent: number
   features: { allowPix?: boolean } & Record<string, boolean>
   plan?: string
@@ -50,6 +51,7 @@ export interface UpdatePaymentSettingsDto {
   allowPickup?: boolean
   allowDelivery?: boolean
   allowTable?: boolean
+  autoConfirmOrders?: boolean
   serviceChargePercent?: number
 }
 

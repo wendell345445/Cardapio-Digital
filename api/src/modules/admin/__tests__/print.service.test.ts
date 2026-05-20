@@ -6,6 +6,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     order: {
       findUnique: jest.fn(),
     },
+    printJob: {
+      create: jest.fn(),
+    },
   },
 }))
 
@@ -49,6 +52,7 @@ const baseOrder = {
 
 const mockPrismaOrder = {
   id: ORDER_ID,
+  storeId: 'store-1',
   ...baseOrder,
   store: { id: 'store-1', name: 'Pizzaria do Zé', features: { auto_print: true } },
   items: baseOrder.items.map((i, idx) => ({ id: `item-${idx}`, ...i })),
@@ -202,54 +206,63 @@ describe('buildReceiptText', () => {
 // ─── autoPrintOrder ───────────────────────────────────────────────────────────
 
 describe('autoPrintOrder', () => {
-  it('não imprime quando feature flag auto_print está desabilitada', async () => {
+  it('não enfileira quando feature flag auto_print está desabilitada', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
       ...mockPrismaOrder,
       store: { ...mockPrismaOrder.store, features: { auto_print: false } },
     })
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
-
     await autoPrintOrder(ORDER_ID)
 
-    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('[AutoPrint]'), expect.anything(), expect.anything())
-    consoleSpy.mockRestore()
+    expect(mockPrisma.printJob.create).not.toHaveBeenCalled()
   })
 
-  it('não imprime quando features é null (loja sem Premium)', async () => {
+  it('não enfileira quando features é null (loja sem Premium)', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
       ...mockPrismaOrder,
       store: { ...mockPrismaOrder.store, features: null },
     })
 
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
-
     await autoPrintOrder(ORDER_ID)
 
-    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('[AutoPrint]'), expect.anything(), expect.anything())
-    consoleSpy.mockRestore()
+    expect(mockPrisma.printJob.create).not.toHaveBeenCalled()
   })
 
-  it('loga recibo quando feature flag auto_print está habilitada (Premium)', async () => {
+  it('enfileira PrintJob(PENDING) quando feature flag auto_print está habilitada (Premium)', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockPrismaOrder)
-
-    const consoleSpy = jest.spyOn(console, 'log').mockImplementation(() => {})
 
     await autoPrintOrder(ORDER_ID)
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[AutoPrint] Pedido #42')
-    )
-    consoleSpy.mockRestore()
+    expect(mockPrisma.printJob.create).toHaveBeenCalledWith({
+      data: {
+        storeId: 'store-1',
+        orderId: ORDER_ID,
+      },
+    })
+  })
+
+  it('é idempotente quando PrintJob já existe (Prisma P2002 não propaga)', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockPrismaOrder)
+    const p2002 = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+    ;(mockPrisma.printJob.create as jest.Mock).mockRejectedValue(p2002)
+
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})
+
+    await expect(autoPrintOrder(ORDER_ID)).resolves.toBeUndefined()
+
+    // Não deve logar erro — P2002 é fluxo esperado de idempotência.
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
   })
 
   it('não lança erro quando pedido não encontrado', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
 
     await expect(autoPrintOrder(ORDER_ID)).resolves.toBeUndefined()
+    expect(mockPrisma.printJob.create).not.toHaveBeenCalled()
   })
 
-  it('captura erros sem propagar (impressora offline não quebra o pedido)', async () => {
+  it('captura erros sem propagar (banco offline não quebra o pedido)', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockRejectedValue(new Error('DB connection failed'))
 
     const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {})

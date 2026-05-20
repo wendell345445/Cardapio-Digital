@@ -1,11 +1,12 @@
-// ─── TASK-084: Impressão Automática ESC/POS (Plano Premium) ──────────────────
+// ─── Impressão Automática (fila para app desktop Menuziprinter) ──────────────
 //
-// Feature flag: store.features.auto_print (Plano 2 - Premium)
+// Feature flag: store.features.auto_print (Plano Premium)
 // Trigger: chamado quando pedido é confirmado (status → CONFIRMED)
-// Tratamento de erro: impressora offline → log, pedido NÃO é afetado
+// Tratamento de erro: erro na enfileiração → log, pedido NÃO é afetado
 //
-// Para usar impressora real: npm install escpos escpos-usb
-// Por enquanto, gera o texto formatado ESC/POS e loga (stub pronto para integração)
+// Em vez de imprimir diretamente, autoPrintOrder enfileira um PrintJob(PENDING)
+// que será consumido pelo app desktop Menuziprinter via polling
+// (GET /api/print/pending → POST /api/print/mark-printed).
 
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
@@ -207,17 +208,23 @@ export async function getOrderReceipt(storeId: string, orderId: string): Promise
 }
 
 /**
- * Tenta imprimir o pedido via ESC/POS.
- * Chamado de forma fire-and-forget após pedido ser CONFIRMADO.
+ * Enfileira o pedido para impressão na fila consumida pelo Menuziprinter.
+ * Chamado de forma fire-and-forget após pedido virar CONFIRMED.
  * Erros são logados mas NÃO afetam o pedido.
+ *
+ * Idempotente: `PrintJob.orderId` é UNIQUE — segunda chamada para o mesmo pedido
+ * vira no-op (Prisma P2002). Isso evita duplicidade se autoConfirmOrders e um
+ * advance manual disparam em sequência.
  */
 export async function autoPrintOrder(orderId: string): Promise<void> {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: {
-        store: { select: { id: true, name: true, features: true } },
-        items: { include: { additionals: true } },
+      select: {
+        id: true,
+        storeId: true,
+        number: true,
+        store: { select: { features: true } },
       },
     })
 
@@ -226,40 +233,15 @@ export async function autoPrintOrder(orderId: string): Promise<void> {
     // Feature flag check
     if (!hasAutoPrint(order.store.features)) return
 
-    const receipt = buildReceiptText({
-      number: order.number,
-      createdAt: order.createdAt,
-      clientName: order.clientName,
-      clientWhatsapp: order.clientWhatsapp,
-      type: order.type,
-      paymentMethod: order.paymentMethod,
-      subtotal: order.subtotal,
-      deliveryFee: order.deliveryFee,
-      discount: order.discount,
-      total: order.total,
-      notes: order.notes,
-      address: order.address as Record<string, string> | null,
-      items: order.items.map((i) => ({
-        productName: i.productName,
-        variationName: i.variationName,
-        quantity: i.quantity,
-        totalPrice: i.totalPrice,
-        notes: i.notes,
-        additionals: i.additionals,
-      })),
+    await prisma.printJob.create({
+      data: {
+        storeId: order.storeId,
+        orderId: order.id,
+      },
     })
-
-    // TODO: Integrar com driver ESC/POS real quando instalar escpos/escpos-usb
-    // Exemplo:
-    //   const device = new escpos.USB()
-    //   const printer = new escpos.Printer(device)
-    //   device.open(() => { printer.text(receipt).cut().close() })
-    //
-    // Por ora, loga o recibo formatado (útil para testes com impressora virtual)
-    console.log('[AutoPrint] Pedido #' + order.number + ' — recibo gerado:')
-    console.log(receipt)
   } catch (err) {
-    // Impressora offline ou erro: loga e NÃO propaga — pedido não é afetado
-    console.error('[AutoPrint] Erro ao imprimir pedido', orderId, err)
+    // P2002: PrintJob para esse orderId já existe — idempotente, ignora.
+    if (typeof err === 'object' && err && (err as { code?: string }).code === 'P2002') return
+    console.error('[AutoPrint] Erro ao enfileirar pedido', orderId, err)
   }
 }

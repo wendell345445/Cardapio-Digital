@@ -2,7 +2,7 @@
 // the polling fallback below with a real WebSocket connection.
 
 import { useEffect, useRef, useState } from 'react'
-import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, XCircle, CheckCheck } from 'lucide-react'
+import { Search, Plus, Printer, ClipboardList, ChefHat, Bike, CheckCircle, XCircle, Check, AlertTriangle, X } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   DndContext,
@@ -16,7 +16,8 @@ import {
 } from '@dnd-kit/core'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 
-import { useConfirmOrderPayment, useOrders, usePrintOrder } from '../hooks/useOrders'
+import { useConfirmOrderPayment, useOrders, usePrintOrder, useUpdateOrderStatus } from '../hooks/useOrders'
+import { useStore, useUpdatePaymentSettings } from '../hooks/useStore'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
 
@@ -70,12 +71,15 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 /**
  * Maps each Kanban column to the target status when an order is dropped there.
  * Coluna "novos" não recebe drops (não há transição válida de outras colunas pra ela).
+ *
+ * v2.8: 4 colunas. "Em preparo" agrupa CONFIRMED + PREPARING — soltar lá vira
+ * PREPARING direto (operador raramente quer só CONFIRMED como passo intermediário).
+ * "Saiu pra entrega" agrupa READY + DISPATCHED — soltar lá vira DISPATCHED.
  */
 const COLUMN_DROP_STATUS: Record<string, string> = {
   novos: 'WAITING_CONFIRMATION',
-  confirmado: 'CONFIRMED',
   em_preparo: 'PREPARING',
-  prontos: 'READY',
+  saiu_entrega: 'DISPATCHED',
   concluidos: 'DELIVERED',
 }
 
@@ -103,13 +107,16 @@ export function requiresMotoboyConfirmation(
   )
 }
 
-// TASK-125: Kanban v2 — 5 colunas (adicionada "Confirmado")
+// v2.8: Kanban com 4 colunas. CONFIRMED foi mesclado em "Em preparo" porque
+// na prática a cozinha não precisa de um passo intermediário entre confirmar e
+// começar a preparar (auto-confirm dispara ambos no mesmo instante).
 const ACTIVE_COLUMN_CONFIG = [
   {
     id: 'novos',
     label: 'Novos',
-    // Pedidos nascem em WAITING_PAYMENT_PROOF (PIX) ou WAITING_CONFIRMATION (demais).
-    // Status PENDING foi descontinuado.
+    // Pedidos nascem em WAITING_PAYMENT_PROOF (PIX) ou WAITING_CONFIRMATION.
+    // Com Store.autoConfirmOrders ON, nascem direto em CONFIRMED — então a
+    // coluna "Novos" fica vazia (vai direto pra "Em preparo").
     statuses: ['WAITING_PAYMENT_PROOF', 'WAITING_CONFIRMATION'],
     color: 'border-yellow-200',
     headerColor: 'bg-yellow-50',
@@ -118,19 +125,9 @@ const ACTIVE_COLUMN_CONFIG = [
     emptyIcon: '📋',
   },
   {
-    id: 'confirmado',
-    label: 'Confirmado',
-    statuses: ['CONFIRMED'],
-    color: 'border-purple-200',
-    headerColor: 'bg-purple-50',
-    icon: CheckCheck,
-    iconColor: 'text-purple-400',
-    emptyIcon: '✅',
-  },
-  {
     id: 'em_preparo',
     label: 'Em preparo',
-    statuses: ['PREPARING'],
+    statuses: ['CONFIRMED', 'PREPARING'],
     color: 'border-blue-200',
     headerColor: 'bg-blue-50',
     icon: ChefHat,
@@ -138,8 +135,8 @@ const ACTIVE_COLUMN_CONFIG = [
     emptyIcon: '👨‍🍳',
   },
   {
-    id: 'prontos',
-    label: 'Prontos / saída',
+    id: 'saiu_entrega',
+    label: 'Saiu pra entrega',
     statuses: ['READY', 'DISPATCHED'],
     color: 'border-green-200',
     headerColor: 'bg-green-50',
@@ -252,14 +249,26 @@ function OrderCard({
     order.status === 'DISPATCHED' &&
     order.paymentMethod !== 'PENDING' &&
     !order.paymentReceivedAt
+  // v2.8: pedido em WAITING_* exige confirmação explícita (botão "Confirmar"
+  // verde) antes de avançar. Sem isso, o "→" some — o card fica "preso" em
+  // Novos. Isso vale tanto pra fluxo manual quanto pra Pix aguardando
+  // comprovante (PIX usa o fluxo existente de aprovar comprovante).
+  const isWaitingConfirmation = order.status === 'WAITING_CONFIRMATION'
   const canAdvanceDirect = !readonly && nextStatus
+    && !isWaitingConfirmation
     && !(order.status === 'READY' && order.type === 'DELIVERY')
     && !needsPaymentConfirm
 
   // M-012: Botão "Confirmar recebimento" — DISPATCHED com pagamento não confirmado
   const showConfirmPaymentButton = !readonly && needsPaymentConfirm
 
+  // v2.8: botão "Confirmar" no card Novos quando autoConfirmOrders está OFF.
+  // PIX (WAITING_PAYMENT_PROOF) tem fluxo próprio de aprovação de comprovante
+  // — não cai aqui.
+  const showConfirmOrderButton = !readonly && isWaitingConfirmation
+
   const confirmPaymentMutation = useConfirmOrderPayment()
+  const updateStatusMutation = useUpdateOrderStatus()
   const printOrderMutation = usePrintOrder()
 
   return (
@@ -378,6 +387,20 @@ function OrderCard({
               {confirmPaymentMutation.isPending ? 'Confirmando...' : 'Confirmar recebimento'}
             </button>
           )}
+
+          {/* v2.8: "Confirmar pedido" — aparece em WAITING_CONFIRMATION quando
+              autoConfirmOrders está OFF. Operador clica → pedido vai pra Em preparo. */}
+          {showConfirmOrderButton && (
+            <button
+              onClick={() => updateStatusMutation.mutate({ id: order.id, status: 'CONFIRMED' })}
+              disabled={updateStatusMutation.isPending}
+              className="w-full flex items-center justify-center gap-1 rounded-md bg-green-600 text-white hover:bg-green-700 py-1.5 text-xs font-bold transition-colors disabled:opacity-50"
+              title="Aceitar pedido e mover pra Em preparo"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {updateStatusMutation.isPending ? 'Confirmando...' : 'Confirmar pedido'}
+            </button>
+          )}
         </div>
       )}
 
@@ -427,11 +450,6 @@ function KanbanColumn({
           <div className="flex items-center gap-2">
             <Icon className={`w-4 h-4 ${col.iconColor}`} />
             <span className="text-sm font-bold text-gray-700">{col.label}</span>
-            {col.id === 'novos' && (
-              <span className="text-xs bg-white border border-gray-200 text-gray-500 px-1.5 py-0.5 rounded-full">
-                Automático
-              </span>
-            )}
           </div>
           <span className="text-xs font-semibold text-gray-500">
             {orders.length} {orders.length === 1 ? 'pedido' : 'pedidos'}
@@ -529,6 +547,14 @@ export function OrdersPage() {
   const [pageTab, setPageTab] = useState<PageTab>('ativos')
   // A-045: Drag-and-drop state
   const [draggingOrder, setDraggingOrder] = useState<Order | null>(null)
+  // v2.8: modal de aviso ao ATIVAR confirmação automática — destaca que PIX
+  // também cai direto em CONFIRMED sem validação de comprovante.
+  const [showAutoConfirmModal, setShowAutoConfirmModal] = useState(false)
+
+  // v2.8: toggle de auto-confirmação
+  const { data: store } = useStore()
+  const autoConfirmOrders = !!store?.autoConfirmOrders
+  const updatePaymentSettings = useUpdatePaymentSettings()
 
   // dnd-kit sensor: require 8px movement before drag starts (avoids accidental drags on click)
   const sensors = useSensors(
@@ -727,6 +753,41 @@ export function OrdersPage() {
 
       {/* Banners */}
       <div className="px-6 pt-3 space-y-2 flex-shrink-0">
+        {/* v2.8: Toggle "Confirmação automática". Ativar abre modal de aviso
+            destacando que PIX também é auto-confirmado sem checagem de comprovante. */}
+        <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
+          <button
+            onClick={() => {
+              if (!autoConfirmOrders) {
+                // Ativando: precisa confirmar (modal explica risco de PIX).
+                setShowAutoConfirmModal(true)
+              } else {
+                // Desativando: aplica direto, sem confirmação.
+                updatePaymentSettings.mutate({ autoConfirmOrders: false })
+              }
+            }}
+            disabled={updatePaymentSettings.isPending}
+            className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 ${
+              autoConfirmOrders ? 'bg-green-500' : 'bg-gray-300'
+            }`}
+            aria-label="Confirmação automática de pedidos"
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                autoConfirmOrders ? 'translate-x-4' : 'translate-x-0'
+              }`}
+            />
+          </button>
+          <p className="text-sm text-gray-700">
+            <span className="font-medium">Confirmação automática</span>
+            <span className="text-gray-500 ml-1.5 text-xs">
+              {autoConfirmOrders
+                ? '— pedidos novos vão direto para Em preparo'
+                : '— exige aceitar cada pedido na coluna Novos'}
+            </span>
+          </p>
+        </div>
+
         {/* Toggle pedidos de mesa + tabs Ativos / Cancelados */}
         <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
           {/* v2.7: toggle pra incluir pedidos de mesa em "Todos". Esconde quando
@@ -844,6 +905,64 @@ export function OrdersPage() {
           isOpen={Boolean(selectedOrderId)}
           onClose={() => setSelectedOrderId(null)}
         />
+      )}
+
+      {/* v2.8: Modal de aviso ao ATIVAR confirmação automática */}
+      {showAutoConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-600" />
+              </div>
+              <div className="flex-1">
+                <h2 className="text-base font-bold text-gray-900">Ativar confirmação automática?</h2>
+                <p className="text-sm text-gray-600 mt-2">
+                  Pedidos novos vão direto para <span className="font-semibold">Em preparo</span>,
+                  e o pedido é impresso automaticamente (se você usar o Menuziprinter).
+                </p>
+                <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4" />
+                    Atenção sobre PIX
+                  </p>
+                  <p className="mt-1 text-amber-700">
+                    Pedidos PIX também serão confirmados automaticamente — <span className="font-semibold">sem aguardar o comprovante</span>.
+                    Confira sempre o app do banco antes de despachar.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAutoConfirmModal(false)}
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setShowAutoConfirmModal(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  updatePaymentSettings.mutate(
+                    { autoConfirmOrders: true },
+                    { onSuccess: () => setShowAutoConfirmModal(false) }
+                  )
+                }}
+                disabled={updatePaymentSettings.isPending}
+                className="flex-1 py-2 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition-colors disabled:opacity-50"
+              >
+                {updatePaymentSettings.isPending ? 'Ativando...' : 'Entendi, ativar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

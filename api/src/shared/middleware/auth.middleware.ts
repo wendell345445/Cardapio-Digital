@@ -26,6 +26,7 @@ declare global {
     interface Request {
       tenant?: { storeId: string }
       store?: { id: string; slug: string; name: string }
+      printer?: { storeId: string; userId: string }
     }
   }
 }
