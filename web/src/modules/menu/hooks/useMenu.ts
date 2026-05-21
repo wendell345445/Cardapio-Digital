@@ -14,7 +14,11 @@ export function useMenu(slug: string | null) {
   const query = useQuery({
     queryKey: ['menu', slug],
     queryFn: () => fetchMenu(),
-    staleTime: 5 * 60 * 1000,
+    // staleTime curto + refetch ao focar a aba: status da loja (manualOpen)
+    // muda quando o owner abre/fecha o caixa. Socket invalida em tempo real,
+    // mas se a conexão caiu o usuário recupera ao voltar pra aba.
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
     enabled: !!slug,
   })
 

@@ -22,7 +22,7 @@ import {
 import { useStore } from '../hooks/useStore'
 import { useWhatsAppStatus } from '../hooks/useWhatsAppStatus'
 
-import { StoreStatusToggle } from './StoreStatusToggle'
+import { CashFlowToggle } from './CashFlowToggle'
 
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
@@ -102,7 +102,7 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
             <p className="text-xs text-gray-500">Painel do restaurante</p>
           </div>
         </div>
-        <StoreStatusToggle />
+        <CashFlowToggle />
       </div>
 
       {/* Nav */}

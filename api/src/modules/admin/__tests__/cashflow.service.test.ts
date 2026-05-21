@@ -21,13 +21,24 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     order: {
       findUnique: jest.fn(),
     },
+    store: {
+      update: jest.fn(),
+    },
     auditLog: { create: jest.fn() },
+    // openCashFlow/closeCashFlow usam $transaction([cashFlow.op, store.update]).
+    // Mock executa cada operação como Promise e devolve o array de resultados.
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
+}))
+
+jest.mock('../../../shared/redis/redis', () => ({
+  cache: { del: jest.fn().mockResolvedValue(undefined) },
 }))
 
 jest.mock('../../../shared/socket/socket', () => ({
   emit: {
     cashFlowUpdated: jest.fn(),
+    menuUpdated: jest.fn(),
   },
 }))
 

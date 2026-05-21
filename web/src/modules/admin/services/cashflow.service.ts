@@ -14,6 +14,30 @@ export interface CashFlowAdjustment {
   createdAt: string
 }
 
+export type CashFlowPaymentMethod =
+  | 'PIX'
+  | 'CASH'
+  | 'CREDIT'
+  | 'DEBIT'
+  | 'CASH_ON_DELIVERY'
+  | 'CREDIT_ON_DELIVERY'
+  | 'DEBIT_ON_DELIVERY'
+  | 'PIX_ON_DELIVERY'
+  | 'PENDING'
+
+export interface CashFlowItem {
+  id: string
+  orderId: string
+  amount: number
+  paymentMethod: CashFlowPaymentMethod
+  createdAt: string
+  order: {
+    number: number
+    paymentMethod: CashFlowPaymentMethod
+    total: number
+  }
+}
+
 export interface CashFlow {
   id: string
   status: CashFlowStatus
@@ -24,12 +48,14 @@ export interface CashFlow {
   closedDifference?: number | null
   closedJustification?: string | null
   adjustments: CashFlowAdjustment[]
+  items: CashFlowItem[]
 }
 
 export interface CashFlowSummary {
   totalOrders: number
   totalCash: number
   totalPix: number
+  totalCard: number
   totalSupply: number
   totalBleed: number
   expectedCash: number

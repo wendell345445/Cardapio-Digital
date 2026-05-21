@@ -446,7 +446,7 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-shrink-0 w-64 rounded-xl border ${col.color} flex flex-col max-h-full transition-colors ${
+      className={`flex-1 min-w-0 rounded-xl border ${col.color} flex flex-col max-h-full transition-colors ${
         isOver ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-white'
       }`}
     >
@@ -867,7 +867,7 @@ export function OrdersPage() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-4 min-h-[calc(100vh-180px)]" style={{ minWidth: 'max-content' }}>
+            <div className="flex gap-4 min-h-[calc(100vh-180px)] w-full">
               {ACTIVE_COLUMN_CONFIG.map((col) => (
                 <KanbanColumn
                   key={col.id}

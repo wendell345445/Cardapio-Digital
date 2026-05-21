@@ -24,8 +24,11 @@ jest.mock('../../shared/prisma/prisma', () => ({
     },
     store: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     auditLog: { create: jest.fn() },
+    // openCashFlow/closeCashFlow envolvem cashFlow + store.update em $transaction.
+    $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
 }))
 
@@ -36,6 +39,7 @@ jest.mock('../../shared/redis/redis', () => ({
 jest.mock('../../shared/socket/socket', () => ({
   emit: {
     cashFlowUpdated: jest.fn(),
+    menuUpdated: jest.fn(),
   },
 }))
 
@@ -82,7 +86,14 @@ const mockOpenCashFlow = {
   updatedAt: new Date(),
 }
 
-beforeEach(() => jest.resetAllMocks())
+beforeEach(() => {
+  jest.resetAllMocks()
+  // resetAllMocks limpa implementações inline do jest.mock factory — re-aplica
+  // o $transaction que openCashFlow/closeCashFlow usam.
+  ;(mockPrisma.$transaction as jest.Mock).mockImplementation((ops: Promise<unknown>[]) =>
+    Promise.all(ops)
+  )
+})
 
 // ─── GET /admin/cashflows ─────────────────────────────────────────────────────
 

@@ -53,6 +53,8 @@ export function useOpenCashFlow() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.all })
       qc.invalidateQueries({ queryKey: KEYS.current })
+      // Abrir caixa também põe a loja online — refetch do store
+      qc.invalidateQueries({ queryKey: ['store'] })
     },
   })
 }
@@ -105,6 +107,8 @@ export function useCloseCashFlow() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.all })
       qc.invalidateQueries({ queryKey: KEYS.current })
+      // Fechar caixa também põe a loja offline — refetch do store
+      qc.invalidateQueries({ queryKey: ['store'] })
     },
   })
 }

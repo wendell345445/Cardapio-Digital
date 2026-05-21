@@ -1,26 +1,32 @@
 import { useState } from 'react'
 import {
-  AlertTriangle,
   ArrowDownCircle,
   ArrowUpCircle,
   CheckCircle,
   Clock,
+  CreditCard,
   DollarSign,
   LockKeyhole,
   PlusCircle,
+  Receipt,
   UnlockKeyhole,
   X,
 } from 'lucide-react'
 
+import { CloseCashFlowModal, OpenCashFlowModal } from '../components/CashFlowModals'
 import {
   useAddAdjustment,
   useCashFlowSummary,
-  useCloseCashFlow,
   useCurrentCashFlow,
   useListCashFlows,
-  useOpenCashFlow,
 } from '../hooks/useCashFlow'
-import type { AdjustmentType, CashFlow, CashFlowAdjustment } from '../services/cashflow.service'
+import type {
+  AdjustmentType,
+  CashFlow,
+  CashFlowAdjustment,
+  CashFlowItem,
+  CashFlowPaymentMethod,
+} from '../services/cashflow.service'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -65,72 +71,6 @@ function ModalBackdrop({
         {children}
       </div>
     </div>
-  )
-}
-
-// ── Open Cash Flow Modal ───────────────────────────────────────────────────────
-
-function OpenCashFlowModal({ onClose }: { onClose: () => void }) {
-  const [initialAmount, setInitialAmount] = useState('')
-  const mutation = useOpenCashFlow()
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const amount = parseFloat(initialAmount.replace(',', '.'))
-    if (isNaN(amount) || amount < 0) return
-    mutation.mutate(amount, { onSuccess: onClose })
-  }
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Abrir Caixa</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Troco Inicial (R$)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={initialAmount}
-              onChange={(e) => setInitialAmount(e.target.value)}
-              placeholder="0,00"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-          </div>
-
-          {mutation.isError && (
-            <p className="text-sm text-red-600">Erro ao abrir caixa. Tente novamente.</p>
-          )}
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="flex-1 rounded-lg bg-green-600 text-white px-4 py-2 text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {mutation.isPending ? 'Abrindo...' : 'Abrir Caixa'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </ModalBackdrop>
   )
 }
 
@@ -238,126 +178,6 @@ function AdjustmentModal({
   )
 }
 
-// ── Close Cash Flow Modal ──────────────────────────────────────────────────────
-
-function CloseCashFlowModal({
-  cashFlowId,
-  expectedBalance,
-  onClose,
-}: {
-  cashFlowId: string
-  expectedBalance: number
-  onClose: () => void
-}) {
-  const [countedAmount, setCountedAmount] = useState('')
-  const [justification, setJustification] = useState('')
-  const mutation = useCloseCashFlow()
-
-  const parsed = parseFloat(countedAmount.replace(',', '.'))
-  const difference = !isNaN(parsed) ? parsed - expectedBalance : null
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (isNaN(parsed) || parsed < 0) return
-    mutation.mutate(
-      { id: cashFlowId, countedAmount: parsed, justification: justification || undefined },
-      { onSuccess: onClose }
-    )
-  }
-
-  return (
-    <ModalBackdrop onClose={onClose}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-900">Fechar Caixa</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
-          <div className="flex justify-between text-gray-600">
-            <span>Saldo esperado:</span>
-            <span className="font-semibold text-gray-900">{formatCurrency(expectedBalance)}</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Valor Contado (R$)
-            </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={countedAmount}
-              onChange={(e) => setCountedAmount(e.target.value)}
-              placeholder="0,00"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-              required
-            />
-            {difference !== null && (
-              <p
-                className={`text-xs mt-1 font-medium ${
-                  difference === 0
-                    ? 'text-green-600'
-                    : difference > 0
-                    ? 'text-blue-600'
-                    : 'text-red-600'
-                }`}
-              >
-                Diferença: {difference >= 0 ? '+' : ''}
-                {formatCurrency(difference)}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Justificativa <span className="text-gray-400">(opcional)</span>
-            </label>
-            <textarea
-              value={justification}
-              onChange={(e) => setJustification(e.target.value)}
-              rows={2}
-              placeholder="Explique eventuais diferenças..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
-          </div>
-
-          {mutation.isError && (
-            <p className="text-sm text-red-600">Erro ao fechar caixa. Tente novamente.</p>
-          )}
-
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-2 text-sm text-yellow-800">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <span>Esta ação não pode ser desfeita. Confirme os valores antes de prosseguir.</span>
-          </div>
-
-          <div className="flex gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={mutation.isPending}
-              className="flex-1 rounded-lg bg-red-600 text-white px-4 py-2 text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
-            >
-              {mutation.isPending ? 'Fechando...' : 'Fechar Caixa'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </ModalBackdrop>
-  )
-}
-
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
 function SummaryCard({
@@ -382,6 +202,43 @@ function SummaryCard({
           <p className="text-lg font-bold text-gray-900">{value}</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ─── Payment Method Labels ───────────────────────────────────────────────────
+
+const PAYMENT_LABELS: Record<CashFlowPaymentMethod, string> = {
+  PIX: 'Pix',
+  CASH: 'Dinheiro',
+  CREDIT: 'Crédito',
+  DEBIT: 'Débito',
+  CASH_ON_DELIVERY: 'Dinheiro',
+  CREDIT_ON_DELIVERY: 'Crédito',
+  DEBIT_ON_DELIVERY: 'Débito',
+  PIX_ON_DELIVERY: 'Pix',
+  PENDING: 'Pendente',
+}
+
+// ─── Order Row ────────────────────────────────────────────────────────────────
+
+function OrderRow({ item }: { item: CashFlowItem }) {
+  const method = item.order.paymentMethod
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+      <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-emerald-100">
+        <Receipt className="w-4 h-4 text-emerald-600" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-gray-800">
+          Pedido #{item.order.number}
+        </p>
+        <p className="text-xs text-gray-500">{PAYMENT_LABELS[method] ?? method}</p>
+        <p className="text-xs text-gray-400">{formatDateTime(item.createdAt)}</p>
+      </div>
+      <span className="text-sm font-bold text-emerald-600">
+        +{formatCurrency(item.amount)}
+      </span>
     </div>
   )
 }
@@ -443,13 +300,13 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
 
       {/* Summary Cards */}
       {loadingSummary ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           <SummaryCard
             icon={DollarSign}
             label="Total Pedidos"
@@ -467,6 +324,12 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
             label="Pix"
             value={formatCurrency(summary?.totalPix ?? 0)}
             colorClass="bg-purple-100 text-purple-600"
+          />
+          <SummaryCard
+            icon={CreditCard}
+            label="Cartão"
+            value={formatCurrency(summary?.totalCard ?? 0)}
+            colorClass="bg-indigo-100 text-indigo-600"
           />
           <SummaryCard
             icon={DollarSign}
@@ -500,13 +363,36 @@ function OpenCashFlowView({ cashFlow }: { cashFlow: CashFlow }) {
         </div>
 
         <div className="px-5 py-2">
-          {cashFlow.adjustments.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">Nenhuma movimentação</p>
-          ) : (
-            cashFlow.adjustments.map((adj) => (
-              <AdjustmentRow key={adj.id} adj={adj} />
-            ))
-          )}
+          {(() => {
+            type Entry =
+              | { kind: 'adj'; createdAt: string; adj: CashFlowAdjustment }
+              | { kind: 'item'; createdAt: string; item: CashFlowItem }
+            const entries: Entry[] = [
+              ...cashFlow.adjustments.map((adj) => ({
+                kind: 'adj' as const,
+                createdAt: adj.createdAt,
+                adj,
+              })),
+              ...(cashFlow.items ?? []).map((item) => ({
+                kind: 'item' as const,
+                createdAt: item.createdAt,
+                item,
+              })),
+            ].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+
+            if (entries.length === 0) {
+              return (
+                <p className="text-sm text-gray-400 py-6 text-center">Nenhuma movimentação</p>
+              )
+            }
+            return entries.map((e) =>
+              e.kind === 'adj' ? (
+                <AdjustmentRow key={`adj-${e.adj.id}`} adj={e.adj} />
+              ) : (
+                <OrderRow key={`item-${e.item.id}`} item={e.item} />
+              )
+            )
+          })()}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 
 import type {
@@ -48,14 +49,18 @@ export async function openCashFlow(
   const existing = await prisma.cashFlow.findFirst({ where: { storeId, status: 'OPEN' } })
   if (existing) throw new AppError('Já existe um caixa aberto', 422)
 
-  const cashFlow = await prisma.cashFlow.create({
-    data: {
-      storeId,
-      openedAt: new Date(),
-      initialAmount: input.initialAmount,
-      status: 'OPEN',
-    },
-  })
+  const [cashFlow] = await prisma.$transaction([
+    prisma.cashFlow.create({
+      data: {
+        storeId,
+        openedAt: new Date(),
+        initialAmount: input.initialAmount,
+        status: 'OPEN',
+      },
+    }),
+    // Caixa aberto = cardápio público fica online
+    prisma.store.update({ where: { id: storeId }, data: { manualOpen: true } }),
+  ])
 
   await prisma.auditLog.create({
     data: {
@@ -69,6 +74,8 @@ export async function openCashFlow(
     },
   })
 
+  await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
   emit.cashFlowUpdated(storeId, { type: 'opened', cashFlowId: cashFlow.id })
   return cashFlow
 }
@@ -150,11 +157,19 @@ export async function getCashFlowSummary(storeId: string, cashFlowId: string) {
 
   if (!cf || cf.storeId !== storeId) throw new AppError('Caixa não encontrado', 404)
 
-  const cashItems = cf.items.filter((i) => i.order.paymentMethod === 'CASH_ON_DELIVERY')
-  const pixItems = cf.items.filter((i) => i.order.paymentMethod === 'PIX')
+  const CASH_METHODS = ['CASH', 'CASH_ON_DELIVERY'] as const
+  const PIX_METHODS = ['PIX', 'PIX_ON_DELIVERY'] as const
+  const CARD_METHODS = ['CREDIT', 'DEBIT', 'CREDIT_ON_DELIVERY', 'DEBIT_ON_DELIVERY'] as const
 
-  const totalCash = cashItems.reduce((s, i) => s + i.amount, 0)
-  const totalPix = pixItems.reduce((s, i) => s + i.amount, 0)
+  const totalCash = cf.items
+    .filter((i) => (CASH_METHODS as readonly string[]).includes(i.order.paymentMethod))
+    .reduce((s, i) => s + i.amount, 0)
+  const totalPix = cf.items
+    .filter((i) => (PIX_METHODS as readonly string[]).includes(i.order.paymentMethod))
+    .reduce((s, i) => s + i.amount, 0)
+  const totalCard = cf.items
+    .filter((i) => (CARD_METHODS as readonly string[]).includes(i.order.paymentMethod))
+    .reduce((s, i) => s + i.amount, 0)
   const totalOrders = cf.items.reduce((s, i) => s + i.amount, 0)
 
   const totalSupply = cf.adjustments
@@ -164,7 +179,8 @@ export async function getCashFlowSummary(storeId: string, cashFlowId: string) {
     .filter((a) => a.type === 'BLEED')
     .reduce((s, a) => s + a.amount, 0)
 
-  // Expected cash in register = initial + cash from orders + supply - bleed
+  // Saldo físico esperado na gaveta = inicial + dinheiro + suprimento - sangria.
+  // Pix e cartão são receita mas não entram no caixa físico.
   const expectedCash = cf.initialAmount + totalCash + totalSupply - totalBleed
 
   return {
@@ -173,6 +189,7 @@ export async function getCashFlowSummary(storeId: string, cashFlowId: string) {
       totalOrders,
       totalCash,
       totalPix,
+      totalCard,
       totalSupply,
       totalBleed,
       expectedCash,
@@ -197,17 +214,21 @@ export async function closeCashFlow(
     throw new AppError('Justificativa obrigatória quando há diferença de caixa', 422)
   }
 
-  const closed = await prisma.cashFlow.update({
-    where: { id: cashFlowId },
-    data: {
-      status: 'CLOSED',
-      closedAt: new Date(),
-      countedAmount: input.countedAmount,
-      closedDifference: difference,
-      closedJustification: input.justification ?? null,
-    },
-    include: { adjustments: true, items: true },
-  })
+  const [closed] = await prisma.$transaction([
+    prisma.cashFlow.update({
+      where: { id: cashFlowId },
+      data: {
+        status: 'CLOSED',
+        closedAt: new Date(),
+        countedAmount: input.countedAmount,
+        closedDifference: difference,
+        closedJustification: input.justification ?? null,
+      },
+      include: { adjustments: true, items: true },
+    }),
+    // Caixa fechado = cardápio público fica offline
+    prisma.store.update({ where: { id: storeId }, data: { manualOpen: false } }),
+  ])
 
   await prisma.auditLog.create({
     data: {
@@ -226,6 +247,8 @@ export async function closeCashFlow(
     },
   })
 
+  await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
   emit.cashFlowUpdated(storeId, { type: 'closed', cashFlowId })
   return { cashFlow: closed, summary: { ...summary, countedAmount: input.countedAmount, difference } }
 }
