@@ -108,7 +108,7 @@ describe('verifyPrinterToken', () => {
 })
 
 describe('listPendingPrintJobs', () => {
-  it('retorna apenas PrintJobs PENDING da loja com receipt formatado', async () => {
+  it('retorna apenas PrintJobs PENDING da loja com data estruturado (JSON)', async () => {
     ;(mockPrisma.printJob.findMany as jest.Mock).mockResolvedValue([
       {
         id: 'job-1',
@@ -125,8 +125,17 @@ describe('listPendingPrintJobs', () => {
           discount: 0,
           total: 55,
           notes: null,
-          address: null,
-          items: [],
+          address: { street: 'Rua A', number: '100', neighborhood: 'Centro', city: 'SP' },
+          items: [
+            {
+              productName: 'Pizza',
+              variationName: 'Grande',
+              quantity: 2,
+              totalPrice: 50,
+              notes: 'sem cebola',
+              additionals: [{ name: 'Borda', price: 8 }],
+            },
+          ],
         },
       },
     ])
@@ -140,7 +149,30 @@ describe('listPendingPrintJobs', () => {
     })
     expect(result).toHaveLength(1)
     expect(result[0]).toMatchObject({ id: 'job-1', orderId: 'order-1', orderNumber: 42 })
-    expect(result[0].receipt).toContain('PEDIDO #42')
+
+    // Não há mais `receipt` string — só `data` estruturado.
+    expect((result[0] as unknown as { receipt?: string }).receipt).toBeUndefined()
+    expect(result[0].data).toMatchObject({
+      orderNumber: 42,
+      type: 'DELIVERY',
+      typeLabel: 'Entrega',
+      customerName: 'Cliente',
+      customerPhone: '11999999999',
+      customerAddress: 'Rua A, 100, Centro, SP',
+      paymentMethod: 'PIX',
+      paymentLabel: 'PIX',
+      subtotal: 50,
+      deliveryFee: 5,
+      total: 55,
+    })
+    expect(result[0].data.items).toHaveLength(1)
+    expect(result[0].data.items[0]).toMatchObject({
+      name: 'Pizza (Grande)',
+      quantity: 2,
+      totalPrice: 50,
+      notes: 'sem cebola',
+      options: [{ name: 'Borda', price: 8 }],
+    })
   })
 })
 

@@ -85,6 +85,89 @@ function wrapText(text: string, indent = 0): string[] {
   return result
 }
 
+/**
+ * Dados estruturados do cupom (JSON) para o Menuziprinter montar o layout do
+ * lado dele (decide largura/fonte/quebra de linha). Substitui o `receipt`
+ * string pré-formatado. O shape espelha o que o `buildOrderHtml` do app espera.
+ */
+export interface ReceiptData {
+  orderNumber: number
+  createdAt: string
+  type: string
+  typeLabel: string
+  customerName: string | null
+  customerPhone: string | null
+  tableNumber: string | null
+  customerAddress: string | null
+  paymentMethod: string
+  paymentLabel: string
+  items: Array<{
+    name: string
+    quantity: number
+    totalPrice: number
+    options: Array<{ name: string; price: number }>
+    notes: string | null
+  }>
+  subtotal: number
+  discount: number
+  deliveryFee: number
+  total: number
+  notes: string | null
+}
+
+const RECEIPT_TYPE_LABELS: Record<string, string> = {
+  DELIVERY: 'Entrega',
+  PICKUP: 'Retirada',
+  TABLE: 'Mesa',
+}
+
+const RECEIPT_PAYMENT_LABELS: Record<string, string> = {
+  PIX: 'PIX',
+  CASH: 'Dinheiro',
+  CREDIT: 'Crédito',
+  DEBIT: 'Débito',
+  CASH_ON_DELIVERY: 'Dinheiro na entrega',
+  CREDIT_ON_DELIVERY: 'Crédito na entrega',
+  DEBIT_ON_DELIVERY: 'Débito na entrega',
+  PIX_ON_DELIVERY: 'PIX na entrega',
+  PENDING: 'A definir',
+}
+
+export function buildReceiptData(order: PrintOrder): ReceiptData {
+  const addr = order.address
+  const customerAddress =
+    order.type === 'DELIVERY' && addr
+      ? [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city]
+          .filter(Boolean)
+          .join(', ')
+      : null
+
+  return {
+    orderNumber: order.number,
+    createdAt: order.createdAt.toISOString(),
+    type: order.type,
+    typeLabel: RECEIPT_TYPE_LABELS[order.type] ?? order.type,
+    customerName: order.clientName ?? null,
+    customerPhone: order.clientWhatsapp ?? null,
+    tableNumber: null,
+    customerAddress,
+    paymentMethod: order.paymentMethod,
+    paymentLabel: RECEIPT_PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod,
+    items: order.items.map((item) => ({
+      name: item.variationName ? `${item.productName} (${item.variationName})` : item.productName,
+      quantity: item.quantity,
+      totalPrice: item.totalPrice,
+      options: item.additionals.map((a) => ({ name: a.name, price: a.price })),
+      notes: item.notes ?? null,
+    })),
+    subtotal: order.subtotal,
+    discount: order.discount,
+    deliveryFee: order.deliveryFee,
+    total: order.total,
+    notes: order.notes ?? null,
+  }
+}
+
 /** Gera o texto formatado para impressão ESC/POS */
 export function buildReceiptText(order: PrintOrder): string {
   const date = new Date(order.createdAt)

@@ -3,7 +3,7 @@ import { sign, verify } from 'jsonwebtoken'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import { validateCredentials } from '../auth/auth.service'
-import { buildReceiptText } from '../admin/print.service'
+import { buildReceiptData, type ReceiptData } from '../admin/print.service'
 
 // Token JWT do printer tem escopo limitado ('print') — middleware só aceita esse
 // scope nas rotas /api/print/*. Mesmo que o token vaze, atacante não consegue
@@ -73,7 +73,10 @@ export interface PendingPrintJob {
   id: string
   orderId: string
   orderNumber: number
-  receipt: string
+  // Dados estruturados do pedido — o Menuziprinter monta o layout do cupom
+  // (largura/fonte/quebra de linha) a partir daqui. Substitui o `receipt`
+  // string pré-formatado pela API.
+  data: ReceiptData
 }
 
 export async function listPendingPrintJobs(storeId: string): Promise<PendingPrintJob[]> {
@@ -91,7 +94,7 @@ export async function listPendingPrintJobs(storeId: string): Promise<PendingPrin
     id: job.id,
     orderId: job.orderId,
     orderNumber: job.order.number,
-    receipt: buildReceiptText({
+    data: buildReceiptData({
       number: job.order.number,
       createdAt: job.order.createdAt,
       clientName: job.order.clientName,

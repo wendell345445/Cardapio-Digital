@@ -14,7 +14,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { buildReceiptText, autoPrintOrder, enqueuePrintJob, getOrderReceipt } from '../print.service'
+import { buildReceiptData, buildReceiptText, autoPrintOrder, enqueuePrintJob, getOrderReceipt } from '../print.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -205,6 +205,46 @@ describe('buildReceiptText', () => {
 })
 
 // ─── autoPrintOrder ───────────────────────────────────────────────────────────
+
+// ─── buildReceiptData (JSON estruturado p/ Menuziprinter) ────────────────────
+
+describe('buildReceiptData', () => {
+  it('estrutura os campos do pedido em JSON (sem formatar texto)', () => {
+    const data = buildReceiptData(baseOrder)
+
+    expect(data).toMatchObject({
+      orderNumber: baseOrder.number,
+      type: 'DELIVERY',
+      typeLabel: 'Entrega',
+      customerName: baseOrder.clientName,
+      customerPhone: baseOrder.clientWhatsapp,
+      paymentMethod: 'PIX',
+      paymentLabel: 'PIX',
+      subtotal: baseOrder.subtotal,
+      deliveryFee: baseOrder.deliveryFee,
+      total: baseOrder.total,
+    })
+    expect(data.createdAt).toBe(baseOrder.createdAt.toISOString())
+  })
+
+  it('monta o endereço só em DELIVERY (PICKUP/TABLE ficam null)', () => {
+    expect(buildReceiptData(baseOrder).customerAddress).toContain('Rua A')
+    expect(buildReceiptData({ ...baseOrder, type: 'PICKUP', address: null }).customerAddress).toBeNull()
+  })
+
+  it('inclui variação no nome e adicionais como options', () => {
+    const data = buildReceiptData(baseOrder)
+    expect(data.items[0].name).toBe('Pizza Margherita (Grande)')
+    expect(data.items[0].options).toEqual([{ name: 'Borda Recheada', price: 8.0 }])
+    expect(data.items[0].notes).toBe('Sem cebola')
+  })
+
+  it('mapeia métodos de pagamento presenciais (CASH/CREDIT/DEBIT)', () => {
+    expect(buildReceiptData({ ...baseOrder, paymentMethod: 'CASH' }).paymentLabel).toBe('Dinheiro')
+    expect(buildReceiptData({ ...baseOrder, paymentMethod: 'CREDIT' }).paymentLabel).toBe('Crédito')
+    expect(buildReceiptData({ ...baseOrder, paymentMethod: 'PENDING' }).paymentLabel).toBe('A definir')
+  })
+})
 
 describe('autoPrintOrder', () => {
   it('não enfileira quando feature flag auto_print está desabilitada', async () => {
