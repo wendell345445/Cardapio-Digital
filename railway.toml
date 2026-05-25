@@ -1,18 +1,24 @@
 [build]
 builder = "nixpacks"
 
+# Monorepo npm workspaces: o package-lock.json vive na RAIZ. Por isso os dois
+# serviços buildam a partir da raiz (source = ".") rodando `npm ci` lá — assim
+# as devDependencies de cada workspace (typescript, vite, etc) ficam instaladas
+# e o `tsc` resolve. Buildar de dentro de api/ ou web/ isolado quebra com
+# "tsc: not found" porque não há lockfile lá.
+
 [[services]]
 name = "api"
-source = "api"
+source = "."
 
 [services.build]
-buildCommand = "npm ci && npx prisma generate && npm run build"
-startCommand = "npx prisma migrate deploy && npm start"
+buildCommand = "npm ci && npm run build -w api"
+startCommand = "cd api && npx prisma migrate deploy && node dist/index.js"
 
 [[services]]
 name = "web"
-source = "web"
+source = "."
 
 [services.build]
-buildCommand = "npm ci && npm run build"
-startCommand = "npx serve dist -s -l $PORT"
+buildCommand = "npm ci && npm run build -w web"
+startCommand = "cd web && npx serve dist -s -l $PORT"
