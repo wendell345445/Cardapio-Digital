@@ -9,6 +9,7 @@ import {
 } from '../../shared/middleware/auth.middleware'
 
 import {
+  calculateDeliveryAdminController,
   createDistanceController,
   createNeighborhoodController,
   deleteDistanceController,
@@ -31,6 +32,8 @@ router.get('/', getDeliveryConfigController)
 router.patch('/coordinates', setStoreCoordinatesController)
 router.patch('/settings', updateDeliverySettingsController)
 router.post('/geocode', geocodeAddressController)
+// PDV: calcula frete ao vivo no drawer de novo pedido (mesma lógica do checkout).
+router.post('/calculate', calculateDeliveryAdminController)
 
 router.get('/distances', listDistancesController)
 router.post('/distances', createDistanceController)

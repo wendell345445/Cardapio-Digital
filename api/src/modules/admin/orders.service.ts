@@ -9,10 +9,13 @@ import {
 } from '../whatsapp/messages.service'
 import { geocodeAddress } from '../menu/geocoding.service'
 import { isPaymentOnDelivery } from '../../shared/utils/payment'
+import { createOrder } from '../menu/orders.service'
+import type { CreateOrderInput } from '../menu/orders.schema'
+import { openOrJoinSession } from '../menu/table-session.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
 import { calculateDeliveryFee } from './delivery.service'
-import type { AssignMotoboyInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
+import type { AssignMotoboyInput, CreateAdminOrderInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
 
@@ -452,4 +455,63 @@ export async function confirmOrderPayment(
   })
 
   return updated
+}
+
+// ─── PDV: Criar pedido pelo admin (telefone/balcão) ──────────────────────────
+// Casca fina sobre `createOrder` (menu): NÃO duplica regra de negócio. Todo o
+// cálculo de itens/frete/promo/cupom/status/side-effects (auto-print, cashflow,
+// socket, PIX QR) é do motor único. Aqui só resolvemos o que muda no admin:
+//   1. loja vem do JWT (storeId) → resolvemos o slug que o motor espera;
+//   2. mesa é selecionada por tableId → abrimos/anexamos a TableSession via
+//      openOrJoinSession e injetamos o token que o motor exige pra type=TABLE.
+// O atendente nunca lida com QR/token. Loja fechada continua bloqueando o
+// pedido (decisão: PDV respeita o horário, igual ao cliente).
+export async function createAdminOrder(storeId: string, data: CreateAdminOrderInput) {
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    select: { slug: true },
+  })
+  if (!store) throw new AppError('Loja não encontrada', 404)
+
+  let tableSessionToken: string | undefined
+  if (data.type === 'TABLE') {
+    if (!data.tableId) throw new AppError('Selecione a mesa do pedido', 422)
+    // Valida que a mesa é desta loja antes de mexer na sessão (isolamento tenant).
+    const table = await prisma.table.findUnique({
+      where: { id: data.tableId },
+      select: { storeId: true, accessToken: true },
+    })
+    if (!table || table.storeId !== storeId) {
+      throw new AppError('Mesa não encontrada', 404)
+    }
+    // Abre uma sessão OPEN se não houver, ou anexa à existente. O índice parcial
+    // (status=OPEN) garante uma comanda por mesa — sempre passar por aqui.
+    const session = await openOrJoinSession(storeId, table.accessToken)
+    tableSessionToken = session.token
+  }
+
+  // Mapeia pro contrato do motor. O enum de paymentMethod do admin é superset
+  // do público (inclui CASH/CREDIT/DEBIT presenciais); o motor já trata o
+  // paymentMethod como soft enum (cast no create), então a coerção é segura.
+  const input: CreateOrderInput = {
+    clientName: data.clientName,
+    type: data.type,
+    paymentMethod: data.paymentMethod as CreateOrderInput['paymentMethod'],
+    notes: data.notes,
+    couponCode: data.couponCode,
+    deliveryNeighborhoodId: data.deliveryNeighborhoodId,
+    address: data.address,
+    scheduledFor: data.scheduledFor,
+    tableSessionToken,
+    deviceName: data.deviceName?.trim() || (data.type === 'TABLE' ? 'Balcão' : undefined),
+    items: data.items.map((i) => ({
+      productId: i.productId,
+      variationId: i.variationId,
+      quantity: i.quantity,
+      notes: i.notes,
+      addonIds: i.addonIds ?? [],
+    })),
+  }
+
+  return createOrder(store.slug, input)
 }

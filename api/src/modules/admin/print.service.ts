@@ -161,10 +161,22 @@ export function buildReceiptText(order: PrintOrder): string {
   return lines.join('\n')
 }
 
-/** Verifica se a loja tem auto_print habilitado (feature flag Premium) */
+/** Verifica se a loja tem a feature flag auto_print (legado/override Premium) */
 function hasAutoPrint(features: unknown): boolean {
   if (!features || typeof features !== 'object') return false
   return (features as Record<string, boolean>).auto_print === true
+}
+
+/**
+ * Decide se a loja usa a fila de impressão (Menuziprinter).
+ *
+ * Por decisão de produto, "Confirmação automática" (autoConfirmOrders) é o
+ * toggle único: quando ligado, o pedido também vai pra fila — o operador não
+ * precisa conhecer uma segunda flag. A flag `features.auto_print` continua
+ * valendo como override (lojas que já a usavam não quebram).
+ */
+function usesPrintQueue(store: { autoConfirmOrders: boolean; features: unknown }): boolean {
+  return store.autoConfirmOrders || hasAutoPrint(store.features)
 }
 
 /**
@@ -224,14 +236,14 @@ export async function autoPrintOrder(orderId: string): Promise<void> {
         id: true,
         storeId: true,
         number: true,
-        store: { select: { features: true } },
+        store: { select: { autoConfirmOrders: true, features: true } },
       },
     })
 
     if (!order) return
 
-    // Feature flag check
-    if (!hasAutoPrint(order.store.features)) return
+    // Loja usa a fila? (Confirmação automática OU override auto_print)
+    if (!usesPrintQueue(order.store)) return
 
     await prisma.printJob.create({
       data: {
@@ -244,4 +256,45 @@ export async function autoPrintOrder(orderId: string): Promise<void> {
     if (typeof err === 'object' && err && (err as { code?: string }).code === 'P2002') return
     console.error('[AutoPrint] Erro ao enfileirar pedido', orderId, err)
   }
+}
+
+/**
+ * Impressão MANUAL pelo botão "Imprimir" do admin.
+ *
+ * Quando a loja usa o Menuziprinter (feature flag `auto_print` ON), o botão
+ * deve mandar pra mesma fila que o auto-print usa — não imprimir pelo navegador.
+ * Retorna `queued: true` nesse caso. Quando a flag está OFF, retorna
+ * `queued: false` e o frontend cai no fluxo de `window.print()` de hoje.
+ *
+ * Diferente do `autoPrintOrder` (idempotente / no-op se já existe), aqui o
+ * operador está pedindo a impressão de propósito: se já houver PrintJob, ele é
+ * resetado pra PENDING (reimpressão — papel acabou, 1ª via se perdeu, etc).
+ */
+export async function enqueuePrintJob(
+  storeId: string,
+  orderId: string
+): Promise<{ queued: boolean }> {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    select: {
+      id: true,
+      storeId: true,
+      store: { select: { autoConfirmOrders: true, features: true } },
+    },
+  })
+  if (!order || order.storeId !== storeId) {
+    throw new AppError('Pedido não encontrado', 404)
+  }
+
+  // Loja não usa a fila (sem Menuziprinter) → frontend imprime pelo navegador.
+  if (!usesPrintQueue(order.store)) return { queued: false }
+
+  // Upsert: cria PENDING ou, se já impresso/enfileirado, reseta pra reimprimir.
+  await prisma.printJob.upsert({
+    where: { orderId },
+    create: { storeId, orderId },
+    update: { status: 'PENDING', printedAt: null },
+  })
+
+  return { queued: true }
 }

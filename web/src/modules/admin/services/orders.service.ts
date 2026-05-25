@@ -75,6 +75,62 @@ export async function fetchOrders(params?: ListOrdersParams): Promise<ListOrders
   return data.data
 }
 
+// ─── PDV: criar pedido pelo admin (telefone/balcão) ─────────────────────────
+// Métodos de pagamento aceitos pelo backend (createAdminOrderSchema). Inclui os
+// "limpos" (presencial/balcão) + os *_ON_DELIVERY + PENDING (mesa sem método).
+export type AdminPaymentMethod =
+  | 'PIX'
+  | 'CASH'
+  | 'CREDIT'
+  | 'DEBIT'
+  | 'CASH_ON_DELIVERY'
+  | 'CREDIT_ON_DELIVERY'
+  | 'DEBIT_ON_DELIVERY'
+  | 'PIX_ON_DELIVERY'
+  | 'PENDING'
+
+export interface CreateAdminOrderItem {
+  productId: string
+  variationId?: string
+  quantity: number
+  notes?: string
+  addonIds: string[]
+}
+
+export interface CreateAdminOrderDto {
+  clientName: string
+  type: 'DELIVERY' | 'PICKUP' | 'TABLE'
+  paymentMethod: AdminPaymentMethod
+  notes?: string
+  couponCode?: string
+  /** Mesa selecionada (só type=TABLE). O backend abre/anexa a sessão. */
+  tableId?: string
+  deviceName?: string
+  deliveryNeighborhoodId?: string
+  address?: {
+    zipCode?: string
+    street: string
+    number: string
+    complement?: string
+    neighborhood?: string
+    city?: string
+    state?: string
+  }
+  items: CreateAdminOrderItem[]
+}
+
+export interface CreateAdminOrderResult {
+  orderId: string
+  orderNumber: number
+  total: number
+  status: string
+}
+
+export async function createOrder(dto: CreateAdminOrderDto): Promise<CreateAdminOrderResult> {
+  const { data } = await api.post('/admin/orders', dto)
+  return data.data
+}
+
 export async function fetchOrder(id: string): Promise<Order> {
   const { data } = await api.get(`/admin/orders/${id}`)
   return data.data
@@ -110,6 +166,14 @@ export async function confirmOrderPayment(id: string): Promise<Order> {
 export async function fetchOrderReceipt(id: string): Promise<string> {
   const { data } = await api.get(`/admin/orders/${id}/receipt`)
   return data.data.receipt
+}
+
+// Botão "Imprimir": tenta enfileirar na fila do Menuziprinter. Retorna
+// queued=true quando a loja usa a fila (auto_print ON); queued=false quando o
+// frontend deve imprimir pelo navegador (window.print).
+export async function printOrder(id: string): Promise<{ queued: boolean }> {
+  const { data } = await api.post(`/admin/orders/${id}/print`)
+  return data.data
 }
 
 /** Abre janela de impressão com o recibo formatado para impressora térmica */

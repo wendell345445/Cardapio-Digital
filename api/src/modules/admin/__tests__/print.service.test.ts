@@ -8,12 +8,13 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     },
     printJob: {
       create: jest.fn(),
+      upsert: jest.fn(),
     },
   },
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import { buildReceiptText, autoPrintOrder, getOrderReceipt } from '../print.service'
+import { buildReceiptText, autoPrintOrder, enqueuePrintJob, getOrderReceipt } from '../print.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -54,7 +55,7 @@ const mockPrismaOrder = {
   id: ORDER_ID,
   storeId: 'store-1',
   ...baseOrder,
-  store: { id: 'store-1', name: 'Pizzaria do Zé', features: { auto_print: true } },
+  store: { id: 'store-1', name: 'Pizzaria do Zé', autoConfirmOrders: false, features: { auto_print: true } },
   items: baseOrder.items.map((i, idx) => ({ id: `item-${idx}`, ...i })),
 }
 
@@ -228,7 +229,7 @@ describe('autoPrintOrder', () => {
     expect(mockPrisma.printJob.create).not.toHaveBeenCalled()
   })
 
-  it('enfileira PrintJob(PENDING) quando feature flag auto_print está habilitada (Premium)', async () => {
+  it('enfileira PrintJob(PENDING) quando feature flag auto_print está habilitada (override Premium)', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(mockPrismaOrder)
 
     await autoPrintOrder(ORDER_ID)
@@ -238,6 +239,19 @@ describe('autoPrintOrder', () => {
         storeId: 'store-1',
         orderId: ORDER_ID,
       },
+    })
+  })
+
+  it('enfileira quando autoConfirmOrders está ON mesmo sem auto_print (toggle único)', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...mockPrismaOrder,
+      store: { ...mockPrismaOrder.store, autoConfirmOrders: true, features: { auto_print: false } },
+    })
+
+    await autoPrintOrder(ORDER_ID)
+
+    expect(mockPrisma.printJob.create).toHaveBeenCalledWith({
+      data: { storeId: 'store-1', orderId: ORDER_ID },
     })
   })
 
@@ -326,5 +340,76 @@ describe('getOrderReceipt', () => {
         items: { include: { additionals: true } },
       },
     })
+  })
+})
+
+// ─── enqueuePrintJob (botão "Imprimir") ───────────────────────────────────────
+
+describe('enqueuePrintJob', () => {
+  const orderWithFlag = (auto_print: boolean | null, autoConfirmOrders = false) => ({
+    id: ORDER_ID,
+    storeId: STORE_ID,
+    store: {
+      autoConfirmOrders,
+      features: auto_print === null ? null : { auto_print },
+    },
+  })
+
+  it('lança 404 quando pedido não existe', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
+
+    await expect(enqueuePrintJob(STORE_ID, ORDER_ID)).rejects.toMatchObject({ status: 404 })
+    expect(mockPrisma.printJob.upsert).not.toHaveBeenCalled()
+  })
+
+  it('lança 404 quando pedido pertence a outra loja', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue({
+      ...orderWithFlag(true),
+      storeId: 'outra-loja',
+    })
+
+    await expect(enqueuePrintJob(STORE_ID, ORDER_ID)).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('retorna queued=false e NÃO enfileira quando auto_print está OFF', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderWithFlag(false))
+
+    const result = await enqueuePrintJob(STORE_ID, ORDER_ID)
+
+    expect(result).toEqual({ queued: false })
+    expect(mockPrisma.printJob.upsert).not.toHaveBeenCalled()
+  })
+
+  it('retorna queued=false quando features é null (sem Premium)', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderWithFlag(null))
+
+    const result = await enqueuePrintJob(STORE_ID, ORDER_ID)
+
+    expect(result).toEqual({ queued: false })
+    expect(mockPrisma.printJob.upsert).not.toHaveBeenCalled()
+  })
+
+  it('enfileira (upsert → PENDING) e retorna queued=true quando auto_print ON', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderWithFlag(true))
+    ;(mockPrisma.printJob.upsert as jest.Mock).mockResolvedValue({})
+
+    const result = await enqueuePrintJob(STORE_ID, ORDER_ID)
+
+    expect(result).toEqual({ queued: true })
+    expect(mockPrisma.printJob.upsert).toHaveBeenCalledWith({
+      where: { orderId: ORDER_ID },
+      create: { storeId: STORE_ID, orderId: ORDER_ID },
+      update: { status: 'PENDING', printedAt: null },
+    })
+  })
+
+  it('enfileira (queued=true) quando autoConfirmOrders ON mesmo sem auto_print', async () => {
+    ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(orderWithFlag(false, true))
+    ;(mockPrisma.printJob.upsert as jest.Mock).mockResolvedValue({})
+
+    const result = await enqueuePrintJob(STORE_ID, ORDER_ID)
+
+    expect(result).toEqual({ queued: true })
+    expect(mockPrisma.printJob.upsert).toHaveBeenCalled()
   })
 })

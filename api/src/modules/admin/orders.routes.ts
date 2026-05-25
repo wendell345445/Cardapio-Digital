@@ -11,9 +11,11 @@ import {
 import {
   assignMotoboyController,
   confirmPaymentController,
+  createOrderController,
   getOrderController,
   getOrderReceiptController,
   listOrdersController,
+  printOrderController,
   updateOrderAddressController,
   updateOrderStatusController,
 } from './orders.controller'
@@ -26,9 +28,14 @@ const router = Router()
 router.use(authMiddleware, requireRole('ADMIN', 'OWNER'), extractStoreId, requireStore, requireActiveStore)
 
 router.get('/', listOrdersController)
+// PDV: cria pedido pelo admin (telefone/balcão) — reusa o motor da camada menu.
+router.post('/', createOrderController)
 router.get('/:id', getOrderController)
 // TASK-084/A-050: Recibo para impressão manual
 router.get('/:id/receipt', getOrderReceiptController)
+// Botão "Imprimir": enfileira na fila do Menuziprinter (se auto_print ON) ou
+// sinaliza queued=false pro frontend imprimir pelo navegador.
+router.post('/:id/print', printOrderController)
 router.patch('/:id/status', updateOrderStatusController)
 router.patch('/:id/address', updateOrderAddressController)
 router.patch('/:id/motoboy', assignMotoboyController)

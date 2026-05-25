@@ -201,6 +201,23 @@ export async function calculateDeliveryController(
   }
 }
 
+// ── Admin calculate (PDV) — storeId vem do JWT, mesmo cálculo do checkout ──────
+
+export async function calculateDeliveryAdminController(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const storeId = req.tenant!.storeId
+    const input = calculateDeliverySchema.parse(req.body)
+    const result = await calculateDeliveryFee(storeId, input)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    next(err)
+  }
+}
+
 // ── Public list of available neighborhoods (used in checkout select) ─────────
 
 export async function listAvailableNeighborhoodsController(

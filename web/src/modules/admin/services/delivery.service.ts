@@ -131,3 +131,22 @@ export async function geocodeAddress(payload: GeocodeAddressPayload): Promise<Ge
   const { data } = await api.post('/admin/delivery/geocode', payload)
   return data.data
 }
+
+// PDV: cálculo de frete ao vivo (mesma lógica/retorno do checkout do cliente).
+export interface DeliveryFeeResult {
+  fee: number
+  distance?: number
+  etaMin?: number
+  neighborhoodId?: string
+  neighborhoodName?: string
+  freeShippingApplied?: boolean
+}
+
+export async function calculateDeliveryFee(
+  payload:
+    | { latitude: number; longitude: number; subtotalCents?: number }
+    | { neighborhoodId: string; subtotalCents?: number }
+): Promise<DeliveryFeeResult> {
+  const { data } = await api.post('/admin/delivery/calculate', payload)
+  return data.data
+}

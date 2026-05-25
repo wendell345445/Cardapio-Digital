@@ -20,6 +20,7 @@ import { useConfirmOrderPayment, useOrders, usePrintOrder, useUpdateOrderStatus 
 import { useStore, useUpdatePaymentSettings } from '../hooks/useStore'
 import type { Order } from '../services/orders.service'
 import { OrderDetailModal } from '../components/OrderDetailModal'
+import { NewOrderDrawer } from '../components/pdv/NewOrderDrawer'
 
 import { playBeep } from '@/shared/lib/sounds'
 import { toast } from '@/shared/lib/toast'
@@ -555,6 +556,8 @@ export function OrdersPage() {
   // v2.8: modal de aviso ao ATIVAR confirmação automática — destaca que PIX
   // também cai direto em CONFIRMED sem validação de comprovante.
   const [showAutoConfirmModal, setShowAutoConfirmModal] = useState(false)
+  // PDV: drawer de criação de pedido pelo admin (telefone/balcão).
+  const [showNewOrder, setShowNewOrder] = useState(false)
 
   // v2.8: toggle de auto-confirmação
   const { data: store } = useStore()
@@ -748,8 +751,11 @@ export function OrdersPage() {
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
 
-          {/* Create order */}
-          <button className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+          {/* Create order — PDV (telefone/balcão) */}
+          <button
+            onClick={() => setShowNewOrder(true)}
+            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+          >
             <Plus className="w-4 h-4" />
             Criar pedido
           </button>
@@ -787,7 +793,7 @@ export function OrdersPage() {
             <span className="font-medium">Confirmação automática</span>
             <span className="text-gray-500 ml-1.5 text-xs">
               {autoConfirmOrders
-                ? '— pedidos novos vão direto para Em preparo'
+                ? '— pedidos novos vão direto para Em preparo e são enviados para a impressora'
                 : '— exige aceitar cada pedido na coluna Novos'}
             </span>
           </p>
@@ -911,6 +917,9 @@ export function OrdersPage() {
           onClose={() => setSelectedOrderId(null)}
         />
       )}
+
+      {/* PDV: drawer de novo pedido (telefone/balcão) */}
+      <NewOrderDrawer open={showNewOrder} onClose={() => setShowNewOrder(false)} />
 
       {/* v2.8: Modal de aviso ao ATIVAR confirmação automática */}
       {showAutoConfirmModal && (
