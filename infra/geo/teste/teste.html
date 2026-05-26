@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Geo Stack — Teste (MenuPanda)</title>
+<!-- Leaflet (mapa + tiles OSM grátis) -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root { --primary:#EF4444; --bg:#f7f7f8; --card:#fff; --line:#e4e4e7; --muted:#71717a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:#18181b; }
+  header { background:var(--primary); color:#fff; padding:12px 20px; }
+  header h1 { margin:0; font-size:18px; }
+  header p { margin:2px 0 0; font-size:12px; opacity:.85; }
+  .wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; max-width:1400px; margin:0 auto; }
+  @media (max-width:860px){ .wrap{ grid-template-columns:1fr; } }
+  .side { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .side h2 { margin:0 0 12px; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .badge { font-size:11px; font-weight:700; color:#fff; padding:2px 8px; border-radius:99px; }
+  .badge.a{ background:#2563eb; } .badge.b{ background:#16a34a; }
+  .field { position:relative; z-index:5000; }
+  input[type=text]{ width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; }
+  /* z-index acima dos controles do Leaflet (zoom usa ~1000) */
+  .suggest { position:absolute; z-index:5000; left:0; right:0; top:100%; background:#fff; border:1px solid var(--line); border-top:none; border-radius:0 0 8px 8px; max-height:260px; overflow:auto; box-shadow:0 6px 18px rgba(0,0,0,.08); }
+  .suggest div { padding:9px 12px; cursor:pointer; font-size:13px; border-bottom:1px solid #f4f4f5; }
+  .suggest div:hover{ background:#f4f4f5; }
+  .suggest .s-name{ font-weight:600; } .suggest .s-sub{ color:var(--muted); font-size:11px; }
+  .map { height:280px; border-radius:8px; margin-top:12px; border:1px solid var(--line); }
+  .coords { font-size:12px; color:var(--muted); margin-top:8px; font-family:ui-monospace,monospace; }
+  .confirmed { margin-top:8px; font-size:13px; padding:8px 10px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; display:none; }
+  .confirmed.show{ display:block; }
+  .center { grid-column:1 / -1; text-align:center; }
+  button { background:var(--primary); color:#fff; border:none; padding:12px 28px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+  .result { grid-column:1 / -1; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px; display:none; }
+  .result.show{ display:block; }
+  .result .big{ font-size:32px; font-weight:800; color:var(--primary); }
+  .result .row{ display:flex; gap:30px; flex-wrap:wrap; margin-top:8px; }
+  .result .lbl{ font-size:12px; color:var(--muted); }
+  .hint{ font-size:12px; color:var(--muted); margin-top:6px; }
+  #routemap{ height:340px; border-radius:8px; margin-top:14px; border:1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🗺️ Geo Stack — Tela de Teste</h1>
+  <p>Photon (autocomplete) · Nominatim (geocoding + reverse) · OSRM (rota real) — antes de integrar no MenuPanda</p>
+</header>
+
+<div class="wrap">
+  <!-- ============ LADO A — RESTAURANTE ============ -->
+  <section class="side" id="sideA">
+    <h2><span class="badge a">A</span> Endereço do Restaurante</h2>
+    <div class="field">
+      <input type="text" id="qA" placeholder="Digite o endereço do restaurante..." autocomplete="off" />
+      <div class="suggest" id="sugA" style="display:none"></div>
+    </div>
+    <div id="mapA" class="map"></div>
+    <div class="coords" id="coordA">Nenhum ponto selecionado</div>
+    <div class="confirmed" id="confA"></div>
+    <div class="hint">Arraste o pino 📍 pra ajustar — o endereço é recalculado (reverse).</div>
+  </section>
+
+  <!-- ============ LADO B — CLIENTE ============ -->
+  <section class="side" id="sideB">
+    <h2><span class="badge b">B</span> Endereço do Cliente</h2>
+    <div class="field">
+      <input type="text" id="qB" placeholder="Digite o endereço do cliente..." autocomplete="off" />
+      <div class="suggest" id="sugB" style="display:none"></div>
+    </div>
+    <div id="mapB" class="map"></div>
+    <div class="coords" id="coordB">Nenhum ponto selecionado</div>
+    <div class="confirmed" id="confB"></div>
+    <div class="hint">Arraste o pino 📍 pra ajustar — o endereço é recalculado (reverse).</div>
+  </section>
+
+  <!-- ============ AÇÃO ============ -->
+  <div class="center">
+    <button id="calcBtn" disabled>Calcular distância (A → B)</button>
+  </div>
+
+  <!-- ============ RESULTADO ============ -->
+  <div class="result" id="result">
+    <div class="lbl">Distância de carro (rota real, não linha reta)</div>
+    <div class="big" id="distKm">—</div>
+    <div class="row">
+      <div><div class="lbl">Tempo estimado</div><div id="dur">—</div></div>
+      <div><div class="lbl">Distância em linha reta (Haversine, p/ comparar)</div><div id="straight">—</div></div>
+    </div>
+    <div id="routemap"></div>
+  </div>
+</div>
+
+<script>
+// Endpoints servidos pelo Caddy SEM mTLS sob /teste (temporário).
+const BASE = location.origin + "/teste";
+const PHOTON = BASE + "/photon";
+const NOMINATIM = BASE + "/nominatim";
+const OSRM = BASE + "/osrm";
+
+// Estado de cada lado
+const state = { A:{lat:null,lon:null,label:null}, B:{lat:null,lon:null,label:null} };
+const maps = {}, markers = {};
+let routeLayer = null;
+
+// ---------- Mapa por lado ----------
+function initMap(side, elId){
+  const m = L.map(elId).setView([-23.5505,-46.6333], 11); // SP default
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom:19, attribution:"© OpenStreetMap"
+  }).addTo(m);
+  maps[side] = m;
+  return m;
+}
+
+// ---------- Autocomplete (Photon) ----------
+function debounce(fn,ms){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),ms); }; }
+
+async function autocomplete(side, q){
+  const sug = document.getElementById("sug"+side);
+  if(q.length < 3){ sug.style.display="none"; return; }
+  try{
+    // lang=default (Photon NÃO aceita pt). Bias geográfico no Brasil.
+    const url = `${PHOTON}/api?q=${encodeURIComponent(q)}&limit=6&lang=default&lat=-15.7&lon=-47.9`;
+    const r = await fetch(url);
+    const data = await r.json();
+    const feats = (data.features||[]).filter(f=>f.properties.countrycode==="BR");
+    if(!feats.length){ sug.style.display="none"; return; }
+    sug.innerHTML = "";
+    feats.forEach(f=>{
+      const p = f.properties;
+      const name = p.name || p.street || "?";
+      const sub = [p.district,p.city||p.county,p.state].filter(Boolean).join(", ");
+      const d = document.createElement("div");
+      d.innerHTML = `<div class="s-name">${name}</div><div class="s-sub">${sub}</div>`;
+      d.onclick = ()=>{
+        const [lon,lat] = f.geometry.coordinates;
+        document.getElementById("q"+side).value = name + (sub?(" — "+sub):"");
+        sug.style.display="none";
+        setPoint(side, lat, lon, name+(sub?(", "+sub):""));
+      };
+      sug.appendChild(d);
+    });
+    sug.style.display="block";
+  }catch(e){ sug.style.display="none"; }
+}
+
+// ---------- Reverse (Nominatim) ----------
+async function reverse(side, lat, lon){
+  try{
+    const url = `${NOMINATIM}/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1&accept-language=pt-BR`;
+    const r = await fetch(url);
+    const data = await r.json();
+    return data.display_name || null;
+  }catch(e){ return null; }
+}
+
+// ---------- Define/atualiza o ponto + pin arrastável ----------
+function setPoint(side, lat, lon, label){
+  state[side] = { lat, lon, label };
+  const m = maps[side];
+  m.setView([lat,lon], 16);
+  if(markers[side]){ markers[side].setLatLng([lat,lon]); }
+  else {
+    markers[side] = L.marker([lat,lon], {draggable:true}).addTo(m);
+    markers[side].on("dragend", async ()=>{
+      const ll = markers[side].getLatLng();
+      const newLabel = await reverse(side, ll.lat, ll.lng);
+      state[side] = { lat:ll.lat, lon:ll.lng, label:newLabel };
+      updateInfo(side);
+    });
+  }
+  updateInfo(side);
+}
+
+function updateInfo(side){
+  const s = state[side];
+  document.getElementById("coord"+side).textContent = `lat ${s.lat.toFixed(6)}, lon ${s.lon.toFixed(6)}`;
+  const conf = document.getElementById("conf"+side);
+  conf.textContent = "📍 " + (s.label || "(endereço não identificado pelo reverse)");
+  conf.classList.add("show");
+  document.getElementById("calcBtn").disabled = !(state.A.lat && state.B.lat);
+}
+
+// ---------- Haversine (p/ comparar com a rota real) ----------
+function haversine(a,b){
+  const R=6371, toR=x=>x*Math.PI/180;
+  const dLat=toR(b.lat-a.lat), dLon=toR(b.lon-a.lon);
+  const x=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+// ---------- Calcular rota real (OSRM) ----------
+async function calcRoute(){
+  const a=state.A, b=state.B;
+  const url = `${OSRM}/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`;
+  const r = await fetch(url);
+  const data = await r.json();
+  const res = document.getElementById("result");
+  if(!data.routes || !data.routes.length){
+    document.getElementById("distKm").textContent = "Sem rota";
+    res.classList.add("show"); return;
+  }
+  const route = data.routes[0];
+  document.getElementById("distKm").textContent = (route.distance/1000).toFixed(2) + " km";
+  document.getElementById("dur").textContent = Math.round(route.duration/60) + " min";
+  document.getElementById("straight").textContent = haversine(a,b).toFixed(2) + " km";
+  res.classList.add("show");
+
+  // Mapa da rota
+  if(!maps.route){ maps.route = L.map("routemap"); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(maps.route); }
+  if(routeLayer) maps.route.removeLayer(routeLayer);
+  routeLayer = L.geoJSON(route.geometry, {style:{color:"#EF4444",weight:5}}).addTo(maps.route);
+  L.marker([a.lat,a.lon]).addTo(routeLayer).bindTooltip("A");
+  L.marker([b.lat,b.lon]).addTo(routeLayer).bindTooltip("B");
+  maps.route.fitBounds(routeLayer.getBounds(), {padding:[30,30]});
+  setTimeout(()=>maps.route.invalidateSize(), 100);
+}
+
+// ---------- Wire up ----------
+initMap("A","mapA"); initMap("B","mapB");
+["A","B"].forEach(side=>{
+  const inp = document.getElementById("q"+side);
+  inp.addEventListener("input", debounce(e=>autocomplete(side, e.target.value), 250));
+  // clicar no mapa também define ponto (útil pra simular "arrastar de longe")
+  maps[side].on("click", async e=>{
+    const label = await reverse(side, e.latlng.lat, e.latlng.lng);
+    setPoint(side, e.latlng.lat, e.latlng.lng, label);
+  });
+});
+document.getElementById("calcBtn").addEventListener("click", calcRoute);
+document.addEventListener("click", e=>{ // fecha sugestões ao clicar fora
+  if(!e.target.closest(".field")){ document.getElementById("sugA").style.display="none"; document.getElementById("sugB").style.display="none"; }
+});
+</script>
+</body>
+</html>

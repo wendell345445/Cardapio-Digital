@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import * as geoService from '../menu/geo/geo.service'
 import { reverseGeocode } from '../menu/geocoding.service'
 
 import type {
@@ -236,7 +237,24 @@ export async function calculateByDistance(storeId: string, latitude: number, lon
   })
   if (!distances.length) throw new AppError('Nenhuma faixa de distância configurada', 422)
 
-  const dist = haversine(store.latitude, store.longitude, latitude, longitude)
+  // Distância: OSRM (rota real pelas ruas) atrás da flag GEO_USE_OSRM_ROUTING,
+  // Haversine (linha reta) como fallback. OSRM costuma ser 1.5-2x maior que
+  // Haversine (mais fiel à realidade do motoboy), mas se cair, o pedido não
+  // morre — usa Haversine e segue.
+  let dist: number
+  if (geoService.isOsrmRoutingEnabled()) {
+    try {
+      const route = await geoService.route(
+        { latitude: store.latitude, longitude: store.longitude },
+        { latitude, longitude }
+      )
+      dist = route.distanceKm
+    } catch {
+      dist = haversine(store.latitude, store.longitude, latitude, longitude)
+    }
+  } else {
+    dist = haversine(store.latitude, store.longitude, latitude, longitude)
+  }
   // Cliente cai no primeiro raio com dist <= maxKm (sem gap mín/máx).
   const range = distances.find((d) => dist <= d.maxKm)
   if (!range) {

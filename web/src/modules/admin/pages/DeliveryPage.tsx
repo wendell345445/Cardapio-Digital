@@ -20,11 +20,7 @@ import type {
 } from '../services/delivery.service'
 
 import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
-import {
-  AddressAutocomplete,
-  type AddressSelection,
-} from '@/shared/components/places/AddressAutocomplete'
-import { AddressConfirmModal } from '@/shared/components/places/AddressConfirmModal'
+import { AddressPickerOSM, type AddressResult } from '@/shared/components/places/AddressPickerOSM'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
@@ -470,7 +466,6 @@ export function DeliveryPage() {
   const [coordLat, setCoordLat] = useState('')
   const [coordLng, setCoordLng] = useState('')
   const [coordLabel, setCoordLabel] = useState<string | null>(null)
-  const [pendingSelection, setPendingSelection] = useState<AddressSelection | null>(null)
   const [manualModalOpen, setManualModalOpen] = useState(false)
 
   // Delete targets
@@ -495,18 +490,22 @@ export function DeliveryPage() {
     setTimeout(() => setToast(null), 3500)
   }
 
-  const handlePlaceSelected = useCallback((selection: AddressSelection) => {
-    setPendingSelection(selection)
-  }, [])
-
-  async function handleConfirmSelection(selection: AddressSelection) {
+  // Endereço selecionado + confirmado no AddressPickerOSM (modal já incluído).
+  async function handleAddressConfirmed(result: AddressResult) {
+    const label = [
+      result.street && result.number ? `${result.street}, ${result.number}` : result.street,
+      result.neighborhood,
+      result.city,
+      result.state,
+    ]
+      .filter(Boolean)
+      .join(', ')
     try {
       await setCoordsMutation.mutateAsync({
-        latitude: selection.latitude,
-        longitude: selection.longitude,
-        addressLabel: selection.formattedAddress || null,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        addressLabel: label || result.displayName || null,
       })
-      setPendingSelection(null)
       setEditingCoords(false)
       setCoordLat('')
       setCoordLng('')
@@ -733,7 +732,12 @@ export function DeliveryPage() {
                   <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Buscar endereço
                   </p>
-                  <AddressAutocomplete onSelect={handlePlaceSelected} />
+                  <AddressPickerOSM
+                    scope="admin"
+                    onConfirm={handleAddressConfirmed}
+                    searchPlaceholder="Digite o endereço da loja…"
+                    confirmLabel="Salvar localização"
+                  />
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-xs text-gray-500">
                       Digite e selecione uma sugestão. Você confirma no mapa antes de salvar.
@@ -970,11 +974,6 @@ export function DeliveryPage() {
         }}
       />
 
-      <AddressConfirmModal
-        selection={pendingSelection}
-        onClose={() => setPendingSelection(null)}
-        onConfirm={handleConfirmSelection}
-      />
     </div>
   )
 }

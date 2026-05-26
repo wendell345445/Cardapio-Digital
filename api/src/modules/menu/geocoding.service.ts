@@ -1,6 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { cache } from '../../shared/redis/redis'
 
+import * as geoService from './geo/geo.service'
 import { incrementGeocodingUsage } from './geocoding-usage.service'
 
 // Geocoding = endereço (texto) → { latitude, longitude }.
@@ -184,6 +185,25 @@ function cacheKey(input: GeocodeInput): string {
 }
 
 export async function geocodeAddress(input: GeocodeInput): Promise<GeocodeResult> {
+  // Feature flag GEO_USE_OSM: usa OSM (Nominatim) com fallback automático
+  // pro Google em erro/sem-resultado. Mantém Google ativo como rede de
+  // segurança durante a migração — só remover quando a Fase 6 chegar.
+  if (geoService.isOsmEnabled()) {
+    try {
+      const osm = await geoService.geocode(input)
+      if (osm) {
+        return {
+          latitude: osm.latitude,
+          longitude: osm.longitude,
+          displayName: osm.displayName,
+        }
+      }
+      // OSM achou nada → tenta Google como fallback (cidade pequena, loteamento).
+    } catch {
+      // OSM caiu (rede, mTLS, etc) — fallback transparente pro Google.
+    }
+  }
+
   const key = cacheKey(input)
 
   try {
@@ -234,6 +254,20 @@ export async function reverseGeocode(
   latitude: number,
   longitude: number
 ): Promise<GeocodeResult> {
+  // Mesma estratégia do geocodeAddress: OSM primeiro, fallback Google.
+  if (geoService.isOsmEnabled()) {
+    try {
+      const osm = await geoService.reverse(latitude, longitude)
+      return {
+        latitude: osm.latitude,
+        longitude: osm.longitude,
+        displayName: osm.displayName,
+      }
+    } catch {
+      // fallback Google
+    }
+  }
+
   const key = reverseCacheKey(latitude, longitude)
 
   try {

@@ -9,6 +9,7 @@ import { validateCoupon } from '../admin/coupons.service'
 import { calculateDeliverySchema, geocodeAddressSchema } from '../admin/delivery.schema'
 import { calculateDeliveryFee, listAvailableNeighborhoods } from '../admin/delivery.service'
 
+import * as geoService from './geo/geo.service'
 import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
 import { createOrderController, listOrdersBySessionController } from './orders.controller'
@@ -90,6 +91,71 @@ menuRouter.post(
       const input = calculateDeliverySchema.parse(req.body)
       const result = await calculateDeliveryFee(storeId, input)
       res.json({ success: true, data: result })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ─── Geo (OSM) — proxy do browser pros serviços self-hosted via api (mTLS) ───
+// O browser NÃO apresenta cert de cliente; quem mantém o mTLS é a api. Estes
+// 3 endpoints são tenant-scoped (passam pelo publicTenantMiddleware lá em
+// cima) e respeitam a feature flag GEO_USE_OSM dentro do geo.service.
+
+// GET /menu/geo/autocomplete?q=...&lat=...&lon=...
+menuRouter.get(
+  '/geo/autocomplete',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { q, lat, lon, limit } = z
+        .object({
+          q: z.string().min(3),
+          lat: z.coerce.number().optional(),
+          lon: z.coerce.number().optional(),
+          limit: z.coerce.number().int().min(1).max(10).optional(),
+        })
+        .parse(req.query)
+      const data = await geoService.autocomplete(q, { lat, lon, limit })
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// POST /menu/geo/reverse { lat, lon }
+menuRouter.post(
+  '/geo/reverse',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { lat, lon } = z
+        .object({
+          lat: z.number().min(-90).max(90),
+          lon: z.number().min(-180).max(180),
+        })
+        .parse(req.body)
+      const data = await geoService.reverse(lat, lon)
+      res.json({ success: true, data })
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// POST /menu/geo/route { from:{lat,lon}, to:{lat,lon} }
+// Usado pelo cardápio público / PDV pra exibir "distância A → B" no preview
+// do frete antes de finalizar o pedido.
+menuRouter.post(
+  '/geo/route',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const point = z.object({
+        latitude: z.number().min(-90).max(90),
+        longitude: z.number().min(-180).max(180),
+      })
+      const { from, to } = z.object({ from: point, to: point }).parse(req.body)
+      const data = await geoService.route(from, to)
+      res.json({ success: true, data })
     } catch (err) {
       next(err)
     }

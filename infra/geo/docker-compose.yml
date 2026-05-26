@@ -1,0 +1,121 @@
+# ─── Stack OSM Self-Hosted (Photon + Nominatim + OSRM) ───────────────────
+# Roda numa VM dedicada (GCP Compute Engine ou qualquer host com Docker).
+# Reverse proxy + TLS via Caddy (DNS challenge Cloudflare), consistente com
+# infra/Caddyfile do projeto. Auth por header X-API-Key no Caddyfile.
+#
+# Subir:   docker compose --env-file .env up -d
+# Logs:    docker compose logs -f nominatim
+# Status:  docker compose ps
+#
+# Plano de referência: .local/osm-self-host-stack.v2.md
+
+services:
+  photon:
+    image: rtuszik/photon-docker:latest
+    container_name: geo-photon
+    expose: ["2322"]
+    volumes:
+      - photon_data:/photon/photon_data
+    environment:
+      # Brasil não tem índice Photon pronto (.tar.bz2) nos mirrors — só o
+      # continente south-america (6.2GB, cobre BR inteiro). A var correta da
+      # imagem rtuszik/photon-docker é REGION (não COUNTRY_CODE). Sem isso
+      # ela baixa o planeta (150GB) e estoura o disco.
+      REGION: south-america
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2322/api?q=teste"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: geo-nominatim
+    expose: ["8080"]
+    environment:
+      PBF_URL: https://download.geofabrik.de/south-america/brazil-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/south-america/brazil-updates/
+      IMPORT_WIKIPEDIA: "false"
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD}
+      FREEZE: "false"
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+      - nominatim_flatnode:/nominatim/flatnode
+    shm_size: 1g
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/status"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 600s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: geo-osrm
+    expose: ["5000"]
+    command: osrm-routed --algorithm mld --max-table-size 100 /data/brazil-latest.osrm
+    volumes:
+      - osrm_data:/data
+    healthcheck:
+      # A imagem osrm-backend NÃO tem curl/wget. Usamos bash + /dev/tcp pra
+      # checar a porta 5000 (suficiente: se está escutando, carregou o grafo).
+      test: ["CMD-SHELL", "timeout 3 bash -c '</dev/tcp/localhost/5000' || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    # Imagem oficial; TLS via HTTP-01 challenge (Let's Encrypt). Não precisa
+    # de plugin Cloudflare nem build custom — basta porta 80 aberta e um
+    # registro DNS A `geo.<domínio> -> IP da VM`.
+    image: caddy:2-alpine
+    container_name: geo-caddy
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # mTLS: só o ca.crt precisa entrar no container (valida clientes).
+      # ca.key / client.* NÃO vão pra cá — ca.key fica offline, client.* vai
+      # pro Railway. Montamos a pasta certs read-only.
+      - ./certs/ca.crt:/etc/caddy/certs/ca.crt:ro
+      # TEMPORÁRIO: tela de teste estática servida sob /teste (remover depois).
+      - ./teste:/srv/teste:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      GEO_DOMAIN: ${GEO_DOMAIN}
+      GEO_API_KEY: ${GEO_API_KEY}
+    depends_on:
+      # Só exige que os containers tenham INICIADO, não healthy. O Nominatim
+      # leva horas importando o Brasil — não faz sentido o Caddy (e portanto
+      # autocomplete/rota, que já estão prontos) ficar bloqueado esperando.
+      # Cada location no Caddyfile responde quando seu upstream estiver de pé;
+      # o que não estiver pronto retorna 502, e o serviço degrada sozinho.
+      photon: { condition: service_started }
+      nominatim: { condition: service_started }
+      osrm: { condition: service_started }
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  photon_data:
+  nominatim_data:
+  nominatim_flatnode:
+  osrm_data:
+  caddy_data:
+  caddy_config:

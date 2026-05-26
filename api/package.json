@@ -28,7 +28,7 @@
     "bull": "^4.12.2",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.4.1",
+    "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-rate-limit": "^7.2.0",
@@ -50,6 +50,7 @@
     "slugify": "^1.6.9",
     "socket.io": "^4.6.2",
     "stripe": "^22.0.0",
+    "undici": "^7.26.0",
     "zod": "^3.22.4"
   },
   "prisma": {

@@ -1,0 +1,73 @@
+# ─── Caddy — reverse proxy da stack geo (mTLS) ───────────────────────────
+# Duas camadas de autenticação server-to-server nos paths de PRODUÇÃO:
+#
+#  1. mTLS — cert de CLIENTE assinado pela nossa CA privada (certs/ca.crt).
+#     Modo `request`: cert pedido no handshake mas opcional no TLS; a exigência
+#     é por-path (expression matcher abaixo). Permite a página /teste aberta
+#     sem cert sem afrouxar produção.
+#  2. X-API-Key — segunda camada, defense-in-depth.
+#
+# Usamos `route` (não `handle`) porque route PRESERVA A ORDEM das diretivas —
+# essencial pra rodar as checagens de auth ANTES dos reverse_proxy.
+#
+# ⚠️ BLOCO /teste É TEMPORÁRIO (tela de validação, sem mTLS/API key). Remover
+# ao terminar os testes.
+
+{$GEO_DOMAIN} {
+	tls {
+		client_auth {
+			mode request
+			trust_pool file /etc/caddy/certs/ca.crt
+		}
+	}
+
+	route {
+		# 1) Healthcheck público.
+		handle /healthz {
+			respond "ok" 200
+		}
+
+		# 2) TEMPORÁRIO — tela de teste sem auth, servida antes das checagens.
+		handle /teste {
+			redir /teste/ 301
+		}
+		handle_path /teste/photon/* {
+			reverse_proxy photon:2322
+		}
+		handle_path /teste/nominatim/* {
+			reverse_proxy nominatim:8080
+		}
+		handle_path /teste/osrm/* {
+			reverse_proxy osrm:5000
+		}
+		handle_path /teste/* {
+			root * /srv/teste
+			file_server
+		}
+
+		# 3) PRODUÇÃO — daqui pra baixo exige cert de cliente + API key.
+		#    Sem cert (não apresentado / não assinado pela CA) → 403.
+		@nocert expression `{http.request.tls.client.certificate_der_base64} == ""`
+		respond @nocert "client certificate required" 403
+
+		#    Sem a API key correta → 403.
+		@noauth not header X-Api-Key {$GEO_API_KEY}
+		respond @noauth "Forbidden" 403
+
+		#    Autenticado: repassa pros serviços.
+		handle_path /photon/* {
+			reverse_proxy photon:2322
+		}
+		handle_path /nominatim/* {
+			reverse_proxy nominatim:8080
+		}
+		handle_path /osrm/* {
+			reverse_proxy osrm:5000
+		}
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+}

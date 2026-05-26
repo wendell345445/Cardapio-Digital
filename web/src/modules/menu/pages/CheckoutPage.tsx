@@ -15,14 +15,12 @@ import {
 } from '../services/orders.service'
 import { getCustomerName } from '../lib/customerName'
 import { listAddresses, removeAddress, type SavedAddress } from '../lib/customerAddresses'
-import { lookupCepPublic } from '../lib/cepLookup'
 
+import { AddressAutocompleteOSM } from '@/shared/components/places/AddressAutocompleteOSM'
+import { AddressConfirmMap } from '@/shared/components/places/AddressConfirmMap'
+import type { GeoAddress, GeoSuggestion } from '@/shared/lib/geo-client'
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 import { ManualCoordinatesModal } from '@/shared/components/ManualCoordinatesModal'
-import {
-  AddressAutocomplete,
-  type AddressSelection,
-} from '@/shared/components/places/AddressAutocomplete'
 
 function fmt(v: number) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -1262,11 +1260,6 @@ function AddressBottomSheet({
   ) => void
 }) {
   const [draft, setDraft] = useState<AddressSheetState>(initial)
-  const [cepLoading, setCepLoading] = useState(false)
-  const [cepError, setCepError] = useState('')
-  // Quando ViaCEP/Google geocoding traz CEP genérico (sem rua), abrimos
-  // Places. Cliente seleciona um resultado lá e preenche tudo de uma vez.
-  const [needsPlaces, setNeedsPlaces] = useState(false)
   const [placeCoords, setPlaceCoords] = useState<{ latitude: number; longitude: number } | null>(
     null
   )
@@ -1292,101 +1285,37 @@ function AddressBottomSheet({
     }
   }
 
-  // Handler estável (referência fixa) pro AddressAutocomplete — evita
-  // remontar o widget Google Places a cada render do bottom-sheet, o que
-  // estaria descartando o `place_changed` listener do autocomplete novo.
-  const handlePlaceSelect = useCallback((sel: AddressSelection) => {
-    // eslint-disable-next-line no-console
-    console.log(
-      `[Places] coords gravadas: lat=${sel.latitude}, lng=${sel.longitude}`
-    )
+  // Handler do AddressAutocompleteOSM (Photon) — popula os campos editáveis
+  // abaixo e captura lat/lng. Cliente confirma ajustando o pin no mapa que
+  // aparece logo embaixo (AddressConfirmMap).
+  const handleAddressSelectOSM = useCallback((sel: GeoSuggestion) => {
     setDraft((d) => ({
       ...d,
-      cep: sel.cep ? formatCep(sel.cep) : d.cep,
-      street: sel.street || d.street,
-      number: sel.number || d.number,
-      neighborhood: sel.neighborhood || d.neighborhood,
-      city: sel.city || d.city,
-      state: sel.state || d.state,
+      cep: sel.postcode ? formatCep(sel.postcode) : d.cep,
+      street: sel.street ?? sel.label.split(',')[0] ?? d.street,
+      number: sel.number ?? d.number,
+      neighborhood: sel.neighborhood ?? d.neighborhood,
+      city: sel.city ?? d.city,
+      state: sel.state ?? d.state,
     }))
     setPlaceCoords({ latitude: sel.latitude, longitude: sel.longitude })
-    setNeedsPlaces(false)
   }, [])
 
-  // Auto-busca quando o cliente digita 8 dígitos no CEP. Sempre sobrescreve
-  // rua/bairro/cidade/UF (cliente pode complementar com número/complemento
-  // depois). Mudar o CEP = endereço novo. Coords pra taxa virão do Google
-  // Geocoding no useEffect da CheckoutPage, depois que o sheet fechar.
-  const handleCepChange = async (raw: string) => {
-    const formatted = formatCep(raw)
-    setCepError('')
+  // Reverse geocoding ao arrastar o pin — atualiza o endereço estruturado.
+  const handleMapPinDragged = useCallback((addr: GeoAddress) => {
+    setDraft((d) => ({
+      ...d,
+      cep: addr.postcode ? formatCep(addr.postcode) : d.cep,
+      street: addr.street ?? d.street,
+      number: addr.number ?? d.number,
+      neighborhood: addr.neighborhood ?? d.neighborhood,
+      city: addr.city ?? d.city,
+      state: addr.state ?? d.state,
+    }))
+    setPlaceCoords({ latitude: addr.latitude, longitude: addr.longitude })
+  }, [])
 
-    const digits = formatted.replace(/\D/g, '')
-
-    // CEP incompleto: só limpa rua/bairro/cidade/UF se o cliente apagou um
-    // que estava completo (qualquer dígito a menos invalida o endereço).
-    if (digits.length !== 8) {
-      setDraft((d) => ({
-        ...d,
-        cep: formatted,
-        ...(d.cep.replace(/\D/g, '').length === 8
-          ? { street: '', neighborhood: '', city: '', state: '' }
-          : {}),
-      }))
-      return
-    }
-
-    // CEP completo: busca e SOBRESCREVE rua/bairro/cidade/UF.
-    setCepLoading(true)
-    try {
-      const result = await lookupCepPublic(digits)
-      const isGenericCep = !result.street || !result.neighborhood
-      setDraft((d) => ({
-        ...d,
-        cep: formatted,
-        street: result.street,
-        neighborhood: result.neighborhood,
-        city: result.city,
-        state: result.state,
-      }))
-      // CEP genérico (cidade-only) — habilita Places pra cliente buscar
-      // pelo nome do logradouro e pegar lat/lng mais precisa.
-      setNeedsPlaces(isGenericCep)
-      // Grava coords quando vieram do Google (source=google). Pra CEP de
-      // rua específica, é a coordenada exata da via — pula geocoding extra
-      // no submit. Pra CEP genérico, é o centroide da cidade — fica
-      // como aproximação até o cliente refinar via Places ou números.
-      if (result.latitude != null && result.longitude != null) {
-        // eslint-disable-next-line no-console
-        console.log(
-          `[CEP] coords gravadas (source=${result.source}): lat=${result.latitude}, lng=${result.longitude}`
-        )
-        setPlaceCoords({ latitude: result.latitude, longitude: result.longitude })
-      } else {
-        // eslint-disable-next-line no-console
-        console.log(
-          `[CEP] sem coords (source=${result.source}) — geocoding posterior vai resolver`
-        )
-        setPlaceCoords(null)
-      }
-    } catch (err) {
-      // Falhou a busca — limpa os campos pra cliente preencher manual com
-      // confiança de que não sobrou dado de outro CEP.
-      setDraft((d) => ({
-        ...d,
-        cep: formatted,
-        street: '',
-        neighborhood: '',
-        city: '',
-        state: '',
-      }))
-      setCepError(err instanceof Error ? err.message : 'CEP não encontrado')
-      setNeedsPlaces(false)
-      setPlaceCoords(null)
-    } finally {
-      setCepLoading(false)
-    }
-  }
+  // (Antigo handleCepChange removido — busca agora é por endereço via OSM)
 
   return (
     <div
@@ -1463,60 +1392,39 @@ function AddressBottomSheet({
               } else {
                 // voltando pra bairro
                 setDraft((d) => ({ ...d, cep: '', city: '', state: '' }))
-                setCepError('')
-                setNeedsPlaces(false)
+                setPlaceCoords(null)
               }
             }}
             className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-semibold text-menu-primary"
           >
-            {useCepMode ? '← Selecionar bairro' : 'Buscar por endereço (CEP) →'}
+            {useCepMode ? '← Selecionar bairro' : 'Buscar por endereço →'}
           </button>
         )}
 
         <div className="mt-4 grid grid-cols-1 gap-3">
-          {/* CEP — auto-preenche os outros campos via /cep/lookup. Não bloqueia
-              o cliente: se não souber, pode pular e preencher manual. */}
+          {/* Busca por endereço (OSM Photon). Sem CEP como entrada — cliente
+              digita o nome do logradouro, escolhe na lista, e o mapa aparece
+              embaixo pra confirmar com pin arrastável. */}
           {useCepMode && (
-            <>
-              <label className="block">
-                <span className="mb-1.5 flex items-center justify-between">
-                  <span className="text-[11px] font-semibold leading-none tracking-[-0.1px] text-[#5f5656]">
-                    CEP
-                  </span>
-                  {cepLoading && (
-                    <span className="text-[10px] text-menu-text-soft">Buscando…</span>
-                  )}
-                </span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  placeholder="00000-000"
-                  value={draft.cep}
-                  onChange={(e) => handleCepChange(e.target.value)}
-                  maxLength={9}
-                  className="h-[44px] w-full rounded-[15px] bg-white px-3 text-[13px] font-medium text-menu-text outline-none placeholder:text-[#aaa0a0]"
-                  style={{ border: '0.6px solid rgba(65, 57, 57, 0.13)', fontSize: 16 }}
+            <div className="space-y-2">
+              <span className="text-[11px] font-semibold leading-none tracking-[-0.1px] text-[#5f5656]">
+                Buscar endereço
+              </span>
+              <AddressAutocompleteOSM
+                scope="public"
+                onSelect={handleAddressSelectOSM}
+                placeholder="Digite o nome da rua…"
+              />
+              {placeCoords && (
+                <AddressConfirmMap
+                  scope="public"
+                  latitude={placeCoords.latitude}
+                  longitude={placeCoords.longitude}
+                  onChange={handleMapPinDragged}
+                  height={220}
                 />
-                {cepError && (
-                  <span className="mt-1 block text-[10px] text-amber-600">
-                    {cepError} — preencha os campos manualmente.
-                  </span>
-                )}
-              </label>
-
-              {/* Places fallback: ViaCEP retornou CEP genérico (sem rua/bairro). */}
-              {needsPlaces && (
-                <div className="rounded-[15px] bg-[#fff8f0] px-3 py-3" style={{ border: '0.6px solid rgba(202, 138, 4, 0.20)' }}>
-                  <p className="mb-2 text-[11px] font-semibold leading-[14px] tracking-[-0.1px] text-amber-700">
-                    Esse CEP é genérico — busque pelo nome da rua:
-                  </p>
-                  <AddressAutocomplete
-                    onSelect={handlePlaceSelect}
-                    placeholder="Ex: Rua Raul Soares, Salinas..."
-                  />
-                </div>
               )}
-            </>
+            </div>
           )}
 
           <AddressField

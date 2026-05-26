@@ -6,7 +6,7 @@ import { useDeliveryConfig } from '../../hooks/useDelivery'
 import { useCreateAdminOrder } from '../../hooks/useOrders'
 import { useProducts } from '../../hooks/useProducts'
 import type { Product } from '../../services/products.service'
-import { calculateDeliveryFee, geocodeAddress } from '../../services/delivery.service'
+import { calculateDeliveryFee } from '../../services/delivery.service'
 import { useStore } from '../../hooks/useStore'
 import { useTables } from '../../hooks/useTables'
 import type { AdminPaymentMethod, CreateAdminOrderDto } from '../../services/orders.service'
@@ -14,7 +14,7 @@ import { useAdminCartStore } from '../../store/useAdminCartStore'
 
 import { PdvItemModal } from './PdvItemModal'
 
-import { useViaCep } from '@/modules/auth/hooks/useViaCep'
+import { AddressPickerOSM, type AddressResult } from '@/shared/components/places/AddressPickerOSM'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { toast } from '@/shared/lib/toast'
 
@@ -92,7 +92,10 @@ export function NewOrderDrawer({ open, onClose }: Props) {
   const [deliveryFee, setDeliveryFee] = useState(0)
   const [feeLoading, setFeeLoading] = useState(false)
   const [feeError, setFeeError] = useState('')
-  const { lookup: lookupCep, isLoading: cepLoading } = useViaCep()
+  // Lat/lng capturados quando o endereço é confirmado no AddressPickerOSM —
+  // viram fonte de verdade pro cálculo de frete (sem CEP).
+  const [latitude, setLatitude] = useState<number | null>(null)
+  const [longitude, setLongitude] = useState<number | null>(null)
 
   const neighborhoods = useMemo(
     () => (deliveryConfig?.neighborhoods ?? []).filter((n) => n.isAvailable),
@@ -150,7 +153,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
 
     const ready = useNeighborhood
       ? !!neighborhoodId
-      : street.trim().length > 0 && number.trim().length > 0
+      : latitude !== null && longitude !== null
     if (!ready) {
       setDeliveryFee(0)
       setFeeError('')
@@ -166,16 +169,11 @@ export function NewOrderDrawer({ open, onClose }: Props) {
           const r = await calculateDeliveryFee({ neighborhoodId, subtotalCents })
           if (reqId === feeReqId.current) setDeliveryFee(r.fee)
         } else {
-          const coords = await geocodeAddress({
-            cep: zipCode || undefined,
-            street,
-            number,
-            neighborhood: neighborhood || undefined,
-            city: city || undefined,
-          })
+          // Sem CEP: as coordenadas já vêm do AddressPickerOSM (autocomplete OSM
+          // + pin arrastável + reverse). Sem geocode adicional.
           const r = await calculateDeliveryFee({
-            latitude: coords.latitude,
-            longitude: coords.longitude,
+            latitude: latitude!,
+            longitude: longitude!,
             subtotalCents,
           })
           if (reqId === feeReqId.current) setDeliveryFee(r.fee)
@@ -201,17 +199,20 @@ export function NewOrderDrawer({ open, onClose }: Props) {
     }, 600)
 
     return () => clearTimeout(timer)
-  }, [type, useNeighborhood, neighborhoodId, street, number, neighborhood, city, zipCode, subtotalCents])
+  }, [type, useNeighborhood, neighborhoodId, latitude, longitude, subtotalCents])
 
-  // CEP completo (8 dígitos) → autopreenche rua/bairro/cidade via backend.
-  async function handleCepBlur() {
-    const digits = zipCode.replace(/\D/g, '')
-    if (digits.length !== 8) return
-    const result = await lookupCep(digits)
-    if (!result) return
-    if (result.street) setStreet(result.street)
-    if (result.neighborhood) setNeighborhood(result.neighborhood)
-    if (result.city) setCity(result.city)
+  // Endereço confirmado no AddressPickerOSM (modal de pin arrastável). Replica
+  // os campos no state local pra manter o restante do drawer funcionando.
+  function handleAddressConfirmed(result: AddressResult) {
+    setStreet(result.street)
+    setNumber(result.number)
+    setNeighborhood(result.neighborhood)
+    setCity(result.city)
+    setComplement(result.complement ?? '')
+    setReference(result.reference ?? '')
+    setZipCode(result.zipCode ?? '')
+    setLatitude(result.latitude)
+    setLongitude(result.longitude)
   }
 
   function resetAndClose() {
@@ -447,55 +448,33 @@ export function NewOrderDrawer({ open, onClose }: Props) {
                     </div>
                   </>
                 ) : (
-                  <>
-                    {/* CEP primeiro — autopreenche rua/bairro/cidade, igual ao checkout. */}
-                    <Field label="CEP">
-                      <input
-                        value={zipCode}
-                        onChange={(e) => setZipCode(e.target.value)}
-                        onBlur={handleCepBlur}
-                        placeholder={cepLoading ? 'Buscando…' : '00000-000'}
-                        className={inputCls}
-                      />
-                    </Field>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="col-span-2">
-                        <Field label="Rua">
-                          <input value={street} onChange={(e) => setStreet(e.target.value)} className={inputCls} />
-                        </Field>
-                      </div>
-                      <Field label="Número">
-                        <input value={number} onChange={(e) => setNumber(e.target.value)} className={inputCls} />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Field label="Bairro">
-                        <input
-                          value={neighborhood}
-                          onChange={(e) => setNeighborhood(e.target.value)}
-                          className={inputCls}
-                        />
-                      </Field>
-                      <Field label="Cidade">
-                        <input value={city} onChange={(e) => setCity(e.target.value)} className={inputCls} />
-                      </Field>
-                    </div>
-                    <Field label="Complemento">
-                      <input
-                        value={complement}
-                        onChange={(e) => setComplement(e.target.value)}
-                        className={inputCls}
-                      />
-                    </Field>
-                    <Field label="Ponto de referência">
-                      <input
-                        value={reference}
-                        onChange={(e) => setReference(e.target.value)}
-                        placeholder="Ex: portão azul, ao lado da padaria"
-                        className={inputCls}
-                      />
-                    </Field>
-                  </>
+                  // Modo distância: busca por endereço (sem CEP). O modal de
+                  // confirmação abre automático na seleção; o resultado popula
+                  // todos os campos abaixo e captura lat/lng pro frete.
+                  <AddressPickerOSM
+                    scope="admin"
+                    withComplement
+                    withReference
+                    biasLat={deliveryConfig?.latitude ?? undefined}
+                    biasLon={deliveryConfig?.longitude ?? undefined}
+                    initial={
+                      street && city
+                        ? {
+                            latitude: latitude ?? undefined,
+                            longitude: longitude ?? undefined,
+                            street,
+                            number,
+                            neighborhood,
+                            city,
+                            complement,
+                            reference,
+                            zipCode,
+                          }
+                        : undefined
+                    }
+                    onConfirm={handleAddressConfirmed}
+                    searchPlaceholder="Digite o endereço do cliente…"
+                  />
                 )}
               </div>
             )}

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Printer } from 'lucide-react'
 
-import { useViaCep } from '../../auth/hooks/useViaCep'
 import { useMotoboys } from '../hooks/useMotoboys'
 import { useAssignMotoboy, useOrder, usePrintOrder, useUpdateOrderAddress, useUpdateOrderStatus } from '../hooks/useOrders'
 import type { OrderAddress } from '../services/orders.service'
+
+import type { GeoSuggestion } from '@/shared/lib/geo-client'
+import { AddressAutocompleteOSM } from '@/shared/components/places/AddressAutocompleteOSM'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -92,7 +94,7 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
   const updateAddress = useUpdateOrderAddress()
   const printOrder = usePrintOrder()
   const { data: motoboys } = useMotoboys()
-  const { lookup: lookupCep, isLoading: cepLoading } = useViaCep()
+  // (Antigo useViaCep removido — admin agora busca por endereço via OSM)
 
   const [showCancelForm, setShowCancelForm] = useState(false)
   const [cancelReason, setCancelReason] = useState('')
@@ -161,19 +163,17 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
     )
   }
 
-  async function handleCepBlur() {
-    const cep = addressForm.zipCode ?? ''
-    if (cep.replace(/\D/g, '').length !== 8) return
-    const result = await lookupCep(cep)
-    if (result) {
-      setAddressForm((prev) => ({
-        ...prev,
-        street: result.street || prev.street,
-        neighborhood: result.neighborhood || prev.neighborhood,
-        city: result.city || prev.city,
-        state: result.state || prev.state,
-      }))
-    }
+  // Endereço selecionado no AddressAutocompleteOSM: popula o form.
+  function handleAddressSelectOSM(sel: GeoSuggestion) {
+    setAddressForm((prev) => ({
+      ...prev,
+      zipCode: sel.postcode ?? prev.zipCode,
+      street: sel.street ?? sel.label.split(',')[0] ?? prev.street,
+      number: sel.number ?? prev.number,
+      neighborhood: sel.neighborhood ?? prev.neighborhood,
+      city: sel.city ?? prev.city,
+      state: sel.state ?? prev.state,
+    }))
   }
 
   function handleSaveAddress(e: React.FormEvent) {
@@ -294,16 +294,11 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
 
                   {editingAddress ? (
                     <form onSubmit={handleSaveAddress} className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          value={addressForm.zipCode ?? ''}
-                          onChange={(e) => setAddressForm((p) => ({ ...p, zipCode: e.target.value }))}
-                          onBlur={handleCepBlur}
-                          placeholder="CEP"
-                          className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        {cepLoading && <span className="text-xs text-gray-400 self-center">Buscando...</span>}
-                      </div>
+                      <AddressAutocompleteOSM
+                        scope="admin"
+                        onSelect={handleAddressSelectOSM}
+                        placeholder="Buscar novo endereço…"
+                      />
                       <div className="flex gap-2">
                         <input
                           value={addressForm.street}

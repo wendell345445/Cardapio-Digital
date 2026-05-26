@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus, Star, Trash2, X } from 'lucide-react'
@@ -6,10 +6,11 @@ import { z } from 'zod'
 
 
 import { BR_STATES } from '../../auth/constants/location'
-import { useViaCep } from '../../auth/hooks/useViaCep'
 import { useUpdateCustomer } from '../hooks/useAnalytics'
 import type { CustomerDetail } from '../services/analytics.service'
 
+import { AddressAutocompleteOSM } from '@/shared/components/places/AddressAutocompleteOSM'
+import type { GeoSuggestion } from '@/shared/lib/geo-client'
 import { maskCep, maskWhatsapp, onlyDigits } from '@/shared/lib/masks'
 
 const STATE_VALUES = BR_STATES.map((s) => s.value) as [string, ...string[]]
@@ -19,7 +20,13 @@ const STATE_VALUES = BR_STATES.map((s) => s.value) as [string, ...string[]]
 const addressSchema = z.object({
   id: z.string().optional(),
   isPrimary: z.boolean(),
-  zipCode: z.string().refine((v) => onlyDigits(v).length === 8, 'CEP deve ter 8 dígitos'),
+  // CEP virou opcional — pedimos por endereço. Quando o usuário digita 8
+  // dígitos, valida; vazio também é ok.
+  zipCode: z
+    .string()
+    .optional()
+    .nullable()
+    .refine((v) => !v || onlyDigits(v).length === 8, 'CEP deve ter 8 dígitos'),
   street: z.string().min(2, 'Rua obrigatória').max(200),
   number: z.string().min(1, 'Número obrigatório').max(20),
   complement: z.string().max(200).optional().nullable(),
@@ -75,7 +82,7 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
           ? customer.addresses.map((a) => ({
               id: a.id.startsWith('derived-') ? undefined : a.id,
               isPrimary: a.isPrimary,
-              zipCode: maskCep(a.zipCode),
+              zipCode: a.zipCode ? maskCep(a.zipCode) : '',
               street: a.street,
               number: a.number,
               complement: a.complement ?? '',
@@ -106,26 +113,27 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
   const addressesFA = useFieldArray({ control, name: 'addresses' })
   const phonesFA = useFieldArray({ control, name: 'secondaryPhones' })
 
-  const cepLookup = useViaCep()
-  // Evita lookup repetido pro mesmo CEP já resolvido.
-  const lastLookedUp = useRef<Record<number, string>>({})
-
-  function handleCepLookup(idx: number, digits: string) {
-    if (digits.length !== 8) return
-    if (lastLookedUp.current[idx] === digits) return
-    lastLookedUp.current[idx] = digits
-    cepLookup.lookup(digits).then((res) => {
-      if (!res) return
-      if (res.street) setValue(`addresses.${idx}.street`, res.street, { shouldValidate: true })
-      if (res.neighborhood)
-        setValue(`addresses.${idx}.neighborhood`, res.neighborhood, { shouldValidate: true })
-      if (res.city) setValue(`addresses.${idx}.city`, res.city, { shouldValidate: true })
-      if (res.state && (STATE_VALUES as readonly string[]).includes(res.state)) {
-        setValue(`addresses.${idx}.state`, res.state as FormValues['addresses'][number]['state'], {
+  // Handler do AddressAutocompleteOSM (Photon). Substitui o lookup por CEP —
+  // admin agora busca por endereço e os campos abaixo são preenchidos.
+  function handleAddressSelectOSM(idx: number, sel: GeoSuggestion) {
+    if (sel.postcode) setValue(`addresses.${idx}.zipCode`, maskCep(sel.postcode), { shouldValidate: true })
+    if (sel.street) setValue(`addresses.${idx}.street`, sel.street, { shouldValidate: true })
+    if (sel.number) setValue(`addresses.${idx}.number`, sel.number, { shouldValidate: true })
+    if (sel.neighborhood)
+      setValue(`addresses.${idx}.neighborhood`, sel.neighborhood, { shouldValidate: true })
+    if (sel.city) setValue(`addresses.${idx}.city`, sel.city, { shouldValidate: true })
+    if (sel.state) {
+      // Nominatim devolve o estado em texto ("São Paulo"); converter pra UF.
+      const upper = sel.state.toUpperCase()
+      const uf =
+        STATE_VALUES.find((v) => v === upper) ??
+        BR_STATES.find((s) => s.label.toLowerCase() === sel.state!.toLowerCase())?.value
+      if (uf) {
+        setValue(`addresses.${idx}.state`, uf as FormValues['addresses'][number]['state'], {
           shouldValidate: true,
         })
       }
-    })
+    }
   }
 
   function setPrimaryAddress(index: number) {
@@ -143,7 +151,7 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
         addresses: values.addresses.map((a) => ({
           id: a.id,
           isPrimary: a.isPrimary,
-          zipCode: onlyDigits(a.zipCode),
+          zipCode: a.zipCode ? onlyDigits(a.zipCode) : '',
           street: a.street,
           number: a.number,
           complement: a.complement || null,
@@ -335,22 +343,26 @@ export function CustomerEditModal({ customer, onClose, onSaved }: Props) {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <Field label="CEP *" error={errors.addresses?.[idx]?.zipCode?.message}>
+                      {/* Busca por endereço (sem CEP). Popula os campos abaixo. */}
+                      <Field label="Buscar endereço" className="md:col-span-3">
+                        <AddressAutocompleteOSM
+                          scope="admin"
+                          onSelect={(sel) => handleAddressSelectOSM(idx, sel)}
+                          placeholder="Digite o endereço…"
+                        />
+                      </Field>
+
+                      <Field label="CEP" error={errors.addresses?.[idx]?.zipCode?.message}>
                         <input
                           {...register(`addresses.${idx}.zipCode`, {
                             onChange: (e) => {
-                              const masked = maskCep(e.target.value)
-                              e.target.value = masked
-                              handleCepLookup(idx, onlyDigits(masked))
+                              e.target.value = maskCep(e.target.value)
                             },
                           })}
                           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="01310-100"
+                          placeholder="Opcional"
                           autoComplete="off"
                         />
-                        {cepLookup.isLoading && (
-                          <p className="text-xs text-gray-400 mt-1">Buscando CEP...</p>
-                        )}
                       </Field>
 
                       <Field
