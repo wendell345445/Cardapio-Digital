@@ -112,6 +112,7 @@ export interface CreateAdminOrderDto {
     street: string
     number: string
     complement?: string
+    reference?: string
     neighborhood?: string
     city?: string
     state?: string

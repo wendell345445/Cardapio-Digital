@@ -78,6 +78,7 @@ export const createAdminOrderSchema = z
         street: z.string().min(1),
         number: z.string().min(1),
         complement: z.string().optional(),
+        reference: z.string().optional(),
         neighborhood: z.string().min(1).optional(),
         city: z.string().min(1).optional(),
         state: z.string().optional(),

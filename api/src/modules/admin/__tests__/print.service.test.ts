@@ -229,7 +229,40 @@ describe('buildReceiptData', () => {
 
   it('monta o endereço só em DELIVERY (PICKUP/TABLE ficam null)', () => {
     expect(buildReceiptData(baseOrder).customerAddress).toContain('Rua A')
-    expect(buildReceiptData({ ...baseOrder, type: 'PICKUP', address: null }).customerAddress).toBeNull()
+    const pickup = buildReceiptData({ ...baseOrder, type: 'PICKUP', address: null })
+    expect(pickup.customerAddress).toBeNull()
+    expect(pickup.address).toBeNull()
+  })
+
+  it('expõe o endereço em partes (address estruturado)', () => {
+    const data = buildReceiptData(baseOrder)
+    expect(data.address).toMatchObject({
+      street: 'Rua A',
+      number: '100',
+      complement: 'Apto 2',
+      reference: null,
+      neighborhood: 'Centro',
+      city: 'Joinville',
+    })
+  })
+
+  it('separa reference do complement quando vêm como campos próprios', () => {
+    const data = buildReceiptData({
+      ...baseOrder,
+      address: { ...baseOrder.address, complement: 'Apto 2', reference: 'Portão azul' },
+    })
+    expect(data.address?.complement).toBe('Apto 2')
+    expect(data.address?.reference).toBe('Portão azul')
+    expect(data.customerAddress).toContain('Ref: Portão azul')
+  })
+
+  it('desfaz o legado "complemento | referência" quando não há reference próprio', () => {
+    const data = buildReceiptData({
+      ...baseOrder,
+      address: { street: 'Rua A', number: '100', complement: 'Apto 2 | Portão azul', city: 'SP' },
+    })
+    expect(data.address?.complement).toBe('Apto 2')
+    expect(data.address?.reference).toBe('Portão azul')
   })
 
   it('inclui variação no nome e adicionais como options', () => {

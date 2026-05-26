@@ -34,6 +34,10 @@ export const createOrderSchema = z.object({
       street: z.string().min(1),
       number: z.string().min(1),
       complement: z.string().optional(),
+      // Ponto de referência ("portão azul", "ao lado da padaria"). Separado do
+      // complement pra impressão/entrega. Pedidos antigos podem ter ref grudada
+      // no complement (legado " | ") — buildReceiptData desfaz isso na leitura.
+      reference: z.string().optional(),
       // No modo bairro o cliente não preenche cidade (o sheet esconde o campo) —
       // a cidade vem implícita pelo bairro cadastrado pela loja. Por isso
       // city/neighborhood são opcionais aqui; o service valida coerência.

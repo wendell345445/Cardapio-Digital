@@ -98,7 +98,20 @@ export interface ReceiptData {
   customerName: string | null
   customerPhone: string | null
   tableNumber: string | null
+  // Endereço já concatenado (conveniência). null em PICKUP/TABLE.
   customerAddress: string | null
+  // Endereço em partes — o Menuziprinter decide como dispor cada campo.
+  // null em PICKUP/TABLE. Campos internos podem ser null individualmente.
+  address: {
+    zipCode: string | null
+    street: string | null
+    number: string | null
+    complement: string | null
+    reference: string | null
+    neighborhood: string | null
+    city: string | null
+    state: string | null
+  } | null
   paymentMethod: string
   paymentLabel: string
   items: Array<{
@@ -134,13 +147,36 @@ const RECEIPT_PAYMENT_LABELS: Record<string, string> = {
 }
 
 export function buildReceiptData(order: PrintOrder): ReceiptData {
-  const addr = order.address
-  const customerAddress =
-    order.type === 'DELIVERY' && addr
-      ? [addr.street, addr.number, addr.complement, addr.neighborhood, addr.city]
-          .filter(Boolean)
-          .join(', ')
-      : null
+  const addr = order.type === 'DELIVERY' ? order.address : null
+
+  // complement e reference: pedidos novos trazem campos separados. Pedidos
+  // antigos (legado) gravavam "complemento | referência" juntos no complement —
+  // se não há `reference` próprio, desfaz o " | " pra recuperar ambos.
+  let complement = addr?.complement ?? null
+  let reference = addr?.reference ?? null
+  if (addr && !reference && complement?.includes(' | ')) {
+    const [comp, ...rest] = complement.split(' | ')
+    complement = comp.trim() || null
+    reference = rest.join(' | ').trim() || null
+  }
+
+  const customerAddress = addr
+    ? [addr.street, addr.number, complement, addr.neighborhood, addr.city, reference && `Ref: ${reference}`]
+        .filter(Boolean)
+        .join(', ')
+    : null
+  const address = addr
+    ? {
+        zipCode: addr.zipCode ?? null,
+        street: addr.street ?? null,
+        number: addr.number ?? null,
+        complement,
+        reference,
+        neighborhood: addr.neighborhood ?? null,
+        city: addr.city ?? null,
+        state: addr.state ?? null,
+      }
+    : null
 
   return {
     orderNumber: order.number,
@@ -151,6 +187,7 @@ export function buildReceiptData(order: PrintOrder): ReceiptData {
     customerPhone: order.clientWhatsapp ?? null,
     tableNumber: null,
     customerAddress,
+    address,
     paymentMethod: order.paymentMethod,
     paymentLabel: RECEIPT_PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod,
     items: order.items.map((item) => ({

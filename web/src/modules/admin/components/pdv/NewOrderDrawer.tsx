@@ -82,6 +82,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
   const [street, setStreet] = useState('')
   const [number, setNumber] = useState('')
   const [complement, setComplement] = useState('')
+  const [reference, setReference] = useState('')
   const [neighborhood, setNeighborhood] = useState('')
   const [city, setCity] = useState('')
   const [zipCode, setZipCode] = useState('')
@@ -225,6 +226,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
     setStreet('')
     setNumber('')
     setComplement('')
+    setReference('')
     setNeighborhood('')
     setCity('')
     setZipCode('')
@@ -282,6 +284,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
           street: street.trim(),
           number: number.trim(),
           complement: complement.trim() || undefined,
+          reference: reference.trim() || undefined,
           neighborhood: neighborhood.trim() || undefined,
           city: city.trim() || undefined,
           zipCode: zipCode.trim() || undefined,
@@ -467,6 +470,14 @@ export function NewOrderDrawer({ open, onClose }: Props) {
                       <input
                         value={complement}
                         onChange={(e) => setComplement(e.target.value)}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Ponto de referência">
+                      <input
+                        value={reference}
+                        onChange={(e) => setReference(e.target.value)}
+                        placeholder="Ex: portão azul, ao lado da padaria"
                         className={inputCls}
                       />
                     </Field>

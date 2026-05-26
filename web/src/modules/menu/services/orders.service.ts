@@ -6,7 +6,7 @@ export interface OrderAddress {
   zipCode?: string
   // neighborhood/city são opcionais no modo bairro (a cidade não é coletada
   // quando o cliente seleciona um bairro pré-cadastrado pela loja).
-  street: string; number: string; complement?: string; neighborhood?: string; city?: string; state?: string
+  street: string; number: string; complement?: string; reference?: string; neighborhood?: string; city?: string; state?: string
   /**
    * Cliente colou lat/lng do Google Maps quando o Google Geocoding não achou
    * o endereço (ex: loteamento novo, cidade pequena). Backend confia, pula

@@ -39,6 +39,8 @@ export interface CheckoutNavState {
     street: string
     number: string
     complement?: string
+    /** Ponto de referência ("portão azul"). Separado do complemento. */
+    reference?: string
     // Opcionais no modo bairro (cidade não é coletada).
     neighborhood?: string
     city?: string
@@ -472,10 +474,8 @@ export function CheckoutPage() {
               zipCode: address.cep.replace(/\D/g, '') || undefined,
               street: address.street.trim(),
               number: address.noNumber ? 'S/N' : address.number.trim(),
-              complement:
-                [address.complement.trim(), address.reference.trim()]
-                  .filter(Boolean)
-                  .join(' | ') || undefined,
+              complement: address.complement.trim() || undefined,
+              reference: address.reference.trim() || undefined,
               neighborhood: address.neighborhood.trim() || undefined,
               city: address.city.trim() || undefined,
               state: address.state.trim() || undefined,
