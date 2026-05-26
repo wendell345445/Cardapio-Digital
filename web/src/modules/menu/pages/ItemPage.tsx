@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Plus, Minus, X } from 'lucide-react'
 
@@ -38,6 +38,10 @@ export function ItemPage() {
   // quantidade/observação e edita o item recém-criado em tempo real
   // (qty++, qty--, digitar observação) via updateQty/updateNotes.
   const [addedItemId, setAddedItemId] = useState<string | null>(null)
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [productId])
 
   const product = data?.categories.flatMap((c) => c.products).find((p) => p.id === productId)
   const store = data?.store
