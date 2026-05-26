@@ -53,6 +53,8 @@ export const updateOrderAddressSchema = z.object({
 export const createAdminOrderSchema = z
   .object({
     clientName: z.string().trim().min(1, 'Informe o nome do cliente'),
+    // Telefone informado pelo atendente (pedido por telefone/balcão).
+    clientWhatsapp: z.string().trim().optional(),
     type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
     paymentMethod: z.enum([
       'PIX',

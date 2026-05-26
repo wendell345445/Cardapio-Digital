@@ -99,6 +99,8 @@ export interface CreateAdminOrderItem {
 
 export interface CreateAdminOrderDto {
   clientName: string
+  /** Telefone do cliente (pedido por telefone/balcão). Opcional. */
+  clientWhatsapp?: string
   type: 'DELIVERY' | 'PICKUP' | 'TABLE'
   paymentMethod: AdminPaymentMethod
   notes?: string

@@ -70,6 +70,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
 
   const [type, setType] = useState<OrderType>('DELIVERY')
   const [clientName, setClientName] = useState('')
+  const [clientWhatsapp, setClientWhatsapp] = useState('')
   const [tableId, setTableId] = useState<string>('')
   const [payment, setPayment] = useState<AdminPaymentMethod>('PIX')
   const [notes, setNotes] = useState('')
@@ -217,6 +218,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
     clearCart()
     setType(allowedTypes[0] ?? 'DELIVERY')
     setClientName('')
+    setClientWhatsapp('')
     setTableId('')
     setPayment('PIX')
     setNotes('')
@@ -262,6 +264,7 @@ export function NewOrderDrawer({ open, onClose }: Props) {
 
     const dto: CreateAdminOrderDto = {
       clientName: clientName.trim(),
+      clientWhatsapp: clientWhatsapp.trim() || undefined,
       type,
       paymentMethod: payment,
       notes: notes.trim() || undefined,
@@ -359,6 +362,17 @@ export function NewOrderDrawer({ open, onClose }: Props) {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Nome do cliente"
+                className={inputCls}
+              />
+            </Field>
+
+            {/* Telefone */}
+            <Field label="Telefone">
+              <input
+                type="tel"
+                value={clientWhatsapp}
+                onChange={(e) => setClientWhatsapp(e.target.value)}
+                placeholder="(11) 99999-9999"
                 className={inputCls}
               />
             </Field>

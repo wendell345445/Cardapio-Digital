@@ -7,6 +7,10 @@ import { z } from 'zod'
 
 export const createOrderSchema = z.object({
   clientName: z.string().min(1, 'Informe seu nome'),
+  // WhatsApp informado no /identifique-se. Opcional: pedidos sem telefone seguem
+  // chegando (e o customerPhone fica null no payload de impressão). Persistido
+  // em Order.clientWhatsapp.
+  clientWhatsapp: z.string().trim().optional(),
   customerSessionId: z.string().uuid().optional(),
   type: z.enum(['DELIVERY', 'PICKUP', 'TABLE']),
   paymentMethod: z.enum([

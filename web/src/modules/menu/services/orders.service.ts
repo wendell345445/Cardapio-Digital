@@ -31,6 +31,8 @@ export type PaymentMethod =
 
 export interface CreateOrderDto {
   clientName: string
+  /** WhatsApp informado no /identifique-se (persistido em localStorage). */
+  clientWhatsapp?: string
   /** TASK-130: id por navegador (UUID em localStorage) — usado em /meus-pedidos */
   customerSessionId?: string
   type: 'DELIVERY' | 'PICKUP' | 'TABLE'

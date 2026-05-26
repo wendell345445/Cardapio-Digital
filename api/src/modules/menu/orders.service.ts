@@ -362,6 +362,7 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
         storeId: store.id,
         number: orderNumber,
         clientName: data.clientName,
+        clientWhatsapp: data.clientWhatsapp?.trim() || null,
         type: data.type,
         status,
         confirmedAt: shouldAutoConfirm ? new Date() : null,

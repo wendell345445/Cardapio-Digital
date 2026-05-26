@@ -495,6 +495,7 @@ export async function createAdminOrder(storeId: string, data: CreateAdminOrderIn
   // paymentMethod como soft enum (cast no create), então a coerção é segura.
   const input: CreateOrderInput = {
     clientName: data.clientName,
+    clientWhatsapp: data.clientWhatsapp,
     type: data.type,
     paymentMethod: data.paymentMethod as CreateOrderInput['paymentMethod'],
     notes: data.notes,

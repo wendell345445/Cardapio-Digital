@@ -8,6 +8,7 @@ import { useCreateOrder } from '../hooks/useOrder'
 import { saveAddress } from '../lib/customerAddresses'
 import { saveCustomerName } from '../lib/customerName'
 import { getCustomerSessionId } from '../lib/customerSession'
+import { getCustomerWhatsapp } from '../lib/customerWhatsapp'
 import { ThemeInjector } from '../components/ThemeInjector'
 
 import type { CheckoutNavState } from './CheckoutPage'
@@ -161,6 +162,9 @@ export function PagamentoPage() {
 
     const dto = {
       clientName: navState?.clientName ?? deviceName?.trim() ?? 'Convidado',
+      // WhatsApp informado no /identifique-se (persistido em localStorage).
+      // Vazio quando o cliente entrou direto no fluxo de mesa, sem se identificar.
+      clientWhatsapp: getCustomerWhatsapp() || undefined,
       customerSessionId: getCustomerSessionId(),
       type: inTableMode
         ? ('TABLE' as const)

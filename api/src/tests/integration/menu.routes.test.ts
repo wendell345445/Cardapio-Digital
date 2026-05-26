@@ -386,16 +386,16 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     expect(res.status).toBe(400)
   })
 
-  it('aceita pedido sem clientWhatsapp (cliente não digita mais — opt-in via WA)', async () => {
+  it('aceita pedido sem clientWhatsapp (campo opcional — persiste null)', async () => {
     setupOrderMocks()
     const res = await request(app)
       .post('/api/v1/menu/orders')
       .set('Host', menuHost())
-      .send(validOrderBody) // já não tem clientWhatsapp
+      .send(validOrderBody) // sem clientWhatsapp
 
     expect(res.status).toBe(201)
     const orderCreateCall = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
-    expect(orderCreateCall.data.clientWhatsapp).toBeUndefined()
+    expect(orderCreateCall.data.clientWhatsapp).toBeNull()
   })
 
   it('retorna 400 quando type é inválido', async () => {
@@ -763,7 +763,7 @@ describe('POST /api/v1/menu/delivery/geocode', () => {
 // ─── TASK-130: customerSessionId + flag de notificação ───────────────────────
 
 describe('POST /api/v1/menu/orders — TASK-130', () => {
-  it('ignora silenciosamente clientWhatsapp se enviado (Zod strip)', async () => {
+  it('persiste clientWhatsapp quando enviado (origem: /identifique-se)', async () => {
     setupOrderMocks()
     const res = await request(app)
       .post('/api/v1/menu/orders')
@@ -772,7 +772,7 @@ describe('POST /api/v1/menu/orders — TASK-130', () => {
 
     expect(res.status).toBe(201)
     const orderCreateCall = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
-    expect(orderCreateCall.data.clientWhatsapp).toBeUndefined()
+    expect(orderCreateCall.data.clientWhatsapp).toBe('11999999999')
   })
 
   it('persiste customerSessionId e notifyOnStatusChange=false ao criar', async () => {

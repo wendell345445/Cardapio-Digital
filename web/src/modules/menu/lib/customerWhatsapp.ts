@@ -1,9 +1,8 @@
-// Telefone WhatsApp persistido no navegador. NÃO é enviado pro backend
-// nem usado em nenhum DTO de pedido (TASK-130 removeu captura de WhatsApp
-// do fluxo público). Persistimos apenas pra o campo "Identifique-se" não
-// resetar quando o cliente navega pra outra tela e volta.
-//
-// O número real do cliente vem depois via opt-in WhatsApp inbound.
+// Telefone WhatsApp informado no /identifique-se, persistido no navegador.
+// É enviado no DTO de createOrder (campo opcional clientWhatsapp) — pedidos
+// novos chegam ao backend com o telefone preenchido, e o customerPhone aparece
+// no payload de impressão. Pedidos sem telefone (cliente que pulou a
+// identificação ou veio direto de mesa) seguem com clientWhatsapp=null.
 
 const STORAGE_KEY = 'mp_customer_whatsapp'
 

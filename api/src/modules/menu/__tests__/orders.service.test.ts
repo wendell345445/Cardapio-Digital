@@ -677,8 +677,8 @@ describe('createOrder — status por método de pagamento', () => {
 
 // ─── Cliente — criar ou encontrar ─────────────────────────────────────────────
 
-describe('createOrder — cliente (TASK-130 parte 2)', () => {
-  it('NÃO cria User CLIENT no checkout — pedido nasce sem clientId/clientWhatsapp', async () => {
+describe('createOrder — cliente (clientWhatsapp do /identifique-se)', () => {
+  it('NÃO cria User CLIENT no checkout — pedido nasce sem clientId mesmo quando há WhatsApp', async () => {
     setupDefaultMocks()
 
     await createOrder(SLUG, baseOrderInput)
@@ -687,8 +687,25 @@ describe('createOrder — cliente (TASK-130 parte 2)', () => {
     expect(mockPrisma.user.findFirst).not.toHaveBeenCalled()
     const createArgs = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
     expect(createArgs.data.clientId).toBeUndefined()
-    expect(createArgs.data.clientWhatsapp).toBeUndefined()
     expect(createArgs.data.notifyOnStatusChange).toBe(false)
+  })
+
+  it('persiste clientWhatsapp quando informado (origem: /identifique-se ou PDV)', async () => {
+    setupDefaultMocks()
+
+    await createOrder(SLUG, { ...baseOrderInput, clientWhatsapp: '38999998888' })
+
+    const createArgs = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(createArgs.data.clientWhatsapp).toBe('38999998888')
+  })
+
+  it('persiste clientWhatsapp como null quando não informado', async () => {
+    setupDefaultMocks()
+
+    await createOrder(SLUG, baseOrderInput)
+
+    const createArgs = (mockPrisma.order.create as jest.Mock).mock.calls[0][0]
+    expect(createArgs.data.clientWhatsapp).toBeNull()
   })
 
   it('persiste clientName mesmo sem WhatsApp', async () => {
