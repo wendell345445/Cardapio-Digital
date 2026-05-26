@@ -3,7 +3,9 @@ import type { AnswerContext } from './schemas.js'
 
 export function buildSystemPrompt(ctx: AnswerContext, profileSummary: string | null, memories: MemoryRow[]): string {
   const store = ctx.store
-  const openLine = store.isOpenNow === false ? 'A loja está FECHADA no momento.' : 'A loja está aberta agora.'
+  const openLine = store.isOpenNow === false
+    ? `A loja está FECHADA no momento.${store.nextOpenLabel ? ' Próxima abertura: ' + store.nextOpenLabel + '.' : ''}`
+    : 'A loja está ABERTA agora.'
 
   const profileBlock = profileSummary
     ? `\nPERFIL DO CLIENTE (resumo de interações anteriores):\n${profileSummary}\n`

@@ -40,27 +40,45 @@ type MenuApiStore = {
   primaryColor?: string | null
   secondaryColor?: string | null
   prepTimeMin?: number | null
-  businessHours?: Array<{ dayOfWeek: number; isClosed: boolean; openTime: string | null; closeTime: string | null }>
+  // O Railway já calcula isso pra gente (calcStoreStatus em menu.service).
+  // É a fonte da verdade — não tentar recalcular na VM.
+  storeStatus?: 'open' | 'closed' | 'paused' | string | null
+  nextOpenLabel?: string | null
+}
+
+interface MenuApiProduct {
+  id: string
+  name: string
+  description?: string | null
+  imageUrl?: string | null
+  basePrice?: number | null
+  variations?: Array<{ id: string; name: string; price: number }>
+  addons?: Array<{ addon: { id: string; name: string; price: number } }>
 }
 
 type MenuApiResponse = {
   success?: boolean
   data?: {
     store?: MenuApiStore
-    categories?: Array<{
-      name: string
-      products: Array<{
-        id: string
-        name: string
-        description?: string | null
-        basePrice?: number | null
-        variations?: Array<{ id: string; name: string; price: number }>
-        addons?: Array<{ addon: { id: string; name: string; price: number } }>
-      }>
-    }>
+    categories?: Array<{ name: string; products: MenuApiProduct[] }>
   }
   store?: MenuApiStore
   categories?: unknown
+}
+
+export interface ProductLite {
+  id: string
+  name: string
+  imageUrl: string | null
+  basePrice: number | null
+  description: string | null
+  category: string
+}
+
+export interface ProductCard {
+  productId: string
+  imageUrl: string
+  caption: string
 }
 
 async function fetchStoreContext(slug: string): Promise<{
@@ -70,8 +88,10 @@ async function fetchStoreContext(slug: string): Promise<{
   phone: string | null
   menuUrl: string
   isOpenNow: boolean
+  nextOpenLabel: string | null
   prepTimeMin: number | null
   menu: string
+  products: ProductLite[]
 }> {
   const res = await fetch(`${MENU_API_BASE}/menu`, {
     headers: { 'X-Tenant-Slug': slug, Accept: 'application/json' },
@@ -89,7 +109,9 @@ async function fetchStoreContext(slug: string): Promise<{
   if (!store?.id || !store.name) throw new Error('menu api retornou loja inválida')
 
   const lines: string[] = []
-  for (const c of (cats as NonNullable<MenuApiResponse['data']>['categories'] ?? []) ?? []) {
+  const products: ProductLite[] = []
+  const categories = (cats as NonNullable<MenuApiResponse['data']>['categories']) ?? []
+  for (const c of categories) {
     lines.push(`\n== ${c.name} ==`)
     for (const p of c.products ?? []) {
       const price = p.basePrice != null ? `R$ ${Number(p.basePrice).toFixed(2)}` : ''
@@ -97,10 +119,20 @@ async function fetchStoreContext(slug: string): Promise<{
       if (p.description) lines.push(`  ${p.description}`)
       for (const v of p.variations ?? []) lines.push(`  Tamanho: ${v.name} — R$ ${Number(v.price).toFixed(2)}`)
       for (const a of p.addons ?? []) lines.push(`  Adicional: ${a.addon.name} — +R$ ${Number(a.addon.price).toFixed(2)}`)
+      products.push({
+        id: p.id,
+        name: p.name,
+        imageUrl: p.imageUrl ?? null,
+        basePrice: p.basePrice ?? null,
+        description: p.description ?? null,
+        category: c.name,
+      })
     }
   }
 
-  const isOpenNow = computeIsOpenNow(store.businessHours ?? [])
+  // O Railway calcula storeStatus (open/closed/paused) considerando
+  // businessHours + manualOpen + status. Trust it; sem recalcular na VM.
+  const isOpenNow = store.storeStatus === 'open'
 
   return {
     storeId: store.id,
@@ -109,24 +141,54 @@ async function fetchStoreContext(slug: string): Promise<{
     phone: store.phone ?? null,
     menuUrl: `https://${slug}.menupanda.com.br`,
     isOpenNow,
+    nextOpenLabel: store.nextOpenLabel ?? null,
     prepTimeMin: store.prepTimeMin ?? null,
     menu: lines.join('\n'),
+    products,
   }
 }
 
-function computeIsOpenNow(
-  businessHours: Array<{ dayOfWeek: number; isClosed: boolean; openTime: string | null; closeTime: string | null }>
-): boolean {
-  // BRT (UTC-3)
-  const now = new Date()
-  const brt = new Date(now.getTime() - 3 * 60 * 60 * 1000)
-  const dayOfWeek = brt.getUTCDay()
-  const mins = brt.getUTCHours() * 60 + brt.getUTCMinutes()
-  const today = businessHours.find((h) => h.dayOfWeek === dayOfWeek && !h.isClosed)
-  if (!today?.openTime || !today.closeTime) return false
-  const [oh, om] = today.openTime.split(':').map(Number) as [number, number]
-  const [ch, cm] = today.closeTime.split(':').map(Number) as [number, number]
-  return mins >= oh * 60 + om && mins < ch * 60 + cm
+// Normaliza pra comparação fuzzy: minúsculo, sem acento, sem pontuação.
+function norm(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// Encontra produtos mencionados na resposta da IA. Estratégia simples:
+// se o nome normalizado do produto aparece como substring na resposta
+// normalizada, é match. Limita ao top-N pra não floodar o cliente com fotos.
+function extractMatchedProducts(reply: string, products: ProductLite[], menuUrl: string): ProductCard[] {
+  const normReply = norm(reply)
+  const matches: Array<{ product: ProductLite; pos: number }> = []
+  for (const p of products) {
+    if (!p.imageUrl) continue
+    const name = norm(p.name)
+    // Evita match trivial (palavras únicas muito curtas tipo "x" ou "1L").
+    if (name.length < 3) continue
+    const pos = normReply.indexOf(name)
+    if (pos !== -1) matches.push({ product: p, pos })
+  }
+  // Ordena pela ordem de aparição no texto e remove duplicados próximos.
+  matches.sort((a, b) => a.pos - b.pos)
+
+  const seen = new Set<string>()
+  const out: ProductCard[] = []
+  const MAX_CARDS = 3
+  for (const { product } of matches) {
+    if (seen.has(product.id)) continue
+    seen.add(product.id)
+    const price = product.basePrice != null ? ` — *R$ ${Number(product.basePrice).toFixed(2).replace('.', ',')}*` : ''
+    const desc = product.description ? `\n\n${product.description}` : ''
+    const caption = `*${product.name}*${price}${desc}\n\n📍 Ver no cardápio: ${menuUrl}`
+    out.push({ productId: product.id, imageUrl: product.imageUrl!, caption })
+    if (out.length >= MAX_CARDS) break
+  }
+  return out
 }
 
 export async function testRoutes(app: FastifyInstance): Promise<void> {
@@ -195,6 +257,7 @@ export async function testRoutes(app: FastifyInstance): Promise<void> {
           phone: ctx.phone,
           menuUrl: ctx.menuUrl,
           isOpenNow: ctx.isOpenNow,
+          nextOpenLabel: ctx.nextOpenLabel,
           prepTimeMin: ctx.prepTimeMin,
         },
         menu: ctx.menu,
@@ -228,8 +291,11 @@ export async function testRoutes(app: FastifyInstance): Promise<void> {
       scheduleProfileRefresh(ctx.storeId, customerPhone)
     }
 
+    const images = extractMatchedProducts(replyText, ctx.products, ctx.menuUrl)
+
     return reply.send({
       reply: replyText,
+      images,
       latencyMs: Date.now() - started,
       memoryHits: similar.length,
       usedProfile: Boolean(profile?.summary),

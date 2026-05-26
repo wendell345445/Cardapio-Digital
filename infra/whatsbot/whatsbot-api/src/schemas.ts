@@ -12,6 +12,7 @@ export const answerSchema = z.object({
       phone: z.string().nullable().optional(),
       menuUrl: z.string().url(),
       isOpenNow: z.boolean().optional(),
+      nextOpenLabel: z.string().nullable().optional(),
       openingHours: z.unknown().optional(),
       prepTimeMin: z.number().int().nonnegative().nullable().optional(),
     }),

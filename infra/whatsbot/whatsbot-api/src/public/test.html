@@ -28,6 +28,11 @@
   .bubble.bot { align-self:flex-start; background:var(--wa-bubble-in); border-bottom-left-radius:2px; }
   .bubble.sys { align-self:center; background:rgba(255,255,255,.7); color:var(--wa-muted); font-size:12px; padding:4px 10px; border-radius:12px; box-shadow:none; }
   .bubble small { display:block; color:var(--wa-muted); font-size:10px; margin-top:4px; text-align:right; }
+  .card { align-self:flex-start; max-width:80%; background:var(--wa-bubble-in); border-radius:8px; border-bottom-left-radius:2px; overflow:hidden; box-shadow:0 1px 1px rgba(0,0,0,.08); }
+  .card img { display:block; width:100%; max-height:280px; object-fit:cover; background:#eee; }
+  .card .cap { padding:8px 12px; font-size:14px; line-height:1.35; white-space:pre-wrap; word-wrap:break-word; }
+  .card .cap b { font-weight:600 }
+  .card small { display:block; padding:0 12px 8px; color:var(--wa-muted); font-size:10px; text-align:right; }
   .typing { display:inline-flex; gap:3px; padding:8px 12px; }
   .typing span { width:6px; height:6px; background:var(--wa-muted); border-radius:50%; animation:blink 1.2s infinite; }
   .typing span:nth-child(2){ animation-delay:.2s } .typing span:nth-child(3){ animation-delay:.4s }
@@ -115,6 +120,36 @@
     chat.scrollTop = chat.scrollHeight
     return b
   }
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]))
+  }
+  // Markdown leve do WhatsApp: *bold* → <b>, _italic_ → <i>. Mantém quebras.
+  function captionToHtml(text) {
+    let s = escapeHtml(text)
+    s = s.replace(/\*(.+?)\*/g, '<b>$1</b>')
+    s = s.replace(/_([^_]+)_/g, '<i>$1</i>')
+    // Linkifica URLs
+    s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+    return s
+  }
+  function addProductCard(img) {
+    const card = document.createElement('div')
+    card.className = 'card'
+    const imgEl = document.createElement('img')
+    imgEl.src = img.imageUrl
+    imgEl.alt = ''
+    imgEl.loading = 'lazy'
+    card.appendChild(imgEl)
+    const cap = document.createElement('div')
+    cap.className = 'cap'
+    cap.innerHTML = captionToHtml(img.caption)
+    card.appendChild(cap)
+    const small = document.createElement('small')
+    small.textContent = ts()
+    card.appendChild(small)
+    chat.appendChild(card)
+    chat.scrollTop = chat.scrollHeight
+  }
   function addTyping() {
     const b = document.createElement('div')
     b.className = 'bubble bot'
@@ -155,8 +190,12 @@
         meta.className = 'meta err'
       } else {
         addBubble('bot', data.reply, data.latencyMs)
+        if (Array.isArray(data.images)) {
+          data.images.forEach(addProductCard)
+        }
         meta.textContent = data.storeName + ' · ' + (data.isOpenNow ? '🟢 aberta' : '🔴 fechada') +
-          ' · RAG hits: ' + data.memoryHits + (data.usedProfile ? ' · perfil ✓' : '')
+          ' · RAG hits: ' + data.memoryHits + (data.usedProfile ? ' · perfil ✓' : '') +
+          (data.images?.length ? ' · 🖼 ' + data.images.length : '')
         meta.className = 'meta ok'
       }
     } catch (err) {
