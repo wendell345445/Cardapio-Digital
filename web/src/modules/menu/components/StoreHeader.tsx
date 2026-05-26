@@ -6,10 +6,11 @@ interface Props {
 
 export function StoreHeader({ storeName, onMenuClick, onShareClick }: Props) {
   return (
-    <section
-      className="relative h-[49px] w-full overflow-hidden bg-gradient-to-r from-menu-gradient-from to-menu-gradient-to shadow-menu-xl"
-      aria-label="Cabeçalho da loja"
-    >
+    <>
+      <section
+        className="fixed left-1/2 top-0 z-30 h-[49px] w-full max-w-[768px] -translate-x-1/2 overflow-hidden bg-gradient-to-r from-menu-gradient-from to-menu-gradient-to shadow-menu-xl"
+        aria-label="Cabeçalho da loja"
+      >
       <button
         type="button"
         aria-label="Abrir menu"
@@ -43,6 +44,9 @@ export function StoreHeader({ storeName, onMenuClick, onShareClick }: Props) {
           />
         </svg>
       </button>
-    </section>
+      </section>
+
+      <div aria-hidden="true" className="h-[49px]" />
+    </>
   )
 }

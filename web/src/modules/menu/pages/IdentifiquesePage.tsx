@@ -7,6 +7,7 @@ import { getCustomerName, saveCustomerName } from '../lib/customerName'
 import { getCustomerWhatsapp, saveCustomerWhatsapp } from '../lib/customerWhatsapp'
 import { useTableMode } from '../hooks/useTableMode'
 import { ThemeInjector } from '../components/ThemeInjector'
+import { PageHeader } from '../components/PageHeader'
 
 import { useStoreSlug } from '@/hooks/useStoreSlug'
 
@@ -79,31 +80,9 @@ export function IdentifiquesePage() {
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}
       >
-        <header className="relative mt-5 flex h-9 w-full items-center justify-center">
-          <button
-            type="button"
-            aria-label="Voltar"
-            onClick={handleBack}
-            className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-[14px] bg-white/85 text-menu-text shadow-[0_4px_14px_rgba(64,57,57,0.05)] backdrop-blur-sm transition-all duration-200 active:scale-95"
-            style={{ border: '0.6px solid rgba(65, 57, 57, 0.08)' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M14.25 6.25L8.5 12L14.25 17.75"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+        <PageHeader title="Identifique-se" onBack={handleBack} />
 
-          <h1 className="text-center text-[20px] font-semibold leading-[24px] tracking-[-0.28px] text-menu-text">
-            Identifique-se
-          </h1>
-        </header>
-
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col pt-10">
+        <form onSubmit={handleSubmit} className="flex flex-1 flex-col pt-8">
           <section
             className="rounded-[24px] bg-white px-4 py-5 shadow-[0_7px_24px_rgba(64,57,57,0.06)]"
             style={{ border: '0.6px solid rgba(65, 57, 57, 0.09)' }}

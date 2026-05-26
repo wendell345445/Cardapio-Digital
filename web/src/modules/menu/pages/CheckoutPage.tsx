@@ -6,6 +6,7 @@ import { useMenu } from '../hooks/useMenu'
 import { useTableMode } from '../hooks/useTableMode'
 import { SuspendedStorePage } from '../components/SuspendedStorePage'
 import { ThemeInjector } from '../components/ThemeInjector'
+import { PageHeader } from '../components/PageHeader'
 import {
   calculateDeliveryFee as fetchDeliveryFee,
   geocodeAddress as fetchGeocode,
@@ -494,31 +495,9 @@ export function CheckoutPage() {
         className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
         style={{ paddingBottom: 'calc(96px + env(safe-area-inset-bottom))' }}
       >
-        <header className="relative mt-5 flex h-9 w-full items-center justify-center">
-          <button
-            type="button"
-            aria-label="Voltar"
-            onClick={handleBack}
-            className="absolute left-0 flex h-9 w-9 items-center justify-center rounded-[14px] bg-white/85 text-menu-text shadow-[0_4px_14px_rgba(64,57,57,0.05)] backdrop-blur-sm transition-all duration-200 active:scale-95"
-            style={{ border: '0.6px solid rgba(65, 57, 57, 0.08)' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M14.25 6.25L8.5 12L14.25 17.75"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+        <PageHeader title="Finalizar Pedido" onBack={handleBack} />
 
-          <h1 className="text-center text-[19px] font-semibold leading-none tracking-[-0.28px] text-menu-text">
-            Finalizar Pedido
-          </h1>
-        </header>
-
-        <main className="flex flex-1 flex-col pt-7">
+        <main className="flex flex-1 flex-col pt-5">
           {/* Card "Este pedido será entregue a:" */}
           {!inTableMode && (
             <section
