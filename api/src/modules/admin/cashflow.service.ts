@@ -210,10 +210,6 @@ export async function closeCashFlow(
   const { summary } = await getCashFlowSummary(storeId, cashFlowId)
   const difference = input.countedAmount - summary.expectedCash
 
-  if (Math.abs(difference) > 0.01 && !input.justification) {
-    throw new AppError('Justificativa obrigatória quando há diferença de caixa', 422)
-  }
-
   const [closed] = await prisma.$transaction([
     prisma.cashFlow.update({
       where: { id: cashFlowId },

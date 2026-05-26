@@ -454,23 +454,49 @@ function HistoryTable({ cashFlows }: { cashFlows: CashFlow[] }) {
               <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 Valor Contado
               </th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Diferença
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                Observação
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {closed.map((cf) => (
-              <tr key={cf.id} className="hover:bg-gray-50 transition-colors">
-                <td className="px-4 py-3 text-gray-700">{formatDateTime(cf.openedAt)}</td>
-                <td className="px-4 py-3 text-gray-700">
-                  {cf.closedAt ? formatDateTime(cf.closedAt) : '—'}
-                </td>
-                <td className="px-4 py-3 text-right text-gray-700">
-                  {formatCurrency(cf.initialAmount)}
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                  {cf.countedAmount != null ? formatCurrency(cf.countedAmount) : '—'}
-                </td>
-              </tr>
-            ))}
+            {closed.map((cf) => {
+              const diff = cf.closedDifference
+              const diffColor =
+                diff == null || Math.abs(diff) < 0.01
+                  ? 'text-gray-500'
+                  : diff > 0
+                    ? 'text-blue-600'
+                    : 'text-red-600'
+              return (
+                <tr key={cf.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-gray-700">{formatDateTime(cf.openedAt)}</td>
+                  <td className="px-4 py-3 text-gray-700">
+                    {cf.closedAt ? formatDateTime(cf.closedAt) : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-700">
+                    {formatCurrency(cf.initialAmount)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-900">
+                    {cf.countedAmount != null ? formatCurrency(cf.countedAmount) : '—'}
+                  </td>
+                  <td className={`px-4 py-3 text-right font-medium ${diffColor}`}>
+                    {diff == null
+                      ? '—'
+                      : `${diff > 0 ? '+' : ''}${formatCurrency(diff)}`}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-gray-700 max-w-xs truncate"
+                    title={cf.closedJustification ?? undefined}
+                  >
+                    {cf.closedJustification?.trim() ? cf.closedJustification : '—'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

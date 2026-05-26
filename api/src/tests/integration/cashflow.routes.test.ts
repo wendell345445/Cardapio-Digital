@@ -393,11 +393,18 @@ describe('POST /api/v1/admin/cashflows/:id/close', () => {
     expect(res.body.data.summary.difference).toBe(0)
   })
 
-  it('retorna 422 quando há diferença sem justificativa', async () => {
+  it('retorna 200 ao fechar com diferença mesmo sem justificativa', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
     ;(mockPrisma.cashFlow.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockOpenCashFlow)
       .mockResolvedValueOnce(cfWithItems)
+    ;(mockPrisma.cashFlow.update as jest.Mock).mockResolvedValue({
+      ...mockOpenCashFlow,
+      status: 'CLOSED',
+      adjustments: [],
+      items: [],
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
 
     // expectedCash = 180; contado = 150 → diferença = -30
     const res = await request(app)
@@ -405,7 +412,8 @@ describe('POST /api/v1/admin/cashflows/:id/close', () => {
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({ countedAmount: 150 })
 
-    expect(res.status).toBe(422)
+    expect(res.status).toBe(200)
+    expect(res.body.data.summary.difference).toBe(-30)
   })
 
   it('retorna 200 ao fechar com diferença e justificativa', async () => {

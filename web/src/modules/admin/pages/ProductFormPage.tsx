@@ -27,7 +27,7 @@ const productFormSchema = z.object({
   categoryId: z.string().uuid('Selecione uma categoria'),
   name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres').max(200),
   description: z.string().max(1000).optional(),
-  imageUrl: z.string().min(1, 'Imagem obrigatória'),
+  imageUrl: z.string().optional().default(''),
   basePrice: z.coerce.number().positive().optional().or(z.literal('')),
   isActive: z.boolean().optional().default(true),
   order: z.coerce.number().int().min(0).optional().default(0),
@@ -113,15 +113,18 @@ export function ProductFormPage() {
   }, [isEdit, existingProduct, reset])
 
   function onSubmit(values: ProductFormValues) {
-    setPendingValues(values)
+    if (isEdit) {
+      setPendingValues(values)
+    } else {
+      void persistValues(values)
+    }
   }
 
-  async function persistPendingValues() {
-    if (!pendingValues) return
+  async function persistValues(values: ProductFormValues) {
     const payload = {
-      ...pendingValues,
-      basePrice:
-        pendingValues.basePrice === '' ? undefined : (pendingValues.basePrice as number),
+      ...values,
+      basePrice: values.basePrice === '' ? undefined : (values.basePrice as number),
+      imageUrl: values.imageUrl?.trim() ? values.imageUrl : undefined,
     }
 
     if (isEdit) {
@@ -138,6 +141,11 @@ export function ProductFormPage() {
           : `Produto "${payload.name}" criado com sucesso`,
       },
     })
+  }
+
+  async function persistPendingValues() {
+    if (!pendingValues) return
+    await persistValues(pendingValues)
   }
 
   async function handleCreateCategory() {

@@ -399,17 +399,32 @@ describe('closeCashFlow', () => {
     expect(mockEmit.cashFlowUpdated).toHaveBeenCalledWith(STORE_ID, expect.objectContaining({ type: 'closed' }))
   })
 
-  it('lança 422 quando há diferença de caixa sem justificativa', async () => {
+  it('fecha caixa com diferença mesmo sem justificativa', async () => {
     ;(mockPrisma.cashFlow.findUnique as jest.Mock)
       .mockResolvedValueOnce(mockOpenCashFlow)
       .mockResolvedValueOnce(cfWithItems)
+    ;(mockPrisma.cashFlow.update as jest.Mock).mockResolvedValue({
+      ...mockOpenCashFlow,
+      status: 'CLOSED',
+      adjustments: [],
+      items: [],
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
 
     // expectedCash = 180; countedAmount = 150 → diferença = -30 (sem justificativa)
-    await expect(
-      closeCashFlow(STORE_ID, CF_ID, { countedAmount: 150 }, USER_ID)
-    ).rejects.toMatchObject({ status: 422 })
+    const result = await closeCashFlow(STORE_ID, CF_ID, { countedAmount: 150 }, USER_ID)
 
-    expect(mockPrisma.cashFlow.update).not.toHaveBeenCalled()
+    expect(result.cashFlow.status).toBe('CLOSED')
+    expect(result.summary.difference).toBe(-30)
+    expect(mockPrisma.cashFlow.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          countedAmount: 150,
+          closedDifference: -30,
+          closedJustification: null,
+        }),
+      })
+    )
   })
 
   it('fecha caixa com diferença quando justificativa é informada', async () => {

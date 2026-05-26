@@ -48,7 +48,7 @@ export interface CreateProductDto {
   categoryId: string
   name: string
   description?: string
-  imageUrl: string // RN-006: foto obrigatória
+  imageUrl?: string
   basePrice?: number
   isActive?: boolean
   order?: number

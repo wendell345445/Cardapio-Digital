@@ -193,17 +193,24 @@ describe('POST /api/v1/admin/products', () => {
     expect(res.status).toBe(201)
   })
 
-  it('returns 400 when imageUrl is missing (RN-006: foto obrigatória)', async () => {
+  it('cria produto sem imageUrl (foto opcional)', async () => {
+    ;(mockPrisma.category.findUnique as jest.Mock).mockResolvedValue(mockCategory)
+    ;(mockPrisma.product.findFirst as jest.Mock).mockResolvedValue(null)
+    ;(mockPrisma.product.create as jest.Mock).mockResolvedValue({
+      ...mockProduct,
+      imageUrl: null,
+    })
+    ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
+
     const res = await request(app)
       .post('/api/v1/admin/products')
       .set('Authorization', `Bearer ${adminToken()}`)
       .send({
         categoryId: CATEGORY_ID,
-        name: 'Pizza Margherita',
-        // imageUrl is missing
+        name: 'Pizza Sem Foto',
       })
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(201)
   })
 
   it('returns 400 when name is too short', async () => {
