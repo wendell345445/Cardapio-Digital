@@ -15,6 +15,9 @@ export const answerSchema = z.object({
       nextOpenLabel: z.string().nullable().optional(),
       openingHours: z.unknown().optional(),
       prepTimeMin: z.number().int().nonnegative().nullable().optional(),
+      // Quadro semanal pré-formatado (1 linha por dia). Permite a IA
+      // responder perguntas tipo "que horas abrem?" / "abre domingo?".
+      businessHours: z.string().nullable().optional(),
     }),
     menu: z.string().optional(),
     menuJson: z.string().optional(),

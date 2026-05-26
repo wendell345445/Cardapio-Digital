@@ -152,6 +152,7 @@ export async function getMenu(slug: string) {
       deliveryByDistanceEnabled: true,
       deliveryByNeighborhoodEnabled: true,
       prepTimeMin: true,
+      customDomain: true,
       manualOpen: true,
       features: true,
       plan: true,
@@ -210,7 +211,7 @@ export async function getMenu(slug: string) {
     orderBy: [{ order: 'asc' }, { name: 'asc' }],
   })
 
-  const { businessHours: _bh, ...storeData } = store
+  const { businessHours, ...storeData } = store
 
   // Endereço pra exibição no header do cardápio. Ordem de prioridade:
   //  1. addressLabel (string formatada do Google Places — fluxo atual)
@@ -238,7 +239,7 @@ export async function getMenu(slug: string) {
   }))
 
   const result = {
-    store: { ...storeData, address: finalAddress, storeStatus, nextOpenLabel },
+    store: { ...storeData, address: finalAddress, storeStatus, nextOpenLabel, businessHours },
     categories: categoriesWithPromos,
   }
 

@@ -116,10 +116,15 @@ describe('getMenu — banco', () => {
     expect(mockCache.setMenu).not.toHaveBeenCalled()
   })
 
-  it('não expõe businessHours na resposta (campo interno removido)', async () => {
+  it('expõe businessHours na resposta (consumido pelo whatsbot/IA pra responder horário)', async () => {
     const result = await getMenu(SLUG) as any
 
-    expect(result.store.businessHours).toBeUndefined()
+    expect(Array.isArray(result.store.businessHours)).toBe(true)
+    expect(result.store.businessHours.length).toBeGreaterThan(0)
+    // Cada entrada tem o shape esperado
+    expect(result.store.businessHours[0]).toEqual(
+      expect.objectContaining({ dayOfWeek: expect.any(Number) })
+    )
   })
 
   it('filtra apenas categorias ativas com produtos ativos', async () => {

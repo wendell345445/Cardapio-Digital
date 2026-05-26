@@ -42,7 +42,20 @@ async function ollamaFetch<T>(path: string, body: unknown, timeoutMs: number): P
 export async function chat(messages: ChatMessage[]): Promise<string> {
   const data = await ollamaFetch<ChatResponse>(
     '/api/chat',
-    { model: env.OLLAMA_CHAT_MODEL, messages, stream: false },
+    {
+      model: env.OLLAMA_CHAT_MODEL,
+      messages,
+      stream: false,
+      options: {
+        // Limita tamanho da resposta — WhatsApp informativo é curto. Cada token
+        // gerado em CPU custa ~150ms, então cortar em 180 já controla muito.
+        num_predict: 180,
+        // Temperatura baixa pra evitar alucinação de produto/preço.
+        temperature: 0.3,
+        // Contexto enxuto: prompt + resposta deve caber em 4096 (max do 3b).
+        num_ctx: 4096,
+      },
+    },
     CHAT_TIMEOUT_MS
   )
   return data.message.content.trim()

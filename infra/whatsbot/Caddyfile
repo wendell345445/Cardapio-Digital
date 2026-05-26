@@ -25,11 +25,15 @@
 
 		# TEMPORÁRIO: página de teste pública (sem mTLS, sem API key) — pra
 		# validação manual estilo WhatsApp. REMOVER quando integração oficial
-		# estiver em produção.
+		# estiver em produção. Sem cache no browser: a página muda muito.
 		handle /test {
+			header Cache-Control "no-store, no-cache, must-revalidate"
+			header Pragma "no-cache"
 			reverse_proxy whatsbot-api:3000
 		}
 		handle /test/* {
+			header Cache-Control "no-store, no-cache, must-revalidate"
+			header Pragma "no-cache"
 			reverse_proxy whatsbot-api:3000
 		}
 

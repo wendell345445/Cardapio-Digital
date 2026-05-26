@@ -40,10 +40,15 @@ type MenuApiStore = {
   primaryColor?: string | null
   secondaryColor?: string | null
   prepTimeMin?: number | null
+  // customDomain define o host público da loja quando ela tem domínio próprio.
+  // Quando preenchido, a loja é acessível APENAS via {customDomain}, não via
+  // {slug}.menupanda.com.br (o middleware bloqueia).
+  customDomain?: string | null
   // O Railway já calcula isso pra gente (calcStoreStatus em menu.service).
   // É a fonte da verdade — não tentar recalcular na VM.
   storeStatus?: 'open' | 'closed' | 'paused' | string | null
   nextOpenLabel?: string | null
+  businessHours?: Array<{ dayOfWeek: number; openTime: string | null; closeTime: string | null; isClosed: boolean }>
 }
 
 interface MenuApiProduct {
@@ -90,6 +95,7 @@ async function fetchStoreContext(slug: string): Promise<{
   isOpenNow: boolean
   nextOpenLabel: string | null
   prepTimeMin: number | null
+  businessHours: string | null
   menu: string
   products: ProductLite[]
 }> {
@@ -112,13 +118,21 @@ async function fetchStoreContext(slug: string): Promise<{
   const products: ProductLite[] = []
   const categories = (cats as NonNullable<MenuApiResponse['data']>['categories']) ?? []
   for (const c of categories) {
-    lines.push(`\n== ${c.name} ==`)
+    lines.push(`\n[${c.name}]`)
     for (const p of c.products ?? []) {
       const price = p.basePrice != null ? `R$ ${Number(p.basePrice).toFixed(2)}` : ''
-      lines.push(`- ${p.name} ${price}`)
-      if (p.description) lines.push(`  ${p.description}`)
-      for (const v of p.variations ?? []) lines.push(`  Tamanho: ${v.name} — R$ ${Number(v.price).toFixed(2)}`)
-      for (const a of p.addons ?? []) lines.push(`  Adicional: ${a.addon.name} — +R$ ${Number(a.addon.price).toFixed(2)}`)
+      // Linha compacta: nome + preço + descrição curta (corta em 80 chars)
+      const desc = p.description ? ` — ${p.description.slice(0, 80)}` : ''
+      lines.push(`• ${p.name} ${price}${desc}`)
+      // Variations e addons só inline se existirem (formato enxuto)
+      if (p.variations?.length) {
+        const vs = p.variations.map((v) => `${v.name} R$${Number(v.price).toFixed(2)}`).join(' / ')
+        lines.push(`  tamanhos: ${vs}`)
+      }
+      if (p.addons?.length) {
+        const as = p.addons.map((a) => `${a.addon.name} +R$${Number(a.addon.price).toFixed(2)}`).join(' / ')
+        lines.push(`  adicionais: ${as}`)
+      }
       products.push({
         id: p.id,
         name: p.name,
@@ -133,19 +147,51 @@ async function fetchStoreContext(slug: string): Promise<{
   // O Railway calcula storeStatus (open/closed/paused) considerando
   // businessHours + manualOpen + status. Trust it; sem recalcular na VM.
   const isOpenNow = store.storeStatus === 'open'
+  // customDomain tem prioridade sobre subdomain — a loja é acessível APENAS
+  // pelo domínio próprio quando preenchido (middleware bloqueia o subdomain).
+  const menuUrl = store.customDomain
+    ? `https://${store.customDomain}`
+    : `https://${slug}.menupanda.com.br`
 
   return {
     storeId: store.id,
     storeName: store.name,
     address: store.address ?? null,
     phone: store.phone ?? null,
-    menuUrl: `https://${slug}.menupanda.com.br`,
+    menuUrl,
     isOpenNow,
     nextOpenLabel: store.nextOpenLabel ?? null,
     prepTimeMin: store.prepTimeMin ?? null,
+    businessHours: formatBusinessHours(store.businessHours),
     menu: lines.join('\n'),
     products,
   }
+}
+
+// Formata businessHours em quadro semanal legível pela IA.
+//   Domingo: 18:00–23:00
+//   Segunda: 11:00–23:00
+//   ...
+//   Quarta: fechado
+function formatBusinessHours(
+  hours?: Array<{ dayOfWeek: number; openTime: string | null; closeTime: string | null; isClosed: boolean }>
+): string | null {
+  if (!hours?.length) return null
+  const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+  const byDay = new Map<number, { open: string | null; close: string | null; closed: boolean }>()
+  for (const h of hours) {
+    byDay.set(h.dayOfWeek, { open: h.openTime, close: h.closeTime, closed: h.isClosed })
+  }
+  const lines: string[] = []
+  for (let d = 0; d < 7; d++) {
+    const h = byDay.get(d)
+    if (!h || h.closed || !h.open || !h.close) {
+      lines.push(`${dayNames[d]}: fechado`)
+    } else {
+      lines.push(`${dayNames[d]}: ${h.open} às ${h.close}`)
+    }
+  }
+  return lines.join('\n')
 }
 
 // Normaliza pra comparação fuzzy: minúsculo, sem acento, sem pontuação.
@@ -184,7 +230,10 @@ function extractMatchedProducts(reply: string, products: ProductLite[], menuUrl:
     seen.add(product.id)
     const price = product.basePrice != null ? ` — *R$ ${Number(product.basePrice).toFixed(2).replace('.', ',')}*` : ''
     const desc = product.description ? `\n\n${product.description}` : ''
-    const caption = `*${product.name}*${price}${desc}\n\n📍 Ver no cardápio: ${menuUrl}`
+    // Link específico do produto (`/produto/:id`) — cliente abre a tela
+    // do item exato, não a home da loja.
+    const productUrl = `${menuUrl}/produto/${product.id}`
+    const caption = `*${product.name}*${price}${desc}\n\n📍 Ver no cardápio: ${productUrl}`
     out.push({ productId: product.id, imageUrl: product.imageUrl!, caption })
     if (out.length >= MAX_CARDS) break
   }
@@ -233,20 +282,20 @@ export async function testRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'store_not_found', detail: String(err) })
     }
 
-    let queryEmbedding: number[] | null = null
-    try {
-      queryEmbedding = await embed(message)
-    } catch {
-      // sem embedding, segue sem RAG
-    }
+    // No /test/chat não fazemos RAG, então pulamos o embedding. Memória
+    // ainda é gravada (sem vetor) pra a IA ter histórico cronológico.
+    const queryEmbedding: number[] | null = null
 
-    const [similar, recent, profile] = await Promise.all([
-      queryEmbedding
-        ? searchSimilar(ctx.storeId, customerPhone, queryEmbedding, env.RAG_TOP_K).catch(() => [])
-        : Promise.resolve([]),
-      getRecentMessages(ctx.storeId, customerPhone, env.RECENT_MSGS).catch(() => []),
+    // Em CPU, cada token de prompt extra custa ~90ms. Em vez do top-5 do RAG
+    // e 6 recentes (que aumentavam o prompt em ~400 tokens), passamos só 2
+    // recentes (continuidade conversacional) e PULAMOS o RAG no /test/chat.
+    // O RAG semântico continua existindo no /ai/answer (contrato oficial),
+    // onde a integração Baileys pode trocar mais latência por contexto.
+    const [recent, profile] = await Promise.all([
+      getRecentMessages(ctx.storeId, customerPhone, 2).catch(() => []),
       getProfile(ctx.storeId, customerPhone).catch(() => null),
     ])
+    const similar: typeof recent = []
 
     const systemPrompt = buildSystemPrompt(
       {
@@ -259,6 +308,7 @@ export async function testRoutes(app: FastifyInstance): Promise<void> {
           isOpenNow: ctx.isOpenNow,
           nextOpenLabel: ctx.nextOpenLabel,
           prepTimeMin: ctx.prepTimeMin,
+          businessHours: ctx.businessHours,
         },
         menu: ctx.menu,
       },

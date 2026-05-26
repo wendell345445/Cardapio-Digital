@@ -44,7 +44,9 @@ whatsbotPublicRouter.get('/stores', async (_req, res, next) => {
         // poder testar contra qualquer loja PROD ativa. Apertar quando virar
         // endpoint oficial.
       },
-      select: { slug: true, name: true },
+      // Retornamos customDomain pra o front montar a label mostrando o host
+      // real da loja (domínio próprio tem prioridade sobre subdomain).
+      select: { slug: true, name: true, customDomain: true },
       orderBy: { name: 'asc' },
     })
     res.json({ success: true, data: stores })
