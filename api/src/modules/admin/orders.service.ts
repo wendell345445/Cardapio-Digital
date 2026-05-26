@@ -7,7 +7,7 @@ import {
   sendMotoboyAssignedMessage,
   sendStatusUpdateMessage,
 } from '../whatsapp/messages.service'
-import { geocodeAddress } from '../menu/geocoding.service'
+import * as geoService from '../menu/geo/geo.service'
 import { isPaymentOnDelivery } from '../../shared/utils/payment'
 import { createOrder } from '../menu/orders.service'
 import type { CreateOrderInput } from '../menu/orders.schema'
@@ -121,19 +121,20 @@ export async function updateOrderAddress(
   // Se geocoding/cálculo falhar (API fora, fora da área, sem faixas), mantém o frete atual.
   let deliveryFee = order.deliveryFee
   try {
-    const coords = await geocodeAddress({
-      cep: input.zipCode,
+    const coords = await geoService.geocode({
       street: input.street,
       number: input.number,
       neighborhood: input.neighborhood,
       city: input.city,
       state: input.state ?? undefined,
     })
-    const result = await calculateDeliveryFee(storeId, {
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-    })
-    deliveryFee = result.fee
+    if (coords) {
+      const result = await calculateDeliveryFee(storeId, {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      })
+      deliveryFee = result.fee
+    }
   } catch {
     // mantém frete atual
   }

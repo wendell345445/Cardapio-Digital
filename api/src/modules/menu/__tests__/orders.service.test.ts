@@ -25,8 +25,8 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../geocoding.service', () => ({
-  geocodeAddress: jest.fn(),
+jest.mock('../geo/geo.service', () => ({
+  geocode: jest.fn(),
 }))
 
 jest.mock('../../../shared/redis/redis', () => ({
@@ -165,8 +165,8 @@ function setupDefaultMocks() {
   ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
   ;(mockPrisma.product.findUnique as jest.Mock).mockResolvedValue(mockProduct)
   ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
-  const { geocodeAddress } = jest.requireMock('../geocoding.service')
-  ;(geocodeAddress as jest.Mock).mockResolvedValue({
+  const { geocode } = jest.requireMock('../geo/geo.service')
+  ;(geocode as jest.Mock).mockResolvedValue({
     latitude: -23.5505,
     longitude: -46.6333,
   })
@@ -579,8 +579,8 @@ describe('createOrder — taxa de entrega por distância', () => {
   it('aplica fee baseado na faixa de distância que contém a distância calculada', async () => {
     setupDefaultMocks()
     mockStoreWithCoords()
-    const { geocodeAddress } = jest.requireMock('../geocoding.service')
-    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
+    const { geocode } = jest.requireMock('../geo/geo.service')
+    ;(geocode as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 5.0 },
     ])
@@ -600,8 +600,8 @@ describe('createOrder — taxa de entrega por distância', () => {
   it('lança 422 quando cliente fica fora de todas as faixas', async () => {
     setupDefaultMocks()
     mockStoreWithCoords()
-    const { geocodeAddress } = jest.requireMock('../geocoding.service')
-    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -22.9, longitude: -43.1 })
+    const { geocode } = jest.requireMock('../geo/geo.service')
+    ;(geocode as jest.Mock).mockResolvedValue({ latitude: -22.9, longitude: -43.1 })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 5, fee: 5.0 },
     ])
@@ -612,8 +612,8 @@ describe('createOrder — taxa de entrega por distância', () => {
   it('aplica taxa zero quando loja não tem faixas configuradas', async () => {
     setupDefaultMocks()
     mockStoreWithCoords()
-    const { geocodeAddress } = jest.requireMock('../geocoding.service')
-    ;(geocodeAddress as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
+    const { geocode } = jest.requireMock('../geo/geo.service')
+    ;(geocode as jest.Mock).mockResolvedValue({ latitude: -23.55, longitude: -46.63 })
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([])
 
     await createOrder(SLUG, baseOrderInput)
@@ -627,8 +627,8 @@ describe('createOrder — taxa de entrega por distância', () => {
 
   it('não geocodifica nem calcula entrega em pedidos PICKUP', async () => {
     setupDefaultMocks()
-    const { geocodeAddress } = jest.requireMock('../geocoding.service')
-    ;(geocodeAddress as jest.Mock).mockClear()
+    const { geocode } = jest.requireMock('../geo/geo.service')
+    ;(geocode as jest.Mock).mockClear()
 
     const pickupInput = {
       ...baseOrderInput,
@@ -638,7 +638,7 @@ describe('createOrder — taxa de entrega por distância', () => {
 
     await createOrder(SLUG, pickupInput)
 
-    expect(geocodeAddress).not.toHaveBeenCalled()
+    expect(geocode).not.toHaveBeenCalled()
     expect(mockPrisma.order.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ deliveryFee: 0 }),

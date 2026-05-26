@@ -10,17 +10,9 @@ import {
   setCached,
 } from './geo.cache'
 
-// Orquestração do módulo geo. Feature flag GEO_USE_OSM controla quem o
-// geocoding.service.ts usa (OSM ou Google). Aqui dentro, OSM é canon — quem
-// quiser fallback pra Google chama o serviço antigo via wrapper.
-
-export function isOsmEnabled(): boolean {
-  return process.env.GEO_USE_OSM === 'true'
-}
-
-export function isOsrmRoutingEnabled(): boolean {
-  return process.env.GEO_USE_OSRM_ROUTING === 'true'
-}
+// Orquestração do módulo geo (OSM self-host: Photon/Nominatim/OSRM).
+// Feature flags GEO_USE_OSM/GEO_USE_OSRM_ROUTING foram removidas após o
+// Portão 2 (Google/ViaCEP retirados). Agora OSM é canon, sem fallback.
 
 // ─── Tipos públicos (estáveis pra api) ───────────────────────────────────────
 

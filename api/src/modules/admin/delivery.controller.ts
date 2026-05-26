@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 
-import { geocodeAddress } from '../menu/geocoding.service'
+import { AppError } from '../../shared/middleware/error.middleware'
+import * as geoService from '../menu/geo/geo.service'
 
 import {
   calculateDeliverySchema,
@@ -177,8 +178,16 @@ export async function geocodeAddressController(
 ) {
   try {
     const input = geocodeAddressSchema.parse(req.body)
-    const result = await geocodeAddress(input)
-    res.json({ success: true, data: result })
+    const result = await geoService.geocode(input)
+    if (!result) throw new AppError('Endereço não encontrado', 422)
+    res.json({
+      success: true,
+      data: {
+        latitude: result.latitude,
+        longitude: result.longitude,
+        displayName: result.displayName,
+      },
+    })
   } catch (err) {
     next(err)
   }

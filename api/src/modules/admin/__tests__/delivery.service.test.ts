@@ -25,8 +25,8 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../menu/geocoding.service', () => ({
-  reverseGeocode: jest.fn(),
+jest.mock('../../menu/geo/geo.service', () => ({
+  reverse: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
@@ -159,7 +159,7 @@ describe('deleteDistance', () => {
 
 describe('setStoreCoordinates', () => {
   it('usa addressLabel explícito quando cliente envia (não faz reverse)', async () => {
-    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
+    const { reverse } = jest.requireMock('../../menu/geo/geo.service')
     ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
       id: STORE_ID,
       latitude: -23.5505,
@@ -173,7 +173,7 @@ describe('setStoreCoordinates', () => {
       addressLabel: 'Av. Paulista, 1000',
     })
 
-    expect(reverseGeocode).not.toHaveBeenCalled()
+    expect(reverse).not.toHaveBeenCalled()
     expect(mockPrisma.store.update).toHaveBeenCalledWith({
       where: { id: STORE_ID },
       data: {
@@ -187,8 +187,8 @@ describe('setStoreCoordinates', () => {
   })
 
   it('faz reverse-geocode e salva displayName quando addressLabel não é enviado', async () => {
-    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
-    ;(reverseGeocode as jest.Mock).mockResolvedValue({
+    const { reverse } = jest.requireMock('../../menu/geo/geo.service')
+    ;(reverse as jest.Mock).mockResolvedValue({
       latitude: -23.5505,
       longitude: -46.6333,
       displayName: 'Av. Paulista, 1000 - Bela Vista, São Paulo',
@@ -202,7 +202,7 @@ describe('setStoreCoordinates', () => {
 
     await setStoreCoordinates(STORE_ID, { latitude: -23.5505, longitude: -46.6333 })
 
-    expect(reverseGeocode).toHaveBeenCalledWith(-23.5505, -46.6333)
+    expect(reverse).toHaveBeenCalledWith(-23.5505, -46.6333)
     expect(mockPrisma.store.update).toHaveBeenCalledWith({
       where: { id: STORE_ID },
       data: {
@@ -215,8 +215,8 @@ describe('setStoreCoordinates', () => {
   })
 
   it('salva com addressLabel=null quando reverse-geocode falha (nao bloqueia save)', async () => {
-    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
-    ;(reverseGeocode as jest.Mock).mockRejectedValue(new Error('Nominatim down'))
+    const { reverse } = jest.requireMock('../../menu/geo/geo.service')
+    ;(reverse as jest.Mock).mockRejectedValue(new Error('Nominatim down'))
     ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
       id: STORE_ID,
       latitude: -23.5505,
@@ -234,7 +234,7 @@ describe('setStoreCoordinates', () => {
   })
 
   it('salva addressLabel=null explicitamente quando cliente envia null (reset)', async () => {
-    const { reverseGeocode } = jest.requireMock('../../menu/geocoding.service')
+    const { reverse } = jest.requireMock('../../menu/geo/geo.service')
     ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({
       id: STORE_ID,
       latitude: -23.5505,
@@ -248,7 +248,7 @@ describe('setStoreCoordinates', () => {
       addressLabel: null,
     })
 
-    expect(reverseGeocode).not.toHaveBeenCalled()
+    expect(reverse).not.toHaveBeenCalled()
     expect(mockPrisma.store.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ addressLabel: null }),

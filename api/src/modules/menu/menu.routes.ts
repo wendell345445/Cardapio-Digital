@@ -10,7 +10,6 @@ import { calculateDeliverySchema, geocodeAddressSchema } from '../admin/delivery
 import { calculateDeliveryFee, listAvailableNeighborhoods } from '../admin/delivery.service'
 
 import * as geoService from './geo/geo.service'
-import { geocodeAddress } from './geocoding.service'
 import { getMenuController } from './menu.controller'
 import { createOrderController, listOrdersBySessionController } from './orders.controller'
 import { getCustomerComandaController, requestCheckController } from './comanda.controller'
@@ -74,8 +73,16 @@ menuRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const input = geocodeAddressSchema.parse(req.body)
-      const result = await geocodeAddress(input)
-      res.json({ success: true, data: result })
+      const result = await geoService.geocode(input)
+      if (!result) throw new AppError('Endereço não encontrado', 422)
+      res.json({
+        success: true,
+        data: {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          displayName: result.displayName,
+        },
+      })
     } catch (err) {
       next(err)
     }
@@ -100,7 +107,7 @@ menuRouter.post(
 // ─── Geo (OSM) — proxy do browser pros serviços self-hosted via api (mTLS) ───
 // O browser NÃO apresenta cert de cliente; quem mantém o mTLS é a api. Estes
 // 3 endpoints são tenant-scoped (passam pelo publicTenantMiddleware lá em
-// cima) e respeitam a feature flag GEO_USE_OSM dentro do geo.service.
+// cima).
 
 // GET /menu/geo/autocomplete?q=...&lat=...&lon=...
 menuRouter.get(

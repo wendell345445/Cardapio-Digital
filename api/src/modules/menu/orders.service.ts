@@ -10,7 +10,7 @@ import { linkOrderToCashFlow } from '../admin/cashflow.service'
 import { calculateDeliveryFee } from '../admin/delivery.service'
 import { autoPrintOrder } from '../admin/print.service'
 
-import { geocodeAddress, primeGeocodeCacheFromManual } from './geocoding.service'
+import * as geoService from './geo/geo.service'
 import { generatePix } from './pix.service'
 import type { PixData } from './pix.service'
 import type { CreateOrderInput } from './orders.schema'
@@ -277,30 +277,24 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
       deliveryFee = result.fee
       resolvedNeighborhoodId = data.deliveryNeighborhoodId
     } else if (data.address) {
-      // Modo distância: geocode + haversine.
+      // Modo distância: geocode OSM + rota real (OSRM) ou haversine fallback.
+      // No fluxo OSM, o frontend captura lat/lng do autocomplete + pin
+      // arrastável e pode mandar via manualCoordinates. Quando ausente,
+      // geocoda no backend.
       let coords: { latitude: number; longitude: number }
       if (data.address.manualCoordinates) {
         coords = data.address.manualCoordinates
-        await primeGeocodeCacheFromManual(
-          {
-            cep: data.address.zipCode,
-            street: data.address.street,
-            number: data.address.number,
-            neighborhood: data.address.neighborhood,
-            city: data.address.city,
-            state: data.address.state ?? undefined,
-          },
-          coords
-        )
       } else {
-        const result = await geocodeAddress({
-          cep: data.address.zipCode,
+        const result = await geoService.geocode({
           street: data.address.street,
           number: data.address.number,
           neighborhood: data.address.neighborhood,
           city: data.address.city,
           state: data.address.state ?? undefined,
         })
+        if (!result) {
+          throw new AppError('Endereço não encontrado', 422)
+        }
         coords = { latitude: result.latitude, longitude: result.longitude }
       }
 

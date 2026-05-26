@@ -31,8 +31,8 @@ jest.mock('../../shared/redis/redis', () => ({
   cache: { del: jest.fn(), get: jest.fn(), set: jest.fn() },
 }))
 
-jest.mock('../../modules/menu/geocoding.service', () => ({
-  geocodeAddress: jest.fn().mockResolvedValue({
+jest.mock('../../modules/menu/geo/geo.service', () => ({
+  geocode: jest.fn().mockResolvedValue({
     latitude: -23.5505,
     longitude: -46.6333,
     displayName: 'Av. Paulista, 1000',

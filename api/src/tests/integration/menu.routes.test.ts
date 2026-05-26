@@ -41,6 +41,13 @@ jest.mock('../../modules/whatsapp/messages.service', () => ({
   sendOrderCreatedMessage: jest.fn().mockResolvedValue(undefined),
 }))
 
+jest.mock('../../modules/menu/geo/geo.service', () => ({
+  geocode: jest.fn(),
+  reverse: jest.fn(),
+  route: jest.fn(),
+  autocomplete: jest.fn(),
+}))
+
 jest.mock('../../modules/menu/pix.service', () => ({
   generatePix: jest.fn().mockResolvedValue({
     qrCodeBase64: 'data:image/png;base64,ABC',
@@ -66,7 +73,6 @@ const mockVerify = verify as jest.Mock
 
 process.env.JWT_SECRET = 'test-secret'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
-process.env.GOOGLE_GEOCODING_API_KEY = 'test-google-key'
 
 const SLUG = 'pizzaria-do-ze'
 const STORE_ID = 'store-1'
@@ -164,22 +170,16 @@ function setupOrderMocks() {
   ;(mockPrisma.customer.findUnique as jest.Mock).mockResolvedValue({
     whatsapp: '54999990000', name: 'Teste', addresses: [],
   })
-  // Geocoding (Google): pedidos DELIVERY chamam geocodeAddress no checkout.
-  // Mocka fetch retornando lat/lng fictícios — o test de orders não valida o
-  // valor da taxa, só que o pedido seja criado.
-  global.fetch = jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      status: 'OK',
-      results: [
-        {
-          formatted_address: 'Mock Address, BR',
-          geometry: { location: { lat: -27.0, lng: -48.0 } },
-        },
-      ],
-    }),
-  }) as unknown as typeof fetch
+  // Geo (OSM): pedidos DELIVERY chamam geoService.geocode no checkout. Mock
+  // retorna lat/lng fictícios — o test não valida o valor da taxa, só que o
+  // pedido seja criado.
+  const geo = jest.requireMock('../../modules/menu/geo/geo.service')
+  ;(geo.geocode as jest.Mock).mockResolvedValue({
+    latitude: -27.0,
+    longitude: -48.0,
+    displayName: 'Mock Address, BR',
+  })
+  ;(geo.route as jest.Mock).mockResolvedValue({ distanceKm: 5.0, durationMin: 15 })
 }
 
 beforeEach(() => {
@@ -482,11 +482,10 @@ describe('POST /api/v1/menu/:slug/orders', () => {
     )
   })
 
-  it('aceita manualCoordinates e NÃO chama Google Geocoding', async () => {
+  it('aceita manualCoordinates e NÃO chama geocoding', async () => {
     setupOrderMocks()
-    // Sobrescreve o fetch mockado em setupOrderMocks pra detectar uso indevido:
-    // se chamar, o teste falha na asserção abaixo.
-    global.fetch = jest.fn() as unknown as typeof fetch
+    const geo = jest.requireMock('../../modules/menu/geo/geo.service')
+    ;(geo.geocode as jest.Mock).mockClear()
 
     const res = await request(app)
       .post('/api/v1/menu/orders')
@@ -500,7 +499,7 @@ describe('POST /api/v1/menu/:slug/orders', () => {
       })
 
     expect(res.status).toBe(201)
-    expect(global.fetch).not.toHaveBeenCalled()
+    expect(geo.geocode).not.toHaveBeenCalled()
   })
 
   it('rejeita manualCoordinates fora do range válido', async () => {
@@ -715,32 +714,19 @@ describe('POST /api/v1/menu/delivery/calculate', () => {
 // ─── POST /menu/delivery/geocode ──────────────────────────────────────────────
 
 describe('POST /api/v1/menu/delivery/geocode', () => {
-  const originalFetch = global.fetch
-
-  afterEach(() => {
-    global.fetch = originalFetch
-  })
-
   it('retorna 200 com lat/lng a partir do endereço', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        status: 'OK',
-        results: [
-          {
-            formatted_address: 'Av. Paulista, 1000',
-            geometry: { location: { lat: -23.5505, lng: -46.6333 } },
-          },
-        ],
-      }),
-    }) as unknown as typeof fetch
+    const { geocode } = jest.requireMock('../../modules/menu/geo/geo.service')
+    ;(geocode as jest.Mock).mockResolvedValueOnce({
+      latitude: -23.5505,
+      longitude: -46.6333,
+      displayName: 'Av. Paulista, 1000',
+    })
 
     const res = await request(app)
       .post('/api/v1/menu/delivery/geocode')
       .set('Host', menuHost())
-      .send({ cep: '01310-100', street: 'Av. Paulista', number: '1000', city: 'São Paulo' })
+      .send({ street: 'Av. Paulista', number: '1000', city: 'São Paulo' })
 
     expect(res.status).toBe(200)
     expect(res.body.data.latitude).toBe(-23.5505)
@@ -749,7 +735,6 @@ describe('POST /api/v1/menu/delivery/geocode', () => {
 
   it('retorna 422 quando endereço insuficiente', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(mockStore)
-    global.fetch = jest.fn() as unknown as typeof fetch
 
     const res = await request(app)
       .post('/api/v1/menu/delivery/geocode')

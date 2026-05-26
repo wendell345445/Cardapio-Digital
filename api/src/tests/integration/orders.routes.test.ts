@@ -16,8 +16,8 @@ jest.mock('../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../modules/menu/geocoding.service', () => ({
-  geocodeAddress: jest.fn(),
+jest.mock('../../modules/menu/geo/geo.service', () => ({
+  geocode: jest.fn(),
 }))
 
 jest.mock('../../shared/redis/redis', () => ({
@@ -226,8 +226,8 @@ describe('PATCH /api/v1/admin/orders/:id/address — Edição de endereço', () 
     ;(mockPrisma.deliveryDistance.findMany as jest.Mock).mockResolvedValue([
       { id: 'd1', storeId: STORE_ID, minKm: 0, maxKm: 50, fee: 8.0 },
     ])
-    const { geocodeAddress } = jest.requireMock('../../modules/menu/geocoding.service')
-    ;(geocodeAddress as jest.Mock).mockResolvedValue({
+    const { geocode } = jest.requireMock('../../modules/menu/geo/geo.service')
+    ;(geocode as jest.Mock).mockResolvedValue({
       latitude: -23.5505,
       longitude: -46.6333,
     })

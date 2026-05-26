@@ -91,8 +91,6 @@ services:
       # ca.key / client.* NÃO vão pra cá — ca.key fica offline, client.* vai
       # pro Railway. Montamos a pasta certs read-only.
       - ./certs/ca.crt:/etc/caddy/certs/ca.crt:ro
-      # TEMPORÁRIO: tela de teste estática servida sob /teste (remover depois).
-      - ./teste:/srv/teste:ro
       - caddy_data:/data
       - caddy_config:/config
     environment:

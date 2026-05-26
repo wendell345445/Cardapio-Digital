@@ -1,7 +1,6 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
 import * as geoService from '../menu/geo/geo.service'
-import { reverseGeocode } from '../menu/geocoding.service'
 
 import type {
   CalculateDeliveryInput,
@@ -171,7 +170,7 @@ export async function setStoreCoordinates(
   let addressLabel: string | null | undefined = input.addressLabel
   if (addressLabel === undefined) {
     try {
-      const reverse = await reverseGeocode(input.latitude, input.longitude)
+      const reverse = await geoService.reverse(input.latitude, input.longitude)
       addressLabel = reverse.displayName ?? null
     } catch {
       addressLabel = null
@@ -237,22 +236,17 @@ export async function calculateByDistance(storeId: string, latitude: number, lon
   })
   if (!distances.length) throw new AppError('Nenhuma faixa de distância configurada', 422)
 
-  // Distância: OSRM (rota real pelas ruas) atrás da flag GEO_USE_OSRM_ROUTING,
-  // Haversine (linha reta) como fallback. OSRM costuma ser 1.5-2x maior que
-  // Haversine (mais fiel à realidade do motoboy), mas se cair, o pedido não
-  // morre — usa Haversine e segue.
+  // Distância: rota real OSRM (pelas ruas) — 1.5-2x mais fiel que Haversine.
+  // Se OSRM cair (rede, mTLS, etc), cai pro Haversine como fallback técnico
+  // pra não derrubar o checkout. Em operação normal, Haversine nunca é usado.
   let dist: number
-  if (geoService.isOsrmRoutingEnabled()) {
-    try {
-      const route = await geoService.route(
-        { latitude: store.latitude, longitude: store.longitude },
-        { latitude, longitude }
-      )
-      dist = route.distanceKm
-    } catch {
-      dist = haversine(store.latitude, store.longitude, latitude, longitude)
-    }
-  } else {
+  try {
+    const route = await geoService.route(
+      { latitude: store.latitude, longitude: store.longitude },
+      { latitude, longitude }
+    )
+    dist = route.distanceKm
+  } catch {
     dist = haversine(store.latitude, store.longitude, latitude, longitude)
   }
   // Cliente cai no primeiro raio com dist <= maxKm (sem gap mín/máx).
