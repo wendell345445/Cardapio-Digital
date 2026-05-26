@@ -1,0 +1,106 @@
+# ─── Stack Whatsbot AI (Ollama + pgvector + API + Caddy) ─────────────────
+# Roda numa VM dedicada (GCP Compute Engine us-east1, Ubuntu 24.04 LTS).
+# Sem GPU — Ollama em CPU. Reverse proxy + TLS via Caddy (HTTP-01 challenge),
+# auth dupla: mTLS de cliente + header X-API-Key (Caddyfile).
+#
+# Subir:   docker compose -p whatsbot --env-file .env up -d
+# Logs:    docker compose -p whatsbot logs -f whatsbot-api
+# Status:  docker compose -p whatsbot ps
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: whatsbot-ollama
+    expose: ["11434"]
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-2}
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: whatsbot-postgres
+    expose: ["5432"]
+    environment:
+      POSTGRES_USER: whatsbot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: whatsbot
+    volumes:
+      - whatsbot_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U whatsbot -d whatsbot"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  whatsbot-api:
+    build:
+      context: ./whatsbot-api
+      dockerfile: Dockerfile
+    container_name: whatsbot-api
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-llama3:8b}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      DATABASE_URL: postgres://whatsbot:${POSTGRES_PASSWORD}@postgres:5432/whatsbot
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      RECENT_MSGS: ${RECENT_MSGS:-6}
+      PROFILE_REFRESH_EVERY: ${PROFILE_REFRESH_EVERY:-20}
+      MEMORY_RETENTION_DAYS: ${MEMORY_RETENTION_DAYS:-365}
+    depends_on:
+      postgres: { condition: service_healthy }
+      ollama: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: whatsbot-caddy
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs/ca.crt:/etc/caddy/certs/ca.crt:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      WHATSBOT_DOMAIN: ${WHATSBOT_DOMAIN}
+      WHATSBOT_API_KEY: ${WHATSBOT_API_KEY}
+    depends_on:
+      whatsbot-api: { condition: service_started }
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  ollama_data:
+  whatsbot_pgdata:
+  caddy_data:
+  caddy_config:

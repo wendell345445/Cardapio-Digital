@@ -151,6 +151,7 @@ export async function getMenu(slug: string) {
       allowDelivery: true,
       deliveryByDistanceEnabled: true,
       deliveryByNeighborhoodEnabled: true,
+      prepTimeMin: true,
       manualOpen: true,
       features: true,
       plan: true,

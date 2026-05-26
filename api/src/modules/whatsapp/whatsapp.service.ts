@@ -730,7 +730,7 @@ export { emitter as whatsappEmitter }
 // ─── TASK-104: Helper — verifica se a loja está dentro do horário de funcionamento ──
 // Nota: manualOpen é abertura de caixa (pedidos), NÃO afeta WhatsApp.
 // WhatsApp usa apenas businessHours para decidir GREETING vs ABSENCE.
-function isStoreOpenNow(store: {
+export function isStoreOpenNow(store: {
   businessHours: Array<{ dayOfWeek: number; isClosed: boolean; openTime: string | null; closeTime: string | null }>
 }): boolean {
   // Converter UTC → BRT (UTC-3) para comparar com horários cadastrados

@@ -3,19 +3,15 @@ import { prisma } from '../../shared/prisma/prisma'
 import { cache } from '../../shared/redis/redis'
 import { emit } from '../../shared/socket/socket'
 
-import { sendMessage, sendMessageDirect } from './whatsapp.service'
-import { classifyIntent, answerQuestion, suggestCartLink, type IntentType } from './ollama.service'
-import { encodeCartHash } from './cart-hash.service'
-import { validateSQL } from './sql-validator'
+import { askWhatsbot, type WhatsbotStoreContext } from './ollama.service'
 import { checkRateLimit, incrementRateLimit } from './rate-limit.service'
+import { isStoreOpenNow, sendMessage, sendMessageDirect } from './whatsapp.service'
 
-// ─── TASK-072: AI Incoming Message Handler ───────────────────────────────────
-// ─── TASK-0911: NLP→SQL Pipeline + Rate Limit ────────────────────────────────
-
-interface ConversationState {
-  lastIntent?: IntentType
-  pendingItems?: Array<{ productId: string; variationId?: string; qty: number }>
-}
+// ─── AI Incoming Message Handler ─────────────────────────────────────────
+// Encaminha mensagem do cliente pra VM whatsbot (Ollama + RAG self-hosted),
+// que retorna a resposta pronta. A IA é APENAS informativa — nunca confirma
+// pedido, sempre direciona o cliente pro link da loja.
+// Se a VM cair, registra o erro e não envia nada (sem fallback de mensagem).
 
 async function getMenuContext(storeId: string): Promise<{ text: string; json: string }> {
   const cacheKey = `menu-context:${storeId}`
@@ -29,7 +25,6 @@ async function getMenuContext(storeId: string): Promise<{ text: string; json: st
         where: { isActive: true },
         include: {
           variations: { where: { isActive: true } },
-          // v2.9: adicionais via ProductAddon.
           addons: {
             where: { addon: { isActive: true } },
             include: { addon: true },
@@ -58,12 +53,10 @@ async function getMenuContext(storeId: string): Promise<{ text: string; json: st
   }
 
   const result = { text: lines.join('\n'), json: JSON.stringify(categories) }
-  await cache.set(cacheKey, result, 10 * 60) // 10min TTL
+  await cache.set(cacheKey, result, 10 * 60)
   return result
 }
 
-/** Sends a WhatsApp message, saves it to the conversation, and emits a socket event.
- *  Uses replyJid directly when available (like personal-ai) for reliable delivery. */
 async function replyAndSave(
   storeId: string,
   fromPhone: string,
@@ -76,8 +69,7 @@ async function replyAndSave(
     : await sendMessage(storeId, fromPhone, text)
 
   if (!result.ok) {
-    logger.warn({ storeId, fromPhone, reason: result.reason }, '[AI] replyAndSave — envio falhou')
-    // Não persistimos mensagem que não foi entregue — confundiria o admin
+    logger.warn({ storeId, fromPhone, reason: result.reason }, '[AI] envio falhou')
     return
   }
 
@@ -100,15 +92,18 @@ export async function handleIncomingMessage(
   conversationId?: string,
   replyJid?: string
 ): Promise<void> {
-  const store = await prisma.store.findUnique({ where: { id: storeId } })
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
+    include: { businessHours: true },
+  })
   if (!store) return
 
-  // Verificar whatsappMode (v2.1) ou feature flag legada
   const features = store.features as Record<string, boolean>
-  const isAiEnabled = (store as any).whatsappMode === 'WHATSAPP_AI' || features?.whatsappAI
+  const isAiEnabled =
+    (store as { whatsappMode?: string }).whatsappMode === 'WHATSAPP_AI' || features?.whatsappAI
   if (!isAiEnabled) return
 
-  // Rate limit: máximo 5 mensagens/hora por número
+  // Rate limit: 5 msgs/h por cliente×loja
   const rateLimitCheck = await checkRateLimit(storeId, fromPhone)
   if (!rateLimitCheck.allowed) {
     const result = await sendMessage(
@@ -123,109 +118,55 @@ export async function handleIncomingMessage(
   }
   await incrementRateLimit(storeId, fromPhone)
 
-  const stateKey = `wa-state:${storeId}:${fromPhone}`
-  const state = (await cache.get<ConversationState>(stateKey)) ?? {}
-
   const menuCtx = await getMenuContext(storeId)
-
-  let intent: IntentType
-  try {
-    intent = await classifyIntent(messageText)
-  } catch {
-    intent = 'other'
-  }
-
   const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
   const menuUrl = `https://${slug}.${rootDomain}`
 
-  try {
-    // Fluxo de confirmação de carrinho pendente
-    if (state.pendingItems && intent === 'confirm') {
-      const hash = encodeCartHash(state.pendingItems)
-      const cartUrl = `${menuUrl}/${slug}/carrinho/${hash}`
-      await replyAndSave(storeId, fromPhone, `Ótimo! 🎉 Clique para abrir seu carrinho pré-montado:\n${cartUrl}`, conversationId, replyJid)
-      await cache.del(stateKey)
-      return
-    }
-
-    if (intent === 'order') {
-      const { reply, cartItems } = await suggestCartLink(messageText, menuCtx.json)
-      if (cartItems && cartItems.length > 0) {
-        await cache.set(stateKey, { lastIntent: 'order', pendingItems: cartItems }, 10 * 60)
-        await replyAndSave(
-          storeId,
-          fromPhone,
-          `${reply}\n\nPosso adicionar ao carrinho para você? Responda "sim" para confirmar ou acesse o menu: ${menuUrl}`,
-          conversationId,
-          replyJid
-        )
-      } else {
-        await replyAndSave(storeId, fromPhone, `${reply}\n\nVeja nosso cardápio completo: ${menuUrl}`, conversationId, replyJid)
-      }
-      return
-    }
-
-    if (intent === 'question') {
-      const startMs = Date.now()
-      let sqlGenerated: string | null = null
-      let success = false
-      let response = ''
-
-      try {
-        const answer = await answerQuestion(messageText, menuCtx.text, {
-          name: store.name,
-          address: store.address ?? undefined,
-          phone: store.phone,
-        })
-
-        const sqlMatch = answer.match(/SELECT[\s\S]+?;/i)
-        if (sqlMatch) {
-          sqlGenerated = sqlMatch[0]
-          const validation = validateSQL(sqlGenerated, storeId)
-
-          if (validation.valid) {
-            const rows = await prisma.$queryRawUnsafe(sqlGenerated) as unknown[]
-            response = rows.length > 0
-              ? `Encontrei ${rows.length} resultado(s) para sua consulta. ${answer.replace(sqlGenerated, '').trim()}`
-              : `Não encontrei resultados para sua consulta. ${answer.replace(sqlGenerated, '').trim()}`
-          } else {
-            response = answer.replace(sqlGenerated, '').trim() || answer
-          }
-        } else {
-          response = answer
-        }
-
-        success = true
-      } catch (sqlErr) {
-        response = `Olá! Veja nosso cardápio em: ${menuUrl}`
-        success = false
-      }
-
-      await replyAndSave(storeId, fromPhone, response, conversationId, replyJid)
-
-      await prisma.$executeRaw`
-        INSERT INTO "AIInteractionLog" ("id", "storeId", "clientPhone", "question", "sqlGenerated", "response", "success", "latencyMs", "createdAt")
-        VALUES (gen_random_uuid(), ${storeId}, ${fromPhone}, ${messageText}, ${sqlGenerated}, ${response}, ${success}, ${Date.now() - startMs}, now())
-      `.catch(() => {})
-
-      return
-    }
-
-    // other — fallback
-    await replyAndSave(
-      storeId,
-      fromPhone,
-      `Olá! 👋 Veja nosso cardápio completo em:\n${menuUrl}\n\nSe precisar de ajuda, responda com sua dúvida ou peça para falar com um atendente.`,
-      conversationId,
-      replyJid
-    )
-  } catch (err: unknown) {
-    const errMsg = err instanceof Error ? err.message : String(err)
-    if (errMsg === 'TIMEOUT' || errMsg.includes('TIMEOUT')) {
-      await replyAndSave(storeId, fromPhone, `Desculpe, não entendi. Acesse nosso cardápio em ${menuUrl}`, conversationId, replyJid)
-    } else {
-      logger.error({ storeId, fromPhone, err }, '[AI] Error handling message')
-      await replyAndSave(storeId, fromPhone, `Desculpe, não entendi. Acesse nosso cardápio em ${menuUrl}`, conversationId, replyJid)
-    }
+  const storeContext: WhatsbotStoreContext = {
+    name: store.name,
+    slug,
+    address: store.address ?? null,
+    phone: store.phone,
+    menuUrl,
+    isOpenNow: isStoreOpenNow({ businessHours: store.businessHours }),
   }
+
+  const started = Date.now()
+  let reply: string | null = null
+  let memoryHits = 0
+  let usedProfile = false
+  let success = false
+
+  try {
+    const res = await askWhatsbot({
+      storeId,
+      customerPhone: fromPhone,
+      message: messageText,
+      context: { store: storeContext, menu: menuCtx.text, menuJson: menuCtx.json },
+    })
+    reply = res.reply
+    memoryHits = res.memoryHits
+    usedProfile = res.usedProfile
+    success = true
+  } catch (err) {
+    // Decisão de design: VM down → não envia nada ao cliente, só loga.
+    logger.error(
+      { storeId, fromPhone, err: String(err) },
+      '[AI] whatsbot falhou — nenhuma resposta enviada ao cliente'
+    )
+  }
+
+  if (success && reply) {
+    await replyAndSave(storeId, fromPhone, reply, conversationId, replyJid)
+  }
+
+  await prisma.$executeRaw`
+    INSERT INTO "AIInteractionLog" ("id", "storeId", "clientPhone", "question", "sqlGenerated", "response", "success", "latencyMs", "createdAt")
+    VALUES (gen_random_uuid(), ${storeId}, ${fromPhone}, ${messageText}, ${null}, ${reply ?? ''}, ${success}, ${Date.now() - started}, now())
+  `.catch(() => {})
+
+  logger.info(
+    { storeId, fromPhone, success, memoryHits, usedProfile, latencyMs: Date.now() - started },
+    '[AI] interação concluída'
+  )
 }

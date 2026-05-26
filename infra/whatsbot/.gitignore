@@ -1,0 +1,7 @@
+.env
+certs/*.key
+certs/*.crt
+certs/*.srl
+!certs/.gitkeep
+whatsbot-api/node_modules/
+whatsbot-api/dist/

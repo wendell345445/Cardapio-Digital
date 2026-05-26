@@ -1,0 +1,54 @@
+# ─── Caddy — reverse proxy do whatsbot (mTLS + X-API-Key) ────────────────
+# Duas camadas de autenticação server-to-server:
+#
+#  1. mTLS — cert de CLIENTE assinado pela nossa CA privada (certs/ca.crt).
+#     Modo `request`: cert pedido no handshake; a exigência é validada pelo
+#     matcher @nocert abaixo (sem cert → 403).
+#  2. X-API-Key — segunda camada, defense-in-depth.
+#
+# A api Railway sempre fala com /ai/* via mTLS + X-Api-Key. Cliente final
+# (cardápio público / browser) NUNCA fala com este host direto.
+
+{$WHATSBOT_DOMAIN} {
+	tls {
+		client_auth {
+			mode request
+			trust_pool file /etc/caddy/certs/ca.crt
+		}
+	}
+
+	route {
+		# Healthcheck público (sem auth, sem mTLS — pra monitoring externo).
+		handle /healthz {
+			respond "ok" 200
+		}
+
+		# TEMPORÁRIO: página de teste pública (sem mTLS, sem API key) — pra
+		# validação manual estilo WhatsApp. REMOVER quando integração oficial
+		# estiver em produção.
+		handle /test {
+			reverse_proxy whatsbot-api:3000
+		}
+		handle /test/* {
+			reverse_proxy whatsbot-api:3000
+		}
+
+		# Sem cert de cliente válido → 403.
+		@nocert expression `{http.request.tls.client.certificate_der_base64} == ""`
+		respond @nocert "client certificate required" 403
+
+		# Sem a API key correta → 403.
+		@noauth not header X-Api-Key {$WHATSBOT_API_KEY}
+		respond @noauth "Forbidden" 403
+
+		# Autenticado: repassa pra API Node.js.
+		handle /ai/* {
+			reverse_proxy whatsbot-api:3000
+		}
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+	}
+}

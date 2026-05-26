@@ -8,6 +8,7 @@ import { webhookRouter } from './modules/webhooks/webhook.routes'
 import { adminRouter } from './modules/admin/admin.routes'
 import { menuRouter } from './modules/menu/menu.routes'
 import motoboyRouter from './modules/motoboy/motoboy.routes'
+import { whatsbotPublicRouter } from './modules/whatsbot-public/whatsbot-public.routes'
 
 export const router = Router()
 
@@ -18,3 +19,4 @@ router.use('/admin', authenticatedRateLimiter, adminRouter)
 router.use('/menu', menuRouter)
 router.use('/motoboy', authenticatedRateLimiter, motoboyRouter)
 router.use('/billing', authenticatedRateLimiter, billingRouter)
+router.use('/whatsbot-public', whatsbotPublicRouter)
