@@ -49,11 +49,13 @@ export function IdentifiquesePage() {
   }, [tableNumber, deviceName, items.length, navigate])
 
   const whatsappDigits = onlyDigits(formData.whatsapp)
-  // WhatsApp é cosmético — válido se vazio ou se tiver 11 dígitos com 9 na 3ª posição.
+  // WhatsApp obrigatório: 11 dígitos com 9 na 3ª posição.
   const isWhatsappValid =
-    whatsappDigits.length === 0 ||
-    (whatsappDigits.length === 11 && whatsappDigits[2] === '9')
-  const canContinue = isWhatsappValid && formData.fullName.trim().length > 0
+    whatsappDigits.length === 11 && whatsappDigits[2] === '9'
+  // Nome obrigatório: pelo menos nome + sobrenome (2 palavras com 2+ letras cada).
+  const nameParts = formData.fullName.trim().split(/\s+/).filter((p) => p.length >= 2)
+  const isFullNameValid = nameParts.length >= 2
+  const canContinue = isWhatsappValid && isFullNameValid
 
   const handleBack = () => {
     if (window.history.length > 1) window.history.back()
@@ -136,6 +138,11 @@ export function IdentifiquesePage() {
                   className="h-[46px] w-full rounded-[16px] bg-[#faf8f8] px-3 text-[14px] font-medium leading-[18px] text-menu-text outline-none placeholder:text-[#aaa0a0]"
                   style={{ border: '0.6px solid rgba(65, 57, 57, 0.13)', fontSize: 16 }}
                 />
+                {formData.fullName.trim().length > 0 && !isFullNameValid && (
+                  <span className="mt-1.5 block text-[10px] font-normal leading-[13px] tracking-[-0.06px] text-menu-primary">
+                    Informe nome e sobrenome.
+                  </span>
+                )}
               </label>
 
               <button

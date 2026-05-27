@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { MapPin } from 'lucide-react'
 
 import { useCartStore } from '../store/useCartStore'
 import { useMenu } from '../hooks/useMenu'
@@ -15,6 +16,7 @@ import {
   validateCouponPublic,
 } from '../services/orders.service'
 import { getCustomerName } from '../lib/customerName'
+import { getCustomerWhatsapp } from '../lib/customerWhatsapp'
 import { listAddresses, removeAddress, type SavedAddress } from '../lib/customerAddresses'
 
 import { AddressAutocompleteOSM } from '@/shared/components/places/AddressAutocompleteOSM'
@@ -135,6 +137,7 @@ export function CheckoutPage() {
 
   const tableClientName = tableNumber ? deviceName?.trim() || 'Convidado' : null
   const clientName = tableClientName ?? getCustomerName()
+  const clientWhatsapp = getCustomerWhatsapp()
 
   // Modo mesa pula etapas de entrega: vai direto pra pagamento (PENDING).
   const inTableMode = !!tableNumber
@@ -516,6 +519,11 @@ export function CheckoutPage() {
                   <strong className="mt-2 block truncate text-[20px] font-semibold leading-none tracking-[-0.35px] text-menu-text">
                     {clientName || 'Não informado'}
                   </strong>
+                  {clientWhatsapp && (
+                    <p className="mt-1.5 truncate text-[13px] font-medium leading-none tracking-[-0.15px] text-menu-text-soft">
+                      {clientWhatsapp}
+                    </p>
+                  )}
                 </div>
 
                 <button
@@ -984,8 +992,9 @@ function SelectedDeliveryCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[1px] text-menu-text-soft">
-            {isPickup ? 'Retirada no local' : 'Entrega no endereço'}
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[1px] text-menu-text-soft">
+            <MapPin size={14} className="text-menu-primary" aria-hidden="true" />
+            {isPickup ? 'Retirada no local' : 'Endereço de entrega'}
           </p>
           {isPickup ? (
             <p className="mt-2 text-[13px] font-medium leading-[1.4] text-menu-text">

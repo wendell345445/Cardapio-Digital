@@ -225,13 +225,13 @@ export function PagamentoPage() {
         primaryColor={menu?.store.primaryColor}
         secondaryColor={menu?.store.secondaryColor}
       />
-      <div
-        className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8"
-        style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom))' }}
-      >
+      <div className="mx-auto flex min-h-dvh w-full max-w-[768px] flex-col bg-menu-bg px-4 sm:px-6 md:px-8">
         <PageHeader title="Pagamento" onBack={handleBack} />
 
-        <main className="flex flex-1 flex-col pt-5">
+        <main
+          className="flex flex-1 flex-col pt-5"
+          style={{ paddingBottom: 'calc(140px + env(safe-area-inset-bottom))' }}
+        >
           <section aria-labelledby="payment-methods-heading">
             <div className="max-w-[330px]">
               <h2
@@ -304,49 +304,53 @@ export function PagamentoPage() {
             )}
           </section>
 
-          {/* Card resumo + botão Continuar */}
-          <section className="mt-auto pt-8" aria-label="Resumo do pagamento">
-            <div
-              className="rounded-[20px] bg-white px-4 py-4 shadow-[0_6px_22px_rgba(64,57,57,0.06)]"
-              style={{ border: '0.6px solid rgba(65, 57, 57, 0.09)' }}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <span className="block text-[11px] font-normal leading-none tracking-[-0.15px] text-menu-text-soft">
-                    {inTableMode ? 'Total do pedido' : 'Método selecionado'}
+        </main>
+
+        {/* Resumo + botão Continuar — fixo no rodapé */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-menu-card-border bg-white shadow-[0_-4px_16px_rgba(64,57,57,0.06)]"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <section
+            className="mx-auto w-full max-w-[768px] px-4 py-3 sm:px-6 md:px-8"
+            aria-label="Resumo do pagamento"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <span className="block text-[11px] font-normal leading-none tracking-[-0.15px] text-menu-text-soft">
+                  {inTableMode ? 'Total do pedido' : 'Método selecionado'}
+                </span>
+                <strong className="mt-1.5 block text-[15px] font-semibold leading-none text-menu-text">
+                  {inTableMode
+                    ? fmt(total)
+                    : selectedOption?.label ?? 'Escolha um método'}
+                </strong>
+                {selectedPayment === 'CASH_ON_DELIVERY' && (
+                  <span className="mt-1.5 block text-[11px] font-normal leading-none tracking-[-0.15px] text-menu-text-soft">
+                    {!cashNeedsChange
+                      ? 'Não precisa de troco'
+                      : cashChangeFor
+                        ? `Troco para R$ ${cashChangeFor}`
+                        : 'Informe o troco'}
                   </span>
-                  <strong className="mt-1.5 block text-[15px] font-semibold leading-none text-menu-text">
-                    {inTableMode
-                      ? fmt(total)
-                      : selectedOption?.label ?? 'Escolha um método'}
-                  </strong>
-                  {selectedPayment === 'CASH_ON_DELIVERY' && (
-                    <span className="mt-1.5 block text-[11px] font-normal leading-none tracking-[-0.15px] text-menu-text-soft">
-                      {!cashNeedsChange
-                        ? 'Não precisa de troco'
-                        : cashChangeFor
-                          ? `Troco para R$ ${cashChangeFor}`
-                          : 'Informe o troco'}
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={!canSubmit || mutation.isPending || availableOptions.length === 0 && !inTableMode}
-                  className={`flex h-[42px] shrink-0 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-transform active:scale-[0.98] ${
-                    canSubmit && !mutation.isPending
-                      ? 'bg-menu-primary text-white shadow-menu-lg'
-                      : 'bg-[#f0eaea] text-[#9b9292]'
-                  }`}
-                >
-                  {mutation.isPending
-                    ? 'Enviando…'
-                    : inTableMode
-                      ? 'Confirmar pedido'
-                      : 'Continuar'}
-                </button>
+                )}
               </div>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmit || mutation.isPending || availableOptions.length === 0 && !inTableMode}
+                className={`flex h-[42px] shrink-0 items-center justify-center rounded-full px-5 text-[13px] font-semibold transition-transform active:scale-[0.98] ${
+                  canSubmit && !mutation.isPending
+                    ? 'bg-menu-primary text-white shadow-menu-lg'
+                    : 'bg-[#f0eaea] text-[#9b9292]'
+                }`}
+              >
+                {mutation.isPending
+                  ? 'Enviando…'
+                  : inTableMode
+                    ? 'Confirmar pedido'
+                    : 'Finalizar Pedido'}
+              </button>
             </div>
 
             {mutation.error && (() => {
@@ -375,7 +379,7 @@ export function PagamentoPage() {
               )
             })()}
           </section>
-        </main>
+        </div>
       </div>
 
       {showCashSheet && (
