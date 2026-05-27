@@ -35,6 +35,7 @@ import { PagamentoPage } from '@/modules/menu/pages/PagamentoPage'
 import { ItemPage } from '@/modules/menu/pages/ItemPage'
 import { MenuPage } from '@/modules/menu/pages/MenuPage'
 import { OrderTrackingPage } from '@/modules/menu/pages/OrderTrackingPage'
+import { PixWaitingPage } from '@/modules/menu/pages/PixWaitingPage'
 import { MyOrdersPage } from '@/modules/menu/pages/MyOrdersPage'
 import { TableEntryPage } from '@/modules/menu/pages/TableEntryPage'
 import { MotoboyPage } from '@/modules/motoboy/pages/MotoboyPage'
@@ -136,6 +137,7 @@ export function App() {
           <Route path="/identifique-se" element={<IdentifiquesePage />} />
           <Route path="/checkout" element={<CheckoutPage />} />
           <Route path="/pagamento" element={<PagamentoPage />} />
+          <Route path="/pedido/:token/pix" element={<PixWaitingPage />} />
           <Route path="/pedido/:token" element={<OrderTrackingPage />} />
           <Route path="/meus-pedidos" element={<MyOrdersPage />} />
           <Route path="/comanda" element={<ComandaPage />} />

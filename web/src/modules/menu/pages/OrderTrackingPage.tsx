@@ -15,6 +15,7 @@ import {
   ListOrdered,
   XCircle,
 } from 'lucide-react'
+import { FaWhatsapp } from 'react-icons/fa'
 
 import { OrderSentAnimation } from '../components/OrderSentAnimation'
 import { ThemeInjector } from '../components/ThemeInjector'
@@ -327,6 +328,23 @@ export function OrderTrackingPage() {
               </section>
             )}
 
+          {/* Cancelado / Opt-in WhatsApp */}
+          {order.status === 'CANCELLED' ? (
+            <section className="flex items-start gap-3 rounded-[14px] border border-red-200 bg-red-50 p-4">
+              <XCircle size={20} className="mt-0.5 shrink-0 text-red-600" />
+              <div className="text-sm">
+                <p className="font-semibold text-red-800">Pedido cancelado</p>
+                <p className="mt-0.5 text-xs text-red-700">
+                  {order.cancellationReason
+                    ? `Motivo: ${order.cancellationReason}`
+                    : 'Este pedido foi cancelado pela loja.'}
+                </p>
+              </div>
+            </section>
+          ) : order.type !== 'TABLE' ? (
+            <OptInCard order={order} />
+          ) : null}
+
           {/* Itens */}
           <section className="rounded-[14px] bg-white p-4 shadow-[0_4px_16px_rgba(0,0,0,0.05)]">
             <h2 className="mb-3 text-[14px] font-bold text-menu-text">Itens do pedido</h2>
@@ -366,23 +384,6 @@ export function OrderTrackingPage() {
               </div>
             </div>
           </section>
-
-          {/* Cancelado / Opt-in WhatsApp */}
-          {order.status === 'CANCELLED' ? (
-            <section className="flex items-start gap-3 rounded-[14px] border border-red-200 bg-red-50 p-4">
-              <XCircle size={20} className="mt-0.5 shrink-0 text-red-600" />
-              <div className="text-sm">
-                <p className="font-semibold text-red-800">Pedido cancelado</p>
-                <p className="mt-0.5 text-xs text-red-700">
-                  {order.cancellationReason
-                    ? `Motivo: ${order.cancellationReason}`
-                    : 'Este pedido foi cancelado pela loja.'}
-                </p>
-              </div>
-            </section>
-          ) : order.type !== 'TABLE' ? (
-            <OptInCard order={order} />
-          ) : null}
 
           {/* Mesa */}
           {order.type === 'TABLE' && (
@@ -461,22 +462,20 @@ function OptInCard({
 
   return (
     <section className="space-y-3 rounded-[14px] border border-green-200 bg-white p-4">
-      <div className="flex items-start gap-3">
-        <MessageCircle size={20} className="mt-0.5 shrink-0 text-green-600" />
-        <div>
-          <p className="text-sm font-bold text-menu-text">Acompanhar pelo WhatsApp?</p>
-          <p className="mt-0.5 text-xs text-menu-text-soft">
-            Toque no botão abaixo, vamos abrir o WhatsApp com uma mensagem pronta — é só enviar e
-            você recebe cada atualização do pedido.
-          </p>
-        </div>
+      <div>
+        <p className="text-sm font-bold text-menu-text">Acompanhar pelo WhatsApp?</p>
+        <p className="mt-0.5 text-xs text-menu-text-soft">
+          Toque no botão abaixo, vamos abrir o WhatsApp com uma mensagem pronta — é só enviar e
+          você recebe cada atualização do pedido.
+        </p>
       </div>
       <a
         href={waLink}
         target="_blank"
         rel="noopener noreferrer"
-        className="block w-full rounded-full bg-green-500 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-green-600"
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-green-500 py-3 text-center text-sm font-bold text-white transition-colors hover:bg-green-600"
       >
+        <FaWhatsapp size={18} />
         Receber atualizações pelo WhatsApp
       </a>
     </section>

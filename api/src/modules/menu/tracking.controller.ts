@@ -30,6 +30,8 @@ export async function getOrderTrackingController(req: Request, res: Response, ne
             whatsappPairedNumber: true,
             primaryColor: true,
             secondaryColor: true,
+            pixKey: true,
+            pixKeyType: true,
           },
         },
         table: { select: { number: true } },

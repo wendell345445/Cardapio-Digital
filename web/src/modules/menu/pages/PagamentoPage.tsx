@@ -205,7 +205,10 @@ export function PagamentoPage() {
         })
       }
       clearCart()
-      navigate(`/pedido/${result.token}`, { state: result })
+      const isPixOnline = !!result.pixCopyPaste
+      navigate(isPixOnline ? `/pedido/${result.token}/pix` : `/pedido/${result.token}`, {
+        state: result,
+      })
     } catch {
       // erro já fica em mutation.error e renderiza no rodapé
     }
