@@ -45,8 +45,8 @@ const ICON_DEBITO = 'https://c.animaapp.com/lguJ4fGV/img/credit-card-1-1.svg'
 const ALL_OPTIONS: PaymentOption[] = [
   {
     id: 'PIX',
-    label: 'Pix online',
-    description: 'Confirmação rápida no app',
+    label: 'Pix',
+    description: 'Enviar comprovante para loja',
     iconSrc: ICON_PIX,
     iconAlt: 'Ícone do Pix',
   },
