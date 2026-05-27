@@ -69,6 +69,10 @@ export function CookieBanner() {
 
   if (!visible) return null
 
+  // Card branco com acentos na cor da loja (var --menu-primary, setada por
+  // ThemeInjector). Botão "Aceitar" e link "política de cookies" pegam a cor
+  // configurada na aba Personalização do admin. Sem cor configurada, cai no
+  // vermelho default Menu Panda definido em :root no index.css.
   return (
     <div
       role="dialog"
@@ -76,19 +80,23 @@ export function CookieBanner() {
       aria-label="Aviso de cookies"
       className="fixed bottom-0 left-0 right-0 z-50 p-4 sm:p-6"
     >
-      <div className="mx-auto max-w-2xl bg-gray-900 text-white rounded-xl shadow-2xl px-5 py-4 flex items-start gap-4">
-        {/* Icon */}
+      <div
+        className="mx-auto max-w-2xl bg-white text-gray-900 rounded-xl shadow-2xl px-5 py-4 flex items-start gap-4"
+        style={{ borderTop: '3px solid var(--menu-primary)' }}
+      >
+        {/* Icon na cor da loja */}
         <div className="flex-shrink-0 mt-0.5">
-          <Cookie className="w-5 h-5 text-yellow-400" />
+          <Cookie className="w-5 h-5" style={{ color: 'var(--menu-primary)' }} />
         </div>
 
         {/* Message */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm leading-relaxed text-gray-100">
+          <p className="text-sm leading-relaxed text-gray-700">
             Usamos cookies para melhorar sua experiência. Ao continuar, você aceita nossa{' '}
             <a
               href="/politica-de-privacidade"
-              className="underline text-blue-400 hover:text-blue-300 transition-colors"
+              className="underline hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--menu-primary)' }}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -101,13 +109,14 @@ export function CookieBanner() {
           <div className="flex flex-wrap gap-2 mt-3">
             <button
               onClick={accept}
-              className="px-4 py-1.5 rounded-lg bg-white text-gray-900 text-sm font-semibold hover:bg-gray-100 transition-colors"
+              className="px-4 py-1.5 rounded-lg text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+              style={{ background: 'var(--menu-primary)' }}
             >
               Aceitar
             </button>
             <button
               onClick={decline}
-              className="px-4 py-1.5 rounded-lg border border-gray-600 text-gray-300 text-sm font-medium hover:bg-gray-800 transition-colors"
+              className="px-4 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
             >
               Recusar
             </button>
@@ -118,7 +127,7 @@ export function CookieBanner() {
         <button
           onClick={decline}
           aria-label="Fechar aviso de cookies"
-          className="flex-shrink-0 text-gray-400 hover:text-gray-200 transition-colors mt-0.5"
+          className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors mt-0.5"
         >
           <X className="w-4 h-4" />
         </button>

@@ -205,33 +205,85 @@ function norm(s: string): string {
     .trim()
 }
 
-// Encontra produtos mencionados na resposta da IA. Estratégia simples:
-// se o nome normalizado do produto aparece como substring na resposta
-// normalizada, é match. Limita ao top-N pra não floodar o cliente com fotos.
+// Stopwords descartadas no matching (palavras genéricas que aparecem em
+// muitos produtos e não ajudam a distinguir). Mantém termos descritivos.
+const STOP_WORDS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'e', 'ou', 'com', 'sem', 'a', 'o', 'as', 'os',
+  'um', 'uma', 'no', 'na', 'para', 'por', 'em',
+])
+
+function tokenize(s: string): string[] {
+  return norm(s).split(' ').filter((t) => t.length >= 2 && !STOP_WORDS.has(t))
+}
+
+// Encontra produtos mencionados na resposta da IA usando **bag-of-words match**:
+// pra cada produto, conta quantas palavras significativas do nome aparecem na
+// resposta. Se ≥50% das palavras casarem (mínimo 2), é match. Resolve casos como
+// "Coca Diet" da IA casando com "Coca Cola Diet" do cadastro.
 function extractMatchedProducts(reply: string, products: ProductLite[], menuUrl: string): ProductCard[] {
+  const replyTokens = new Set(tokenize(reply))
   const normReply = norm(reply)
-  const matches: Array<{ product: ProductLite; pos: number }> = []
+
+  type Scored = { product: ProductLite; score: number; pos: number; matched: number; total: number }
+  const matches: Scored[] = []
+
   for (const p of products) {
     if (!p.imageUrl) continue
-    const name = norm(p.name)
-    // Evita match trivial (palavras únicas muito curtas tipo "x" ou "1L").
-    if (name.length < 3) continue
-    const pos = normReply.indexOf(name)
-    if (pos !== -1) matches.push({ product: p, pos })
-  }
-  // Ordena pela ordem de aparição no texto e remove duplicados próximos.
-  matches.sort((a, b) => a.pos - b.pos)
+    const tokens = tokenize(p.name)
+    if (tokens.length === 0) continue
 
-  const seen = new Set<string>()
+    const matched = tokens.filter((t) => replyTokens.has(t))
+    const matchedCount = matched.length
+    if (matchedCount === 0) continue
+
+    // Regras de aceite — ajustadas pra cobrir o caso "Coca Diet" → "Coca Cola Diet":
+    //  - nome com 1 token: precisa do token exato e único o suficiente (>= 4 chars)
+    //  - nome com 2+ tokens: precisa de ≥50% das palavras OU ≥2 palavras casadas
+    const ratio = matchedCount / tokens.length
+    const accept = tokens.length === 1
+      ? tokens[0]!.length >= 4 && matchedCount === 1
+      : matchedCount >= 2 || ratio >= 0.5
+    if (!accept) continue
+
+    // Posição da primeira palavra casada na reply (pra ordenar por ordem de aparição).
+    let pos = Infinity
+    for (const t of matched) {
+      const p = normReply.indexOf(t)
+      if (p !== -1 && p < pos) pos = p
+    }
+
+    // Score: mais palavras casadas + maior ratio = melhor. Empate vai pra
+    // produto com mais palavras (mais específico).
+    const score = matchedCount * 10 + ratio * 5 + tokens.length * 0.1
+    matches.push({ product: p, score, pos, matched: matchedCount, total: tokens.length })
+  }
+
+  // Resolve conflito: 2 produtos casaram com a MESMA palavra → fica o mais
+  // específico (mais tokens casados). Ex: "Coca Cola Lata" e "Coca Cola Diet"
+  // ambos casam em "coca cola" → ganha quem também casa "diet" se "diet" está
+  // na reply.
+  matches.sort((a, b) => b.score - a.score)
+  const claimed = new Set<string>() // palavras já "consumidas" por outro card
+
+  const ordered: Scored[] = []
+  for (const m of matches) {
+    const tokens = tokenize(m.product.name)
+    // Se TODAS as palavras dele já foram consumidas por outro produto com
+    // score maior, pula (evita duplicar card pra mesma referência).
+    const allClaimed = tokens.every((t) => claimed.has(t))
+    if (allClaimed) continue
+    tokens.forEach((t) => claimed.add(t))
+    ordered.push(m)
+  }
+
+  // Reordena pela posição na resposta (segue a ordem que a IA falou).
+  ordered.sort((a, b) => a.pos - b.pos)
+
   const out: ProductCard[] = []
   const MAX_CARDS = 3
-  for (const { product } of matches) {
-    if (seen.has(product.id)) continue
-    seen.add(product.id)
+  for (const { product } of ordered) {
     const price = product.basePrice != null ? ` — *R$ ${Number(product.basePrice).toFixed(2).replace('.', ',')}*` : ''
     const desc = product.description ? `\n\n${product.description}` : ''
-    // Link específico do produto (`/produto/:id`) — cliente abre a tela
-    // do item exato, não a home da loja.
     const productUrl = `${menuUrl}/produto/${product.id}`
     const caption = `*${product.name}*${price}${desc}\n\n📍 Ver no cardápio: ${productUrl}`
     out.push({ productId: product.id, imageUrl: product.imageUrl!, caption })
