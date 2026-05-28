@@ -262,20 +262,52 @@ export async function updateStorePlan(
   if (!store) throw new AppError('Loja não encontrada', 404)
   if (store.plan === data.plan) throw new AppError('Loja já está neste plano', 422)
 
-  if (store.stripeSubscriptionId) {
-    await updateSubscription(store.stripeSubscriptionId, PLAN_PRICE_IDS[data.plan])
+  // Stripe: tenta atualizar a sub existente. Se ela já foi cancelada
+  // (trial expirou sem PaymentMethod → Stripe cancela auto), cria uma sub
+  // NOVA com 7 dias de trial. Caso típico: loja SUSPENDED que o Owner
+  // está reativando alterando plano pelo painel admin.
+  let nextSubscriptionId: string | null = store.stripeSubscriptionId ?? null
+  let nextTrialEndsAt: Date | null = store.stripeTrialEndsAt ?? null
+
+  if (store.stripeSubscriptionId && store.stripeCustomerId) {
+    try {
+      await updateSubscription(store.stripeSubscriptionId, PLAN_PRICE_IDS[data.plan])
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      const isCanceled =
+        msg.includes('canceled subscription') ||
+        msg.includes('Cannot update a canceled') ||
+        msg.includes('No such subscription')
+      if (!isCanceled) throw err
+
+      // Sub cancelada — cria uma nova com trial 7d e o novo price.
+      const created = await createSubscription(store.stripeCustomerId, PLAN_PRICE_IDS[data.plan])
+      nextSubscriptionId = created.id
+      nextTrialEndsAt = created.trial_end ? new Date(created.trial_end * 1000) : null
+      stripeLogger.info(
+        { storeId, oldSub: store.stripeSubscriptionId, newSub: created.id },
+        '[STRIPE] subscription cancelada — nova sub criada com trial 7d',
+      )
+    }
   }
 
   // RN: downgrade para PROFESSIONAL → rebaixar whatsappMode para WHATSAPP
   const whatsappModeUpdate =
     data.plan === 'PROFESSIONAL' ? { whatsappMode: 'WHATSAPP' as const } : {}
 
+  // Reativa: se criamos sub nova, a loja sai de SUSPENDED pra TRIAL.
+  const reactivated = nextSubscriptionId !== store.stripeSubscriptionId
+  const statusUpdate = reactivated ? { status: 'TRIAL' as const } : {}
+
   const updated = await prisma.store.update({
     where: { id: storeId },
     data: {
       plan: data.plan as any,
       features: PLAN_FEATURES[data.plan],
+      ...(reactivated && nextSubscriptionId ? { stripeSubscriptionId: nextSubscriptionId } : {}),
+      ...(reactivated ? { stripeTrialEndsAt: nextTrialEndsAt } : {}),
       ...whatsappModeUpdate,
+      ...statusUpdate,
     },
   })
 
