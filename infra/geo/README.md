@@ -30,7 +30,7 @@ Console → Compute Engine → Create instance:
 **IP externo**: reserve um IP estático (VPC Network → IP addresses) e anexe à VM,
 senão o IP muda em cada reboot e quebra o DNS.
 
-**DNS**: crie um registro **A** `geo.menupanda.com.br → <IP externo da VM>`.
+**DNS**: crie um registro **A** `geo.menupanda.ai → <IP externo da VM>`.
 (O Caddy usa HTTP-01 challenge, então só precisa do A + portas 80/443 abertas.)
 
 ### Comando gcloud equivalente (rode VOCÊ, se preferir CLI)
@@ -93,7 +93,7 @@ Com mTLS ligado, **todo** request precisa apresentar o cert de cliente
 
 ```bash
 KEY="<o GEO_API_KEY do .env>"
-D="https://geo.menupanda.com.br"
+D="https://geo.menupanda.ai"
 C="certs/client.crt"; K="certs/client.key"
 
 curl -s --cert $C --key $K -H "X-API-Key: $KEY" "$D/photon/api?q=avenida+paulista" | head
@@ -119,9 +119,9 @@ sudo ln -s /opt/geo/update-osm.sh /etc/cron.weekly/osm-update
 No painel do Railway (env vars do serviço `api`):
 
 ```bash
-GEO_AUTOCOMPLETE_URL=https://geo.menupanda.com.br/photon
-GEO_GEOCODING_URL=https://geo.menupanda.com.br/nominatim
-GEO_ROUTING_URL=https://geo.menupanda.com.br/osrm
+GEO_AUTOCOMPLETE_URL=https://geo.menupanda.ai/photon
+GEO_GEOCODING_URL=https://geo.menupanda.ai/nominatim
+GEO_ROUTING_URL=https://geo.menupanda.ai/osrm
 GEO_API_KEY=<mesma chave do .env da VM>
 GEO_USE_OSRM_ROUTING=false        # liga depois de validar (feature flag)
 

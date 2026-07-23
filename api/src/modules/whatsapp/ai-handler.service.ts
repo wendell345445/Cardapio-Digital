@@ -119,7 +119,7 @@ export async function handleIncomingMessage(
   await incrementRateLimit(storeId, fromPhone)
 
   const menuCtx = await getMenuContext(storeId)
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
   const menuUrl = `https://${slug}.${rootDomain}`
 
   const storeContext: WhatsbotStoreContext = {

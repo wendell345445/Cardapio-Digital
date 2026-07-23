@@ -1,10 +1,10 @@
 import axios, { AxiosInstance, CreateAxiosDefaults } from 'axios'
 
-// Em prod, frontend mora em {slug}.menupanda.com.br e a API em api.menupanda.com.br.
+// Em prod, frontend mora em {slug}.menupanda.ai e a API em api.menupanda.ai.
 // A requisição cross-origin perde o Host do subdomínio, então o middleware público
 // não consegue derivar o slug. Este helper injeta X-Tenant-Slug em toda chamada.
 const PRIMARY_ROOT =
-  (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
+  (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.ai'
 const ROOT_HOSTNAMES = Array.from(new Set([PRIMARY_ROOT, 'cardapio.test', 'localhost']))
 const SUBDOMAIN_SUFFIXES = ROOT_HOSTNAMES.filter((d) => d !== 'localhost').map((d) => `.${d}`)
 

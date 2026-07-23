@@ -4,7 +4,7 @@
 #
 # Variáveis de ambiente necessárias:
 #   CF_API_TOKEN       — token Cloudflare com permissão Zone:DNS:Edit
-#   PUBLIC_ROOT_DOMAIN — domínio raiz do produto (ex: menupanda.com.br)
+#   PUBLIC_ROOT_DOMAIN — domínio raiz do produto (ex: menupanda.ai)
 #                        Mesmo valor que api/.env e web/.env. Sintaxe `{$VAR}` é
 #                        substituição de env do Caddy (resolvida no startup).
 

@@ -110,7 +110,7 @@ async function getTableAndSlug(storeId: string, tableId: string) {
 }
 
 function buildMenuUrl(slug: string, accessToken: string): string {
-  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+  const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
   // v2.7: URL agora usa accessToken (hash) em vez do número da mesa — sem
   // hash, qualquer cliente conseguia digitar /mesa/2 e abrir sessão da mesa
   // do vizinho. Hash é fixo por mesa, então bookmark do cliente continua

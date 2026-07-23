@@ -3,21 +3,21 @@ import { Router } from 'express'
 import { prisma } from '../../shared/prisma/prisma'
 
 // ─── Endpoints públicos consumidos pelo whatsbot self-hosted (VM GCP) ────
-// Servem APENAS pra alimentar a página de teste em whatsbot.menupanda.com.br
+// Servem APENAS pra alimentar a página de teste em whatsbot.menupanda.ai
 // (sem mTLS). Não exigem auth porque retornam só slug+name, sem dados
 // sensíveis. Quando a integração oficial estiver em produção, podemos
 // proteger por API key ou remover.
 
 export const whatsbotPublicRouter = Router()
 
-// CORS específico: só whatsbot.menupanda.com.br consome.
+// CORS específico: só whatsbot.menupanda.ai consome.
 whatsbotPublicRouter.use((req, res, next) => {
   const origin = req.headers.origin
   if (origin && /^https:\/\/whatsbot(\.|$)/.test(origin.replace('https://', ''))) {
     res.setHeader('Access-Control-Allow-Origin', origin)
     res.setHeader('Vary', 'Origin')
   } else {
-    res.setHeader('Access-Control-Allow-Origin', 'https://whatsbot.menupanda.com.br')
+    res.setHeader('Access-Control-Allow-Origin', 'https://whatsbot.menupanda.ai')
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')

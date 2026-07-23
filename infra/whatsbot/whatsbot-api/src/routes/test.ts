@@ -18,12 +18,12 @@ import { scheduleProfileRefresh } from '../services/profile-updater.js'
 import { env } from '../env.js'
 
 // ─── Rota pública temporária pra testar o whatsbot sem mTLS ──────────────
-// Acessível em https://whatsbot.menupanda.com.br/test (HTML estático) e
+// Acessível em https://whatsbot.menupanda.ai/test (HTML estático) e
 // /test/chat (endpoint JSON). Faz proxy pra menu público da Railway pra
 // montar o contexto da loja a partir do slug informado.
 // REMOVER quando a integração oficial estiver pronta.
 
-const MENU_API_BASE = process.env.MENU_API_BASE ?? 'https://api.menupanda.com.br/api/v1'
+const MENU_API_BASE = process.env.MENU_API_BASE ?? 'https://api.menupanda.ai/api/v1'
 
 const chatSchema = z.object({
   slug: z.string().min(1).max(60),
@@ -42,7 +42,7 @@ type MenuApiStore = {
   prepTimeMin?: number | null
   // customDomain define o host público da loja quando ela tem domínio próprio.
   // Quando preenchido, a loja é acessível APENAS via {customDomain}, não via
-  // {slug}.menupanda.com.br (o middleware bloqueia).
+  // {slug}.menupanda.ai (o middleware bloqueia).
   customDomain?: string | null
   // O Railway já calcula isso pra gente (calcStoreStatus em menu.service).
   // É a fonte da verdade — não tentar recalcular na VM.
@@ -151,7 +151,7 @@ async function fetchStoreContext(slug: string): Promise<{
   // pelo domínio próprio quando preenchido (middleware bloqueia o subdomain).
   const menuUrl = store.customDomain
     ? `https://${store.customDomain}`
-    : `https://${slug}.menupanda.com.br`
+    : `https://${slug}.menupanda.ai`
 
   return {
     storeId: store.id,

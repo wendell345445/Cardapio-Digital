@@ -157,7 +157,7 @@ describe('generateQRCode', () => {
 
     const result = await generateQRCode(STORE_ID, TABLE_ID)
 
-    expect(result.url).toBe(`https://minha-loja.menupanda.com.br/mesa/${ACCESS_TOKEN}`)
+    expect(result.url).toBe(`https://minha-loja.menupanda.ai/mesa/${ACCESS_TOKEN}`)
 
     process.env.PUBLIC_ROOT_DOMAIN = originalDomain
   })

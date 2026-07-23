@@ -1,7 +1,7 @@
 // O backend serve uploads locais como caminho relativo `/uploads/<storeId>/...`
 // (ver api/src/modules/admin/upload.service.ts). Em dev o Vite faz proxy de
 // /uploads pra :3001, mas em prod o frontend e a API moram em hosts distintos
-// (ex: menupanda.com.br vs api.menupanda.com.br), então precisamos prefixar.
+// (ex: menupanda.ai vs api.menupanda.ai), então precisamos prefixar.
 //
 // URLs Cloudinary recebem f_auto,q_auto pra servir WebP/AVIF otimizado.
 // data:/blob: passam intactos.

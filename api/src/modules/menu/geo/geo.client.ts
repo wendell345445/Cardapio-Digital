@@ -5,10 +5,10 @@ import { Agent, fetch as undiciFetch } from 'undici'
 
 import { AppError } from '../../../shared/middleware/error.middleware'
 
-// Cliente HTTP mTLS pra stack OSM self-hosted (geo.menupanda.com.br).
+// Cliente HTTP mTLS pra stack OSM self-hosted (geo.menupanda.ai).
 // O Caddy do servidor exige cert de cliente assinado pela nossa CA — sem ele
 // a conexão é recusada no handshake TLS. Quem apresenta é a api (server-side);
-// o browser NUNCA bate direto no geo.menupanda.com.br em produção.
+// o browser NUNCA bate direto no geo.menupanda.ai em produção.
 //
 // Cert+key vêm de DUAS fontes (a primeira que existir ganha):
 //   1. GEO_CLIENT_CERT_PATH / GEO_CLIENT_KEY_PATH — arquivos (dev local).

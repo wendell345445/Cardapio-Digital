@@ -42,7 +42,7 @@ const PERIOD_HINT: Record<Period, string> = {
   range: 'Período personalizado',
 }
 
-const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
+const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.ai'
 
 function fmt(val: number) {
   return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })

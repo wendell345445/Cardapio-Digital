@@ -1,15 +1,15 @@
 // ─── REFERÊNCIA: cliente mTLS pra api Railway chamar o geo ────────────────
 // NÃO é importado por nada ainda — é o molde de como o módulo geo/ da api
-// (api/src/modules/menu/geo/) deve falar com geo.menupanda.com.br.
+// (api/src/modules/menu/geo/) deve falar com geo.menupanda.ai.
 //
 // fetch do Node 20 usa undici por baixo. Pra mTLS, passamos um undici.Agent
 // com o cert+chave do cliente no `dispatcher`. O cert é o mesmo gerado por
 // gen-mtls-certs.sh (client.crt/client.key), entregue via env (base64).
 //
 // ENV esperadas na api Railway:
-//   GEO_GEOCODING_URL     = https://geo.menupanda.com.br/nominatim
-//   GEO_AUTOCOMPLETE_URL  = https://geo.menupanda.com.br/photon
-//   GEO_ROUTING_URL       = https://geo.menupanda.com.br/osrm
+//   GEO_GEOCODING_URL     = https://geo.menupanda.ai/nominatim
+//   GEO_AUTOCOMPLETE_URL  = https://geo.menupanda.ai/photon
+//   GEO_ROUTING_URL       = https://geo.menupanda.ai/osrm
 //   GEO_API_KEY           = <mesma chave do .env da VM>
 //   GEO_CLIENT_CERT_B64   = base64 do client.crt
 //   GEO_CLIENT_KEY_B64    = base64 do client.key

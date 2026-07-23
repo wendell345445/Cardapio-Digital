@@ -31,7 +31,7 @@ function getTransporter(): Transporter {
 const TEMPLATES_DIR = path.resolve(__dirname, 'templates')
 
 function getRootDomain(): string {
-  return process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+  return process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
 }
 
 function getSupportEmail(): string {

@@ -6,11 +6,11 @@ import { AppError } from './error.middleware'
 
 // Lista de domínios raiz reconhecidos como "sem tenant" (owner/admin global) e cujos
 // subdomínios identificam lojas via slug. `PUBLIC_ROOT_DOMAIN` é o domínio principal
-// do produto (ex: `menupanda.com.br` em prod, `cardapio.test` em dev). `cardapio.test`
+// do produto (ex: `menupanda.ai` em prod, `cardapio.test` em dev). `cardapio.test`
 // e `localhost` são mantidos sempre como aliases pra dev local não quebrar quando a env
 // aponta pra outro domínio.
 function getRootDomains(): string[] {
-  const primary = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+  const primary = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
   return Array.from(new Set([primary, 'cardapio.test', 'localhost']))
 }
 
@@ -44,8 +44,8 @@ export async function publicTenantMiddleware(
   next: NextFunction
 ): Promise<void> {
   try {
-    // Quando frontend e API moram em domínios diferentes (ex: api.menupanda.com.br
-    // servindo burgermais.menupanda.com.br), o Host da request perde o slug. O cliente
+    // Quando frontend e API moram em domínios diferentes (ex: api.menupanda.ai
+    // servindo burgermais.menupanda.ai), o Host da request perde o slug. O cliente
     // envia então X-Tenant-Slug com o slug derivado do próprio hostname do navegador.
     const headerSlug = (req.get('x-tenant-slug') || '').trim().toLowerCase()
 

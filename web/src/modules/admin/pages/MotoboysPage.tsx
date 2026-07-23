@@ -14,7 +14,7 @@ import { PasswordInput } from '@/shared/components/PasswordInput'
 import { formatBrPhone, maskWhatsapp, onlyDigits } from '@/shared/lib/masks'
 
 const PUBLIC_ROOT_DOMAIN =
-  (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
+  (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.ai'
 
 type EntregadorToast = { message: string; type: 'success' | 'error' } | null
 

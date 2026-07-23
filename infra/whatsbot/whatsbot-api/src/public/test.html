@@ -126,10 +126,10 @@
       if (!res.ok || !Array.isArray(data.stores)) throw new Error(data.error || 'falha')
       const saved = localStorage.getItem('wb_slug') || ''
       // Label do option mostra o host PÚBLICO real da loja:
-      // customDomain quando existe (precedência), senão {slug}.menupanda.com.br
+      // customDomain quando existe (precedência), senão {slug}.menupanda.ai
       slugEl.innerHTML = '<option value="">— escolha uma loja —</option>' +
         data.stores.map(s => {
-          const host = s.customDomain || (s.slug + '.menupanda.com.br')
+          const host = s.customDomain || (s.slug + '.menupanda.ai')
           return `<option value="${s.slug}">${s.name} (${host})</option>`
         }).join('')
       if (saved && data.stores.some(s => s.slug === saved)) slugEl.value = saved

@@ -217,7 +217,7 @@ describe('GET /api/v1/admin/tables/:id/qrcode', () => {
       .get(`/api/v1/admin/tables/${TABLE_ID}/qrcode`)
       .set('Authorization', `Bearer ${adminToken()}`)
 
-    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
     expect(res.status).toBe(200)
     expect(res.body.data.url).toBe(`https://minha-loja.${rootDomain}/mesa/${ACCESS_TOKEN}`)
   })
@@ -263,7 +263,7 @@ describe('A-054: create table then generate QR code', () => {
     expect(qrRes.status).toBe(200)
     expect(qrRes.body.data.qrDataUrl).toContain('data:image/png')
     expect(qrRes.body.data.tableNumber).toBe(3)
-    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+    const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
     expect(qrRes.body.data.url).toBe(`https://minha-loja.${rootDomain}/mesa/${ACCESS_TOKEN}`)
   })
 })

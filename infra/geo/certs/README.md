@@ -1,7 +1,7 @@
 # Certificados mTLS da stack geo
 
 Esta pasta guarda a CA privada e o certificado de cliente que autenticam a
-api Railway no endpoint `geo.menupanda.com.br`. **Nenhum `.key`/`.crt` está no
+api Railway no endpoint `geo.menupanda.ai`. **Nenhum `.key`/`.crt` está no
 git** (`.gitignore` ignora tudo menos este README e o próprio `.gitignore`).
 
 ## Gerar (uma vez)

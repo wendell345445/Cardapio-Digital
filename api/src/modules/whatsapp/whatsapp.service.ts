@@ -343,7 +343,7 @@ export async function connectWhatsApp(storeId: string): Promise<void> {
           await markGreetingSent()
           const { getTemplate } = await import('../admin/whatsapp-messages.service')
           const greetingTemplate = await getTemplate(storeId, 'GREETING')
-          const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.com.br'
+          const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
           const link = store.slug ? `https://${store.slug}.${rootDomain}/` : `https://${rootDomain}/`
           const greetingMsg = applyTemplateVars(greetingTemplate, { loja: store.name, link })
           await sendDirect(greetingMsg)

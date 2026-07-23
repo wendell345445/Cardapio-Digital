@@ -1,5 +1,5 @@
 /**
- * Smoke test do cliente mTLS — bate em geo.menupanda.com.br/photon, /nominatim
+ * Smoke test do cliente mTLS — bate em geo.menupanda.ai/photon, /nominatim
  * e /osrm com o cert+key configurados no .env, confirmando que o handshake
  * acontece e os 3 serviços respondem.
  *

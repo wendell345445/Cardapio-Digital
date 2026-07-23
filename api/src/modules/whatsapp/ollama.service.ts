@@ -1,7 +1,7 @@
 import { Agent } from 'undici'
 
 // ─── Cliente mTLS pro whatsbot self-hosted (VM GCP) ──────────────────────
-// A IA do WhatsApp roda integralmente na VM whatsbot.menupanda.com.br
+// A IA do WhatsApp roda integralmente na VM whatsbot.menupanda.ai
 // (Ollama + RAG via pgvector). Este módulo é o ÚNICO ponto de saída da
 // Railway pra IA — expõe `askWhatsbot` que monta o payload com o contexto
 // completo da loja e recebe `{reply}` da VM. Sem fallback: se a VM cair,

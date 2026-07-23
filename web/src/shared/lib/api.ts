@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 
 // Em dev, baseURL relativo cai no proxy do Vite (vite.config.ts → :3001).
-// Em prod, VITE_API_URL aponta pra API absoluta (ex: https://api.menupanda.com.br).
+// Em prod, VITE_API_URL aponta pra API absoluta (ex: https://api.menupanda.ai).
 const baseURL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/v1`
   : '/api/v1'

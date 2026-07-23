@@ -29,7 +29,7 @@ Console → Compute Engine → Create instance:
 
 **IP externo (já reservado)**: `34.26.174.109` — anexado à VM `whatsbot` (2026-05-26).
 
-**DNS**: crie um registro **A** `whatsbot.menupanda.com.br → 34.26.174.109`.
+**DNS**: crie um registro **A** `whatsbot.menupanda.ai → 34.26.174.109`.
 O Caddy usa HTTP-01 challenge, então só precisa do A + portas 80/443 abertas.
 
 **Política de snapshot**: Compute Engine → Snapshots → Snapshot schedules → crie
@@ -91,7 +91,7 @@ Com mTLS ligado, **todo** request precisa apresentar o cert de cliente
 
 ```bash
 KEY="<o WHATSBOT_API_KEY do .env>"
-D="https://whatsbot.menupanda.com.br"
+D="https://whatsbot.menupanda.ai"
 C="certs/client.crt"; K="certs/client.key"
 
 # Healthz é público (sem cert, sem key):
@@ -109,7 +109,7 @@ curl -s --cert $C --key $K -H "X-Api-Key: $KEY" \
       "store": {
         "name": "Burger Top",
         "slug": "burgertop",
-        "menuUrl": "https://burgertop.menupanda.com.br"
+        "menuUrl": "https://burgertop.menupanda.ai"
       },
       "menu": "== Bebidas ==\n- Coca-Cola Diet R$ 8,00"
     }
@@ -126,7 +126,7 @@ curl -sk "$D/ai/answer"   # falha com erro de TLS/handshake
 No painel do Railway (env vars do serviço `api`):
 
 ```bash
-WHATSBOT_URL=https://whatsbot.menupanda.com.br
+WHATSBOT_URL=https://whatsbot.menupanda.ai
 WHATSBOT_API_KEY=<mesma chave do .env da VM>
 
 # mTLS — cole o base64 (gerado por gen-mtls-certs.sh):

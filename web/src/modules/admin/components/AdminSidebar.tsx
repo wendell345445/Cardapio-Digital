@@ -28,7 +28,7 @@ import { resolveImageUrl } from '@/shared/lib/imageUrl'
 import { logout as logoutService } from '@/modules/auth/services/auth.service'
 import { useAuthStore } from '@/modules/auth/store/useAuthStore'
 
-const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.com.br'
+const PUBLIC_ROOT_DOMAIN = (import.meta.env.VITE_PUBLIC_ROOT_DOMAIN as string | undefined) || 'menupanda.ai'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', to: '/admin/dashboard', icon: LayoutDashboard },

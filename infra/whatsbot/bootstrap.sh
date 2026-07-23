@@ -3,7 +3,7 @@
 # Roda DENTRO da VM, depois de você criá-la manualmente no console GCP.
 #
 #   1. Crie a VM (ver README.md), libere portas 80/443 no firewall.
-#   2. Aponte DNS:  whatsbot.menupanda.com.br -> IP externo estático da VM.
+#   2. Aponte DNS:  whatsbot.menupanda.ai -> IP externo estático da VM.
 #   3. Copie esta pasta infra/whatsbot/ pra VM (scp ou git clone).
 #   4. cp .env.example .env && edite os valores (gere WHATSBOT_API_KEY + POSTGRES_PASSWORD).
 #   5. bash gen-mtls-certs.sh    (uma única vez)
