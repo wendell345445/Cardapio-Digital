@@ -13,6 +13,7 @@ import { StoreHeader } from '../components/StoreHeader'
 import { StoreInfo } from '../components/StoreInfo'
 import { SearchBar } from '../components/SearchBar'
 import { CategoryChips } from '../components/CategoryChips'
+import { HighlightsCarousel } from '../components/HighlightsCarousel'
 import { CartSummaryBar } from '../components/CartSummaryBar'
 import { BottomNavigation } from '../components/BottomNavigation'
 import { useCartStore } from '../store/useCartStore'
@@ -43,6 +44,13 @@ export function MenuPage() {
     if (!data) return []
     return data.categories.flatMap((c) => c.products)
   }, [data])
+
+  // Produtos marcados como destaque — alimentam o carrossel no topo do cardápio.
+  // `allProducts` já vem só com produtos ativos (backend filtra isActive).
+  const highlightedProducts = useMemo(
+    () => allProducts.filter((p) => p.isHighlight),
+    [allProducts]
+  )
 
   const filteredProducts = useMemo(() => {
     if (search.trim()) {
@@ -155,6 +163,14 @@ export function MenuPage() {
               categories={categoryOptions}
               activeId={activeCategoryId}
               onSelect={setActiveCategoryId}
+            />
+          )}
+
+          {!search.trim() && !activeCategoryId && (
+            <HighlightsCarousel
+              products={highlightedProducts}
+              slug={slug ?? ''}
+              onNavigate={(productId) => navigate(`/produto/${productId}`)}
             />
           )}
 

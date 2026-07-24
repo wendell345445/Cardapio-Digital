@@ -30,6 +30,7 @@ const productFormSchema = z.object({
   imageUrl: z.string().optional().default(''),
   basePrice: z.coerce.number().positive().optional().or(z.literal('')),
   isActive: z.boolean().optional().default(true),
+  isHighlight: z.boolean().optional().default(false),
   order: z.coerce.number().int().min(0).optional().default(0),
   variations: z.array(variationSchema).optional().default([]),
 })
@@ -75,6 +76,7 @@ export function ProductFormPage() {
     defaultValues: {
       categoryId: initialCategoryId,
       isActive: true,
+      isHighlight: false,
       order: 0,
       variations: [],
     },
@@ -101,6 +103,7 @@ export function ProductFormPage() {
         imageUrl: existingProduct.imageUrl ?? '',
         basePrice: existingProduct.basePrice ?? ('' as unknown as number),
         isActive: existingProduct.isActive,
+        isHighlight: existingProduct.isHighlight,
         order: existingProduct.order,
         variations: existingProduct.variations.map((v) => ({
           id: v.id,
@@ -304,6 +307,19 @@ export function ProductFormPage() {
               />
               <label htmlFor="isActive" className="text-sm text-gray-700">
                 Produto ativo
+              </label>
+            </div>
+
+            {/* Destaque */}
+            <div className="flex items-center gap-2">
+              <input
+                {...register('isHighlight')}
+                type="checkbox"
+                id="isHighlight"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="isHighlight" className="text-sm text-gray-700">
+                Produto em destaque
               </label>
             </div>
 

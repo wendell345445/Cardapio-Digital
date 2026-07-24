@@ -29,6 +29,7 @@ export const createProductSchema = z.object({
   imageUrl: imageUrlSchema,
   basePrice: z.number().positive().optional(),
   isActive: z.boolean().optional().default(true),
+  isHighlight: z.boolean().optional().default(false),
   order: z.number().int().min(0).optional().default(0),
   variations: z.array(variationSchema).optional().default([]),
 })

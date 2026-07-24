@@ -23,7 +23,7 @@ export interface ProductAddonLink {
 
 export interface Product {
   id: string; name: string; description?: string; imageUrl?: string
-  basePrice?: number; isActive: boolean; order: number
+  basePrice?: number; isActive: boolean; isHighlight?: boolean; order: number
   variations: ProductVariation[]
   addons: ProductAddonLink[]
   tags?: string[]

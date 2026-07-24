@@ -30,6 +30,7 @@ export interface Product {
   imageUrl?: string
   basePrice?: number
   isActive: boolean
+  isHighlight: boolean
   order: number
   createdAt: string
   updatedAt: string
@@ -51,6 +52,7 @@ export interface CreateProductDto {
   imageUrl?: string
   basePrice?: number
   isActive?: boolean
+  isHighlight?: boolean
   order?: number
   variations?: VariationDto[]
 }
@@ -62,6 +64,7 @@ export interface UpdateProductDto {
   imageUrl?: string
   basePrice?: number
   isActive?: boolean
+  isHighlight?: boolean
   order?: number
   variations?: VariationDto[]
 }

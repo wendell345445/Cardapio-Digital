@@ -65,6 +65,7 @@ function CategorySection({
   expanded,
   onToggleExpanded,
   onToggleProduct,
+  onToggleHighlight,
   onDeleteProduct,
   onDuplicateProduct,
   onOpenAddons,
@@ -79,6 +80,7 @@ function CategorySection({
   expanded: boolean
   onToggleExpanded: () => void
   onToggleProduct: (p: Product) => void
+  onToggleHighlight: (p: Product) => void
   onDeleteProduct: (p: Product) => void
   onDuplicateProduct: (p: Product) => void
   onOpenAddons: (p: Product) => void
@@ -206,6 +208,14 @@ function CategorySection({
 
                     {/* Toggle + Actions */}
                     <div className="flex items-center gap-4 flex-shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-gray-500">Destaque</span>
+                        <ProductToggle
+                          checked={product.isHighlight}
+                          onChange={() => onToggleHighlight(product)}
+                          disabled={isUpdating}
+                        />
+                      </div>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-gray-500">Disponível</span>
                         <ProductToggle
@@ -351,6 +361,10 @@ export function ProductsPage() {
     updateMutation.mutate({ id: product.id, dto: { isActive: !product.isActive } })
   }
 
+  function handleToggleHighlight(product: Product) {
+    updateMutation.mutate({ id: product.id, dto: { isHighlight: !product.isHighlight } })
+  }
+
   function handleDelete(product: Product) {
     setProductToDelete(product)
   }
@@ -451,6 +465,7 @@ export function ProductsPage() {
                 expanded={expanded}
                 onToggleExpanded={() => toggleCategoryExpanded(cat.id)}
                 onToggleProduct={handleToggleActive}
+                onToggleHighlight={handleToggleHighlight}
                 onDeleteProduct={handleDelete}
                 onDuplicateProduct={handleDuplicate}
                 onOpenAddons={(p) => setProductForAddons(p)}

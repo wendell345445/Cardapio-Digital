@@ -166,6 +166,7 @@ describe('createProduct — validateProductName', () => {
           imageUrl: 'https://cloudinary.com/img.jpg',
           order: 0,
           isActive: true,
+          isHighlight: false,
           variations: [],
         },
         USER_ID
@@ -185,6 +186,7 @@ describe('createProduct — validateProductName', () => {
           imageUrl: 'https://cloudinary.com/img.jpg',
           order: 0,
           isActive: true,
+          isHighlight: false,
           variations: [],
         },
         USER_ID
@@ -207,6 +209,7 @@ describe('createProduct — validateProductName', () => {
         imageUrl: 'https://cloudinary.com/img.jpg',
         order: 0,
         isActive: true,
+        isHighlight: false,
         variations: [{ name: 'Grande', price: 45.9, isActive: true }],
       },
       USER_ID
@@ -231,6 +234,7 @@ describe('createProduct — validateProductName', () => {
         imageUrl: 'https://cloudinary.com/img.jpg',
         order: 0,
         isActive: true,
+        isHighlight: false,
         variations: [],
       },
       USER_ID

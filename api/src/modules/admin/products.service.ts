@@ -244,6 +244,7 @@ export async function duplicateProduct(
         imageUrl: source.imageUrl,
         basePrice: source.basePrice,
         isActive: source.isActive,
+        isHighlight: source.isHighlight,
         order: source.order,
         variations: {
           create: source.variations.map((v) => ({

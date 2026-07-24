@@ -167,6 +167,8 @@ model Product {
   imageUrl    String?
   basePrice   Float?
   isActive    Boolean  @default(true)
+  /// Quando true, o produto aparece na seção "Destaques" (carrossel no topo do cardápio público).
+  isHighlight Boolean  @default(false)
   order       Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -181,6 +183,7 @@ model Product {
   @@unique([storeId, name])
   @@index([storeId])
   @@index([storeId, isActive])
+  @@index([storeId, isHighlight])
   @@index([categoryId])
 }
 
