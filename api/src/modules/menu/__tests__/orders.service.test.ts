@@ -98,6 +98,7 @@ const mockStore = {
   deliveryByDistanceEnabled: true,
   deliveryByNeighborhoodEnabled: true,
   freeDeliveryAboveCents: null,
+  minOrderCents: null,
   status: 'ACTIVE',
   manualOpen: true,
   businessHours: openAllWeek,
@@ -298,6 +299,63 @@ describe('createOrder — tipo de entrega', () => {
     const input = { ...baseOrderInput, type: 'PICKUP' as const, address: undefined }
 
     await expect(createOrder(SLUG, input)).rejects.toMatchObject({ status: 422 })
+  })
+})
+
+// ─── Pedido mínimo para entrega (item 2) ──────────────────────────────────────
+// mockProduct.basePrice = 40.00 → 1 item = R$40,00 = 4000 centavos.
+
+describe('createOrder — pedido mínimo para entrega', () => {
+  it('lança 422 quando DELIVERY e subtotal abaixo do minOrderCents', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      minOrderCents: 5000, // R$50 > R$40 do pedido
+    })
+
+    await expect(createOrder(SLUG, baseOrderInput)).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('inclui o valor mínimo formatado na mensagem de erro', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      minOrderCents: 5000,
+    })
+
+    await expect(createOrder(SLUG, baseOrderInput)).rejects.toThrow(/Pedido mínimo para entrega: R\$ 50\.00/)
+  })
+
+  it('passa quando DELIVERY e subtotal igual ao minOrderCents', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      minOrderCents: 4000, // exatamente R$40
+    })
+
+    await expect(createOrder(SLUG, baseOrderInput)).resolves.toBeDefined()
+  })
+
+  it('passa quando minOrderCents é null (sem mínimo)', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      minOrderCents: null,
+    })
+
+    await expect(createOrder(SLUG, baseOrderInput)).resolves.toBeDefined()
+  })
+
+  it('NÃO aplica o mínimo em PICKUP (retirada abaixo do valor passa)', async () => {
+    setupDefaultMocks()
+    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue({
+      ...mockStore,
+      minOrderCents: 5000, // R$50, mas é retirada → não bloqueia
+    })
+
+    const input = { ...baseOrderInput, type: 'PICKUP' as const, address: undefined }
+
+    await expect(createOrder(SLUG, input)).resolves.toBeDefined()
   })
 })
 
