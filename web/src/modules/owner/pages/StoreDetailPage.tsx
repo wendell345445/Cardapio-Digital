@@ -7,12 +7,11 @@ import {
   useStore,
   useUpdateStore,
   useCancelStore,
-  useUpdateStorePlan,
   useEndTrialNow,
 } from '../hooks/useOwnerStores'
 import { AuditLogTable } from '../components/AuditLogTable'
 import { StoreAdminsTab } from '../components/StoreAdminsTab'
-import type { StoreStatus, StorePlan } from '../services/owner.service'
+import type { StoreStatus } from '../services/owner.service'
 
 type ToastState = { message: string; type: 'success' | 'error' } | null
 
@@ -45,8 +44,6 @@ export function StoreDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('details')
-  const [showPlanSelector, setShowPlanSelector] = useState(false)
-  const [selectedPlan, setSelectedPlan] = useState<StorePlan>('PROFESSIONAL')
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [toast, setToast] = useState<ToastState>(null)
 
@@ -59,7 +56,6 @@ export function StoreDetailPage() {
   const { data: store, isLoading, isError } = useStore(id!)
   const updateStore = useUpdateStore(id!)
   const cancelStore = useCancelStore()
-  const updatePlan = useUpdateStorePlan(id!)
   const endTrialNow = useEndTrialNow(id!)
 
   const { register, handleSubmit } = useForm<{ name: string; description: string }>()
@@ -94,16 +90,6 @@ export function StoreDetailPage() {
         navigate('/owner/dashboard')
       },
       onError: () => setToast({ message: 'Erro ao cancelar loja.', type: 'error' }),
-    })
-  }
-
-  function handlePlanChange() {
-    updatePlan.mutate(selectedPlan, {
-      onSuccess: () => {
-        setShowPlanSelector(false)
-        setToast({ message: 'Plano alterado com sucesso!', type: 'success' })
-      },
-      onError: () => setToast({ message: 'Erro ao alterar plano.', type: 'error' }),
     })
   }
 
@@ -223,54 +209,14 @@ export function StoreDetailPage() {
               </form>
             </div>
 
-            {/* Alterar plano */}
+            {/* Plano atual (somente leitura). A troca de plano é feita pelo próprio
+                lojista via portal Stripe — o Owner não altera plano por não ter o
+                cartão do cliente. */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-700">Plano atual: {store.plan}</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {store.plan === 'PROFESSIONAL' ? 'R$ 99/mês' : 'R$ 149/mês'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setSelectedPlan(store.plan === 'PROFESSIONAL' ? 'PREMIUM' : 'PROFESSIONAL')
-                    setShowPlanSelector(true)
-                  }}
-                  className="text-sm text-blue-600 hover:underline font-medium"
-                >
-                  Alterar Plano
-                </button>
-              </div>
-
-              {showPlanSelector && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-                  <p className="text-sm font-medium text-gray-700">Selecione o novo plano:</p>
-                  <select
-                    value={selectedPlan}
-                    onChange={(e) => setSelectedPlan(e.target.value as StorePlan)}
-                    className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="PROFESSIONAL">Profissional — R$ 99/mês</option>
-                    <option value="PREMIUM">Premium — R$ 149/mês</option>
-                  </select>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handlePlanChange}
-                      disabled={updatePlan.isPending || selectedPlan === store.plan}
-                      className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {updatePlan.isPending ? 'Alterando...' : 'Confirmar'}
-                    </button>
-                    <button
-                      onClick={() => setShowPlanSelector(false)}
-                      className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              )}
+              <h2 className="text-sm font-semibold text-gray-700">Plano atual: {store.plan}</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {store.plan === 'PROFESSIONAL' ? 'R$ 99/mês' : 'R$ 149/mês'}
+              </p>
             </div>
 
             {/* Encerrar trial agora — ação operacional do Owner (disponível em todos os ambientes) */}
