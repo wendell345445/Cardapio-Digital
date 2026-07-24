@@ -50,6 +50,9 @@ model Store {
   autoConfirmOrders             Boolean       @default(false)
   prepTimeMin                   Int           @default(30)
   freeDeliveryAboveCents        Int?
+  /// Valor mínimo do pedido para ENTREGA, em centavos. NULL = sem mínimo.
+  /// Espelha `freeDeliveryAboveCents`; validado no createOrder só para type=DELIVERY.
+  minOrderCents                 Int?
   deliveryByDistanceEnabled     Boolean       @default(true)
   deliveryByNeighborhoodEnabled Boolean       @default(true)
   whatsappMode                  WhatsAppMode  @default(WHATSAPP)

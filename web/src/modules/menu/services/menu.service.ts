@@ -40,6 +40,7 @@ export interface StoreInfo {
   allowCashOnDelivery: boolean; allowPickup: boolean; allowDelivery: boolean
   deliveryByDistanceEnabled?: boolean
   deliveryByNeighborhoodEnabled?: boolean
+  minOrderCents?: number | null
   features?: { allowPix?: boolean } | null
   storeStatus: 'open' | 'closed' | 'suspended'
   nextOpenLabel?: string | null

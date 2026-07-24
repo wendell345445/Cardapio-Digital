@@ -402,6 +402,95 @@ function FreeShippingPill({
   )
 }
 
+// ─── Pedido mínimo pill ───────────────────────────────────────────────────────
+// Espelha FreeShippingPill: valor em centavos, null = sem mínimo. Só vale pra
+// entrega (validado no backend com type=DELIVERY).
+
+function MinOrderPill({
+  cents,
+  onChange,
+}: {
+  cents: number | null
+  onChange: (cents: number | null) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(cents != null ? (cents / 100).toFixed(2) : '')
+
+  if (cents == null && !editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft('')
+          setEditing(true)
+        }}
+        className="rounded-lg bg-blue-50 text-blue-600 font-medium px-4 py-2.5 text-sm hover:bg-blue-100 transition-colors whitespace-nowrap"
+      >
+        Definir pedido mínimo para entrega de R$...
+      </button>
+    )
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+        <span className="text-sm text-blue-700">Pedido mínimo para entrega R$</span>
+        <input
+          type="number"
+          step="0.5"
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          className="w-24 rounded-md border border-blue-200 bg-white px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const n = Number(draft)
+            if (!Number.isNaN(n) && n > 0) onChange(Math.round(n * 100))
+            setEditing(false)
+          }}
+          className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+        >
+          Salvar
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          className="text-xs text-gray-500 hover:text-gray-700"
+        >
+          Cancelar
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+      <span className="text-sm text-blue-700 font-medium">
+        Pedido mínimo para entrega {formatCurrency((cents ?? 0) / 100)}
+      </span>
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(((cents ?? 0) / 100).toFixed(2))
+          setEditing(true)
+        }}
+        className="text-xs font-medium text-blue-700 hover:text-blue-800 underline"
+      >
+        Alterar
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(null)}
+        className="text-xs text-gray-500 hover:text-gray-700"
+      >
+        Desativar
+      </button>
+    </div>
+  )
+}
+
 // ─── DeleteConfirmDialog ──────────────────────────────────────────────────────
 
 function DeleteConfirmDialog({
@@ -663,7 +752,7 @@ export function DeliveryPage() {
               </div>
             </div>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex flex-wrap items-center gap-2">
               <FreeShippingPill
                 cents={config.freeDeliveryAboveCents}
                 onChange={(c) =>
@@ -673,6 +762,21 @@ export function DeliveryPage() {
                       onSuccess: () =>
                         showToast(
                           c == null ? 'Frete grátis desativado.' : 'Frete grátis configurado.',
+                          'success'
+                        ),
+                    }
+                  )
+                }
+              />
+              <MinOrderPill
+                cents={config.minOrderCents}
+                onChange={(c) =>
+                  updateSettings.mutate(
+                    { minOrderCents: c },
+                    {
+                      onSuccess: () =>
+                        showToast(
+                          c == null ? 'Pedido mínimo desativado.' : 'Pedido mínimo configurado.',
                           'success'
                         ),
                     }

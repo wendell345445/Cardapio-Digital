@@ -1,5 +1,7 @@
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
+import { cache } from '../../shared/redis/redis'
+import { emit } from '../../shared/socket/socket'
 import * as geoService from '../menu/geo/geo.service'
 
 import type {
@@ -116,15 +118,21 @@ export async function deleteNeighborhood(storeId: string, id: string) {
 // ─── Settings ───────────────────────────────────────────────────────────────
 
 export async function updateDeliverySettings(storeId: string, input: UpdateDeliverySettingsInput) {
-  return prisma.store.update({
+  const updated = await prisma.store.update({
     where: { id: storeId },
     data: input,
     select: {
       id: true,
       prepTimeMin: true,
       freeDeliveryAboveCents: true,
+      minOrderCents: true,
     },
   })
+  // minOrderCents é exposto no /menu público — invalida o cache pra o cardápio
+  // refletir a mudança na hora (padrão de store.service).
+  await cache.del(`menu:${storeId}`)
+  emit.menuUpdated(storeId)
+  return updated
 }
 
 // ─── Config (lat/lng da loja + faixas + bairros + settings) ─────────────────
@@ -139,6 +147,7 @@ export async function getDeliveryConfig(storeId: string) {
         addressLabel: true,
         prepTimeMin: true,
         freeDeliveryAboveCents: true,
+        minOrderCents: true,
       },
     }),
     prisma.deliveryDistance.findMany({
@@ -156,6 +165,7 @@ export async function getDeliveryConfig(storeId: string) {
     addressLabel: store?.addressLabel ?? null,
     prepTimeMin: store?.prepTimeMin ?? 30,
     freeDeliveryAboveCents: store?.freeDeliveryAboveCents ?? null,
+    minOrderCents: store?.minOrderCents ?? null,
     distances,
     neighborhoods,
   }

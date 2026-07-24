@@ -422,6 +422,17 @@ export function CheckoutPage() {
   if (items.length === 0) return null
 
   const store = menu?.store
+  // Pedido mínimo para ENTREGA (loja-wide). Só bloqueia quando o cliente escolhe
+  // entrega; retirada/mesa não têm mínimo. Comparação em centavos como no backend.
+  const minOrderCents = store?.minOrderCents ?? null
+  const belowMinOrder =
+    deliveryMethod === 'endereco' &&
+    !inTableMode &&
+    minOrderCents != null &&
+    Math.round(subtotalValue * 100) < minOrderCents
+  const missingForMin =
+    minOrderCents != null ? Math.max(0, minOrderCents / 100 - subtotalValue) : 0
+
   // Granularidade: a loja pode ter Entrega global ligada mas todas as sub-modalidades
   // desligadas — nesse caso, esconde delivery do checkout. Se distância está off e
   // não há bairros cadastrados, também não há como atender.
@@ -446,6 +457,7 @@ export function CheckoutPage() {
       if (!ok) return false
       if (feeLoading) return false
       if (isOutOfArea) return false
+      if (belowMinOrder) return false
       // Outros erros de cálculo (loja sem faixas configuradas, etc) — a loja
       // confirma a taxa manualmente, deixa avançar.
       return true
@@ -831,6 +843,12 @@ export function CheckoutPage() {
                   )}
                 </div>
               )}
+              {belowMinOrder && (
+                <p className="text-amber-600">
+                  Pedido mínimo para entrega: {fmt((minOrderCents ?? 0) / 100)}. Adicione mais{' '}
+                  {fmt(missingForMin)} ao carrinho.
+                </p>
+              )}
             </div>
           )}
         </main>
@@ -855,7 +873,9 @@ export function CheckoutPage() {
             ? inTableMode
               ? 'Avançar'
               : 'Escolher forma de pagamento'
-            : 'Escolha como receber o pedido'}
+            : belowMinOrder
+              ? `Faltam ${fmt(missingForMin)} para o pedido mínimo`
+              : 'Escolha como receber o pedido'}
         </button>
       </footer>
 

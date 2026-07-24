@@ -23,6 +23,7 @@ export interface Neighborhood {
 export interface DeliverySettings {
   prepTimeMin: number
   freeDeliveryAboveCents: number | null
+  minOrderCents: number | null
 }
 
 export interface DeliveryConfig extends DeliverySettings {

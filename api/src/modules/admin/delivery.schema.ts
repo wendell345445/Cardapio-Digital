@@ -21,6 +21,7 @@ export const updateNeighborhoodSchema = createNeighborhoodSchema.partial()
 export const updateDeliverySettingsSchema = z.object({
   prepTimeMin: z.number().int().nonnegative().optional(),
   freeDeliveryAboveCents: z.number().int().nonnegative().nullable().optional(),
+  minOrderCents: z.number().int().nonnegative().nullable().optional(),
 })
 
 export const setStoreCoordinatesSchema = z.object({

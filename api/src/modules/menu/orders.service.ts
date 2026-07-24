@@ -231,6 +231,19 @@ export async function createOrder(slug: string, data: CreateOrderInput) {
     })
   }
 
+  // 4b. Pedido mínimo para ENTREGA (loja-wide). Só bloqueia DELIVERY; retirada e
+  // mesa não têm mínimo. Comparação em centavos (Math.round) igual ao frete grátis.
+  if (
+    data.type === 'DELIVERY' &&
+    store.minOrderCents != null &&
+    Math.round(subtotal * 100) < store.minOrderCents
+  ) {
+    throw new AppError(
+      `Pedido mínimo para entrega: R$ ${(store.minOrderCents / 100).toFixed(2)}`,
+      422
+    )
+  }
+
   // 5. Valida cupom (se fornecido)
   let discount = 0
   let couponId: string | undefined
