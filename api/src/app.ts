@@ -59,8 +59,13 @@ app.use(
   })
 )
 
+// O webhook do iFood assina o body com HMAC-SHA256 (X-IFood-Signature) — a validação
+// precisa dos BYTES CRUS, então essa rota recebe `express.raw` ANTES do `express.json`
+// global (que reserializaria o JSON e quebraria a assinatura). Molde do Stripe antigo.
+app.use('/api/v1/webhooks/ifood', express.raw({ type: '*/*', limit: '10mb' }))
+
 // O webhook do Asaas usa JSON normal (autenticação por header `asaas-access-token`,
-// não HMAC), então cai no `express.json()` global — sem raw body dedicado como o Stripe exigia.
+// não HMAC), então cai no `express.json()` global — sem raw body dedicado.
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(passport.initialize())

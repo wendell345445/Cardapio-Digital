@@ -1,3 +1,5 @@
+import crypto from 'node:crypto'
+
 import axios, { AxiosInstance, isAxiosError } from 'axios'
 
 import { logger } from '../logger/logger'
@@ -249,12 +251,28 @@ export async function getCatalogCategories(merchantId: string, catalogId: string
 // ─── Webhook ──────────────────────────────────────────────────────────────────
 
 /**
- * Valida o segredo do webhook iFood. O iFood assina os eventos; o esquema exato
- * (HMAC vs header estático) é confirmado no setup do webhook — por ora comparamos
- * um segredo compartilhado no header `x-ifood-signature` com IFOOD_WEBHOOK_SECRET.
- * Ajustar quando o formato real for validado ao configurar o webhook no portal.
+ * Valida a assinatura do webhook iFood (obrigatório pra homologação).
+ *
+ * O iFood assina cada evento com HMAC-SHA256 do RAW BODY usando o `clientSecret`
+ * do app (o mesmo IFOOD_CLIENT_SECRET dos tokens), codifica em hex e envia no
+ * header `X-IFood-Signature`. A validação precisa ser sobre os BYTES CRUS — por
+ * isso a rota usa `express.raw`, não o `express.json` global (um JSON reserializado
+ * mudaria a ordem das chaves/espaços e a assinatura não bateria).
+ *
+ * Comparação em tempo constante (timingSafeEqual) com guarda de tamanho — o
+ * timingSafeEqual lança se os buffers têm tamanhos diferentes.
  */
-export function verifyWebhookSecret(headerSecret: string | undefined): boolean {
-  const expected = process.env.IFOOD_WEBHOOK_SECRET || ''
-  return expected.length > 0 && headerSecret === expected
+export function verifyWebhookSignature(
+  rawBody: Buffer | undefined,
+  signature: string | undefined
+): boolean {
+  const secret = process.env.IFOOD_CLIENT_SECRET || ''
+  if (!secret || !signature || !rawBody || rawBody.length === 0) return false
+
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
+  const a = Buffer.from(expected, 'utf8')
+  // digest('hex') é minúsculo; normaliza o header pra comparar sem case-sensitivity.
+  const b = Buffer.from(signature.toLowerCase(), 'utf8')
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
 }

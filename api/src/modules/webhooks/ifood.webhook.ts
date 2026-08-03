@@ -2,23 +2,36 @@ import { NextFunction, Request, Response } from 'express'
 
 import { asaasLogger } from '../../shared/logger/logger'
 import { prisma } from '../../shared/prisma/prisma'
-import { verifyWebhookSecret, type IFoodEvent } from '../../shared/ifood/ifood.service'
+import { verifyWebhookSignature, type IFoodEvent } from '../../shared/ifood/ifood.service'
 import { processIFoodEvent } from '../ifood/ingest.service'
 
 /**
  * Webhook do iFood (fonte primária de eventos; o poller é a rede de segurança).
- * Resolve a loja pelo merchantId do evento → Store.ifoodMerchantId. Sempre responde 200
- * (molde asaas.webhook) e reusa 100% o ingest.service (dedup + lock por loja).
+ *
+ * A rota usa `express.raw` (ver app.ts) → `req.body` é o Buffer cru. A assinatura
+ * HMAC-SHA256 (X-IFood-Signature) é validada sobre esses bytes ANTES de qualquer
+ * parse (obrigatório pra homologação: iFood testa mandando assinatura errada).
+ * Só então faz JSON.parse manual. Resolve a loja pelo merchantId do evento →
+ * Store.ifoodMerchantId. Sempre responde 200 no caminho feliz (molde asaas.webhook).
  */
 export async function ifoodWebhookController(req: Request, res: Response, _next: NextFunction) {
-  const secret = (req.headers['x-ifood-signature'] || req.headers['x-webhook-secret']) as string | undefined
-  if (!verifyWebhookSecret(secret)) {
-    asaasLogger.warn('ifood webhook: invalid secret')
-    return res.status(401).json({ error: 'invalid secret' })
+  const signature = req.headers['x-ifood-signature'] as string | undefined
+  const rawBody = Buffer.isBuffer(req.body) ? (req.body as Buffer) : undefined
+
+  if (!verifyWebhookSignature(rawBody, signature)) {
+    asaasLogger.warn('ifood webhook: invalid signature')
+    return res.status(401).json({ error: 'invalid signature' })
   }
 
-  // O iFood pode mandar um evento único ou uma lista.
-  const body = req.body as IFoodEvent | IFoodEvent[]
+  // Parse manual do Buffer cru (assinatura já validada).
+  let body: IFoodEvent | IFoodEvent[]
+  try {
+    body = JSON.parse((rawBody as Buffer).toString('utf8'))
+  } catch {
+    asaasLogger.warn('ifood webhook: body inválido (não é JSON)')
+    return res.status(400).json({ error: 'invalid body' })
+  }
+
   const events = Array.isArray(body) ? body : [body]
 
   try {
