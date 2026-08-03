@@ -30,7 +30,7 @@ export interface SalesSummary {
 }
 
 export interface TopProduct {
-  productId: string
+  productId: string | null // null para itens de pedidos externos (iFood)
   productName: string
   quantity: number
   revenue: number

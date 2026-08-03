@@ -62,7 +62,7 @@ type SalesSummaryResult = {
 
 type TopProductsResult = {
   rank: number
-  productId: string
+  productId: string | null // null para itens de pedidos externos (iFood), agregados por nome
   name: string
   quantity: number
   revenue: number
@@ -220,13 +220,16 @@ export async function getTopProducts(storeId: string, query: TopProductsQuery): 
     select: { productName: true, quantity: true, totalPrice: true, productId: true },
   })
 
-  const productMap: Record<string, { productId: string; name: string; quantity: number; revenue: number }> = {}
+  const productMap: Record<string, { productId: string | null; name: string; quantity: number; revenue: number }> = {}
   for (const item of items) {
-    if (!productMap[item.productId]) {
-      productMap[item.productId] = { productId: item.productId, name: item.productName, quantity: 0, revenue: 0 }
+    // Itens de pedidos externos (iFood) têm productId=null — agregam por nome, senão
+    // colidiriam todos numa única chave "null". Produtos locais agregam por productId.
+    const key = item.productId ?? `name:${item.productName}`
+    if (!productMap[key]) {
+      productMap[key] = { productId: item.productId, name: item.productName, quantity: 0, revenue: 0 }
     }
-    productMap[item.productId].quantity += item.quantity
-    productMap[item.productId].revenue += item.totalPrice
+    productMap[key].quantity += item.quantity
+    productMap[key].revenue += item.totalPrice
   }
 
   const topProducts = Object.values(productMap)

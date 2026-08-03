@@ -45,6 +45,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CREDIT_ON_DELIVERY: 'Crédito na entrega',
   DEBIT_ON_DELIVERY: 'Débito na entrega',
   PIX_ON_DELIVERY: 'Pix na entrega',
+  IFOOD: 'Pago no iFood',
   PENDING: 'Na comanda',
 }
 

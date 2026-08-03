@@ -74,6 +74,15 @@ model Store {
   /// atual. Preenchido no downgrade (mantém features do plano atual até o ciclo virar); o webhook
   /// de cobrança do próximo vencimento aplica (`plan = pendingPlan`, `pendingPlan = NULL`).
   pendingPlan                   StorePlan?
+  /// Integração iFood (feature Premium). merchantId é o UUID que a Merchant-API usa nos paths.
+  ifoodMerchantId               String?       @unique
+  /// Token OAuth do vínculo por loja (fluxo userCode). Access token expira ~6h.
+  ifoodAccessToken              String?
+  ifoodRefreshToken             String?
+  ifoodTokenExpiresAt           DateTime?
+  ifoodConnectedAt              DateTime?
+  /// Estado da conexão: PENDING (aguardando lojista autorizar), CONNECTED, ERROR.
+  ifoodStatus                   String?
   /// Fim do trial (agnóstico de provedor). Fonte-de-verdade do cron de suspensão.
   trialEndsAt                   DateTime?
   createdAt                     DateTime      @default(now())
@@ -98,10 +107,46 @@ model Store {
   printJobs             PrintJob[]
   addonCategories       AddonCategory[]
   addons                Addon[]
+  ifoodEventLogs        IFoodEventLog[]
+  ifoodOrderMaps        IFoodOrderMap[]
 
   @@index([slug])
   @@index([customDomain])
   @@index([status])
+}
+
+// ─── iFood (integração multi-tenant, feature Premium) ─────────────
+// Eventos de pedido chegam por webhook (principal) + polling (fallback). Dedupe por eventId.
+model IFoodEventLog {
+  id          String    @id @default(uuid())
+  storeId     String
+  eventId     String
+  eventType   String
+  orderId     String?
+  payload     Json
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, eventId])
+  @@index([storeId])
+  @@index([storeId, processedAt])
+}
+
+// Correlação pedido iFood ↔ Order local (o iFood usa seu próprio id; geramos number sequencial).
+model IFoodOrderMap {
+  id           String   @id @default(uuid())
+  storeId      String
+  ifoodOrderId String
+  orderId      String   @unique
+  createdAt    DateTime @default(now())
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, ifoodOrderId])
+  @@index([storeId])
 }
 
 // ─── USER ─────────────────────────────────────────────────────────
@@ -375,6 +420,7 @@ model Order {
   items             OrderItem[]
   cashFlowItem      CashFlowItem?
   printJob          PrintJob?
+  ifoodOrderMap     IFoodOrderMap?
 
   @@unique([storeId, number])
   @@index([storeId])
@@ -389,7 +435,9 @@ model Order {
 model OrderItem {
   id            String          @id @default(uuid())
   orderId       String
-  productId     String
+  /// NULL para itens de pedidos externos (iFood) — o produto não existe como Product
+  /// local. O snapshot productName/unitPrice/additionals desacopla a exibição.
+  productId     String?
   variationId   String?
   quantity      Int
   unitPrice     Float
@@ -400,7 +448,7 @@ model OrderItem {
   variationName String?
 
   order       Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product     Product               @relation(fields: [productId], references: [id])
+  product     Product?              @relation(fields: [productId], references: [id])
   additionals OrderItemAdditional[]
 
   @@index([orderId])
@@ -699,6 +747,8 @@ enum PaymentMethod {
   CREDIT_ON_DELIVERY
   DEBIT_ON_DELIVERY
   PIX_ON_DELIVERY
+  // Pedido vindo do iFood — a plataforma já processou o pagamento.
+  IFOOD
   PENDING
 }
 

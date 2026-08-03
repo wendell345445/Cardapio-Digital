@@ -12,12 +12,14 @@ import { isPaymentOnDelivery } from '../../shared/utils/payment'
 import { createOrder } from '../menu/orders.service'
 import type { CreateOrderInput } from '../menu/orders.schema'
 import { openOrJoinSession } from '../menu/table-session.service'
+import { reflectStatusToIFood } from '../ifood/actions.service'
 
 import { invalidateAnalyticsCache } from './analytics.service'
 import { calculateDeliveryFee } from './delivery.service'
 import type { AssignMotoboyInput, CreateAdminOrderInput, ListOrdersInput, UpdateOrderAddressInput, UpdateOrderStatusInput } from './orders.schema'
 import { autoPrintOrder } from './print.service'
 import { linkOrderToCashFlow } from './cashflow.service'
+
 
 // ─── TASK-081: Listagem e Detalhes de Pedidos ────────────────────────────────
 
@@ -245,6 +247,13 @@ export async function updateOrderStatus(
 
   // Emit socket event
   emit.orderStatus(storeId, { orderId, status: newStatus })
+
+  // Reflete no iFood se o pedido veio de lá (fire-and-forget; no-op p/ pedidos normais).
+  setImmediate(() =>
+    reflectStatusToIFood(storeId, orderId, newStatus).catch((err) =>
+      console.error('[iFood] Error reflecting status:', err)
+    )
+  )
 
   // Fire-and-forget WhatsApp notification
   if (order.clientWhatsapp) {

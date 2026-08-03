@@ -43,6 +43,7 @@ const TYPE_LABELS: Record<string, string> = {
 const PAYMENT_LABELS: Record<string, string> = {
   PIX: 'Pix',
   CASH_ON_DELIVERY: 'Dinheiro na entrega',
+  IFOOD: 'Pago no iFood',
 }
 
 const ADDRESS_EDITABLE_STATUSES = new Set([

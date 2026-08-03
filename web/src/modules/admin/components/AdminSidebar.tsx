@@ -11,6 +11,7 @@ import {
   PlusCircle,
   Settings,
   ShoppingBag,
+  Store,
   Tag,
   Ticket,
   Truck,
@@ -45,6 +46,7 @@ const NAV_ITEMS = [
   { label: 'Categorias', to: '/admin/categorias', icon: Tag },
   { label: 'Adicionais', to: '/admin/adicionais', icon: PlusCircle },
   { label: 'Cupons', to: '/admin/cupons', icon: Ticket },
+  { label: 'iFood', to: '/admin/ifood', icon: Store },
   { label: 'WhatsApp', to: '/admin/whatsapp', icon: MessageCircle, statusDot: true },
   { label: 'Horários', to: '/admin/horarios', icon: Clock },
   { label: 'Caixa', to: '/admin/caixa', icon: Wallet },
@@ -110,6 +112,8 @@ export function AdminSidebar({ newOrdersCount = 0 }: AdminSidebarProps) {
         {NAV_ITEMS.filter((item) => {
           // Esconde "Mesas" quando a loja desligou atendimento em mesa.
           if (item.to === '/admin/mesas' && store && store.allowTable === false) return false
+          // iFood é feature do plano Premium — só aparece quando a loja tem o recurso.
+          if (item.to === '/admin/ifood' && !store?.features?.ifoodIntegration) return false
           return true
         }).map(({ label, to, icon: Icon, badge, statusDot }) => (
           <NavLink

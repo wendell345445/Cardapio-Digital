@@ -160,3 +160,35 @@ export async function requireActiveStore(
     next(err)
   }
 }
+
+/**
+ * Bloqueia a rota quando a loja não tem a feature `flag` no plano atual.
+ * Lê `store.features` (Json, escrito por PLAN_FEATURES[plan]). Molde de `requireActiveStore`.
+ * Primeiro gate real de plano no backend — usado pelas rotas exclusivas de plano (ex: iFood/Premium).
+ * Requer `req.tenant.storeId` (aplicar depois de extractStoreId/requireStore).
+ */
+export function requireFeature(flag: string) {
+  return async function (req: Request, _res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.tenant?.storeId) {
+        throw new AppError('Store context required', 403)
+      }
+      const store = await prisma.store.findUnique({
+        where: { id: req.tenant.storeId },
+        select: { features: true },
+      })
+      if (!store) throw new AppError('Loja não encontrada', 404)
+      const features = (store.features as Record<string, boolean> | null) ?? {}
+      if (features[flag] !== true) {
+        throw new AppError(
+          'Este recurso está disponível apenas no plano Premium',
+          403,
+          'FEATURE_NOT_IN_PLAN'
+        )
+      }
+      next()
+    } catch (err) {
+      next(err)
+    }
+  }
+}

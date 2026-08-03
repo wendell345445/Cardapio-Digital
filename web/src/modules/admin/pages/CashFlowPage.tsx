@@ -217,6 +217,7 @@ const PAYMENT_LABELS: Record<CashFlowPaymentMethod, string> = {
   CREDIT_ON_DELIVERY: 'Crédito',
   DEBIT_ON_DELIVERY: 'Débito',
   PIX_ON_DELIVERY: 'Pix',
+  IFOOD: 'iFood',
   PENDING: 'Pendente',
 }
 

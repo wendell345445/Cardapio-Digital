@@ -19,6 +19,7 @@ export const PLAN_FEATURES: Record<string, Record<string, boolean>> = {
     analytics: false,
     ranking: false,
     scheduling: false,
+    ifoodIntegration: false,
   },
   PREMIUM: {
     pixPayment: true,
@@ -29,6 +30,7 @@ export const PLAN_FEATURES: Record<string, Record<string, boolean>> = {
     analytics: true,
     ranking: true,
     scheduling: true,
+    ifoodIntegration: true,
   },
 }
 

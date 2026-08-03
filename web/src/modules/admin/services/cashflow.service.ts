@@ -23,6 +23,7 @@ export type CashFlowPaymentMethod =
   | 'CREDIT_ON_DELIVERY'
   | 'DEBIT_ON_DELIVERY'
   | 'PIX_ON_DELIVERY'
+  | 'IFOOD'
   | 'PENDING'
 
 export interface CashFlowItem {

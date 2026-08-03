@@ -11,6 +11,7 @@ jest.mock('../../../shared/prisma/prisma', () => ({
     store: { findUnique: jest.fn() },
     user: { findFirst: jest.fn() },
     auditLog: { create: jest.fn() },
+    iFoodOrderMap: { findUnique: jest.fn() },
   },
 }))
 
@@ -33,6 +34,10 @@ jest.mock('../cashflow.service', () => ({
 
 jest.mock('../analytics.service', () => ({
   invalidateAnalyticsCache: jest.fn().mockResolvedValue(undefined),
+}))
+
+jest.mock('../../ifood/actions.service', () => ({
+  reflectStatusToIFood: jest.fn().mockResolvedValue(undefined),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
@@ -674,8 +679,8 @@ describe('A-051: Coluna "Confirmado" do Kanban', () => {
 
     await updateOrderStatus(STORE_ID, ORDER_ID, { status: 'CONFIRMED' }, USER_ID)
 
-    // setImmediate é chamado 2x: autoPrintOrder + linkOrderToCashFlow
-    expect(setImmediateSpy).toHaveBeenCalledTimes(2)
+    // setImmediate é chamado 3x: reflectStatusToIFood + autoPrintOrder + linkOrderToCashFlow
+    expect(setImmediateSpy).toHaveBeenCalledTimes(3)
     setImmediateSpy.mockRestore()
   })
 

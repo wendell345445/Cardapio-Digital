@@ -18,6 +18,7 @@ import { MesasPage } from '@/modules/admin/pages/MesasPage'
 import { OrdersPage } from '@/modules/admin/pages/OrdersPage'
 import { OrderHistoryPage } from '@/modules/admin/pages/OrderHistoryPage'
 import { CouponsPage } from '@/modules/admin/pages/CouponsPage'
+import { IFoodPage } from '@/modules/admin/pages/IFoodPage'
 import { DeliveryPage } from '@/modules/admin/pages/DeliveryPage'
 import { AnalyticsPage } from '@/modules/admin/pages/AnalyticsPage'
 import { ClientsPage } from '@/modules/admin/pages/ClientsPage'
@@ -168,6 +169,14 @@ export function App() {
             element={
               <AdminLayout>
                 <OrderHistoryPage />
+              </AdminLayout>
+            }
+          />
+          <Route
+            path="/admin/ifood"
+            element={
+              <AdminLayout>
+                <IFoodPage />
               </AdminLayout>
             }
           />
