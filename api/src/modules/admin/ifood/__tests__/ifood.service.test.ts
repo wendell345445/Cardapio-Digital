@@ -16,7 +16,7 @@ jest.mock('../../../../shared/ifood/ifood.service', () => ({
 
 import { getMerchant, listMerchants } from '../../../../shared/ifood/ifood.service'
 import { prisma } from '../../../../shared/prisma/prisma'
-import { disconnect, getConnectionStatus, linkMerchant, listAvailableMerchants } from '../ifood.service'
+import { disconnect, getConnectionStatus, linkMerchant, previewMerchant } from '../ifood.service'
 
 const mockPrisma = prisma as unknown as {
   store: { findUnique: jest.Mock; findFirst: jest.Mock; findMany: jest.Mock; update: jest.Mock }
@@ -55,19 +55,36 @@ describe('getConnectionStatus', () => {
   })
 })
 
-describe('listAvailableMerchants', () => {
-  it('marca linkedElsewhere quando o merchant já é de outra loja', async () => {
-    mockPrisma.store.findMany.mockResolvedValue([{ id: 'outra-loja', ifoodMerchantId: 'mch-uuid-1' }])
-    const list = await listAvailableMerchants('store-1')
-    expect(list[0].linkedElsewhere).toBe(true)
-    expect(list[0].linkedToThisStore).toBe(false)
+describe('previewMerchant (isolamento multi-tenant)', () => {
+  it('valida o merchantId informado e devolve dados pra conferência', async () => {
+    ;(getMerchant as jest.Mock).mockResolvedValue({
+      id: 'mch-uuid-1',
+      name: 'Loja iFood',
+      corporateName: 'Loja iFood LTDA',
+      address: { city: 'Londrina', state: 'PR' },
+    })
+    const p = await previewMerchant('store-1', 'mch-uuid-1')
+    expect(p.id).toBe('mch-uuid-1')
+    expect(p.corporateName).toBe('Loja iFood LTDA')
+    expect(p.city).toBe('Londrina')
+    expect(p.state).toBe('PR')
   })
 
-  it('marca linkedToThisStore quando é a própria loja', async () => {
-    mockPrisma.store.findMany.mockResolvedValue([{ id: 'store-1', ifoodMerchantId: 'mch-uuid-1' }])
-    const list = await listAvailableMerchants('store-1')
-    expect(list[0].linkedToThisStore).toBe(true)
-    expect(list[0].linkedElsewhere).toBe(false)
+  it('422 quando o merchantId informado NÃO autorizou o app (não está na lista)', async () => {
+    ;(listMerchants as jest.Mock).mockResolvedValue([{ id: 'outro-merchant', name: 'Outra' }])
+    await expect(previewMerchant('store-1', 'mch-uuid-1')).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('422 quando o merchant já está vinculado a OUTRA loja (não reivindicável)', async () => {
+    mockPrisma.store.findFirst.mockResolvedValue({ id: 'outra-loja' })
+    await expect(previewMerchant('store-1', 'mch-uuid-1')).rejects.toMatchObject({ status: 422 })
+  })
+
+  it('não vaza dados se getMerchant falhar (best-effort, usa resumo da lista)', async () => {
+    ;(getMerchant as jest.Mock).mockRejectedValue(new Error('iFood 500'))
+    const p = await previewMerchant('store-1', 'mch-uuid-1')
+    expect(p.id).toBe('mch-uuid-1')
+    expect(p.city).toBeNull()
   })
 })
 

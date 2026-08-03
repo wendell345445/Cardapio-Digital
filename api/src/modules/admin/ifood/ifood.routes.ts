@@ -14,7 +14,7 @@ import {
   catalogPreviewController,
   disconnectController,
   linkController,
-  merchantsController,
+  previewMerchantController,
   statusController,
 } from './ifood.controller'
 
@@ -31,7 +31,7 @@ ifoodRouter.use(
 )
 
 ifoodRouter.get('/status', statusController)
-ifoodRouter.get('/merchants', merchantsController)
+ifoodRouter.post('/merchant/preview', previewMerchantController)
 ifoodRouter.put('/merchant', linkController)
 ifoodRouter.delete('/', disconnectController)
 ifoodRouter.get('/catalog/preview', catalogPreviewController)

@@ -7,12 +7,12 @@ export interface IFoodConnectionStatus {
   connectedAt: string | null
 }
 
-export interface IFoodMerchantOption {
+export interface IFoodMerchantPreview {
   id: string
   name: string
-  corporateName?: string
-  linkedToThisStore: boolean
-  linkedElsewhere: boolean
+  corporateName: string | null
+  city: string | null
+  state: string | null
 }
 
 export async function getIFoodStatus(): Promise<IFoodConnectionStatus> {
@@ -20,8 +20,11 @@ export async function getIFoodStatus(): Promise<IFoodConnectionStatus> {
   return data.data
 }
 
-export async function listIFoodMerchants(): Promise<IFoodMerchantOption[]> {
-  const { data } = await api.get<{ data: IFoodMerchantOption[] }>('/admin/ifood/merchants')
+/** Valida o merchantId que o lojista informou e devolve os dados pra conferência. */
+export async function previewIFoodMerchant(merchantId: string): Promise<IFoodMerchantPreview> {
+  const { data } = await api.post<{ data: IFoodMerchantPreview }>('/admin/ifood/merchant/preview', {
+    merchantId,
+  })
   return data.data
 }
 

@@ -4,7 +4,7 @@ import { AppError } from '../../../shared/middleware/error.middleware'
 import { applyCatalogImport, previewCatalogImport } from '../../ifood/catalog-import.service'
 
 import { linkMerchantSchema } from './ifood.schema'
-import { disconnect, getConnectionStatus, linkMerchant, listAvailableMerchants } from './ifood.service'
+import { disconnect, getConnectionStatus, linkMerchant, previewMerchant } from './ifood.service'
 
 function storeId(req: Request): string {
   if (!req.tenant?.storeId) throw new AppError('Store context required', 403)
@@ -20,10 +20,15 @@ export async function statusController(req: Request, res: Response, next: NextFu
   }
 }
 
-/** GET /admin/ifood/merchants — merchants autorizados no app (pra escolher qual vincular). */
-export async function merchantsController(req: Request, res: Response, next: NextFunction) {
+/**
+ * POST /admin/ifood/merchant/preview { merchantId } — valida o merchantId informado
+ * pelo lojista e devolve os dados da loja pra ele conferir antes de vincular.
+ * NÃO lista os merchants de outras lojas (isolamento multi-tenant).
+ */
+export async function previewMerchantController(req: Request, res: Response, next: NextFunction) {
   try {
-    res.json({ success: true, data: await listAvailableMerchants(storeId(req)) })
+    const { merchantId } = linkMerchantSchema.parse(req.body)
+    res.json({ success: true, data: await previewMerchant(storeId(req), merchantId) })
   } catch (err) {
     next(err)
   }

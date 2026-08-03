@@ -3,9 +3,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
-  Link2,
+  ExternalLink,
   Loader2,
-  RefreshCw,
   Store,
   Unplug,
 } from 'lucide-react'
@@ -17,9 +16,10 @@ import {
   disconnectIFood,
   getIFoodStatus,
   linkIFoodMerchant,
-  listIFoodMerchants,
+  previewIFoodMerchant,
   previewCatalogImport,
   type CatalogImportPreview,
+  type IFoodMerchantPreview,
 } from '../services/ifood.service'
 
 import { toast } from '@/shared/lib/toast'
@@ -43,9 +43,11 @@ export function IFoodPage() {
   })
   const connected = statusQuery.data?.status === 'CONNECTED'
 
-  const [loadingMerchants, setLoadingMerchants] = useState(false)
-  const [merchants, setMerchants] = useState<Awaited<ReturnType<typeof listIFoodMerchants>> | null>(null)
-  const [linking, setLinking] = useState<string | null>(null)
+  // Vínculo por merchantId informado pelo lojista (isolamento multi-tenant).
+  const [merchantIdInput, setMerchantIdInput] = useState('')
+  const [merchantPreview, setMerchantPreview] = useState<IFoodMerchantPreview | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [linking, setLinking] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
 
   // Import de catálogo (aparece quando conectado)
@@ -53,28 +55,32 @@ export function IFoodPage() {
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [importing, setImporting] = useState(false)
 
-  async function loadMerchants() {
-    setLoadingMerchants(true)
+  async function handleCheckMerchant() {
+    const id = merchantIdInput.trim()
+    if (!id) return
+    setChecking(true)
     try {
-      setMerchants(await listIFoodMerchants())
+      setMerchantPreview(await previewIFoodMerchant(id))
     } catch (e) {
-      toast.error('Erro ao buscar lojas do iFood', errMsg(e))
+      toast.error('Não foi possível validar a loja', errMsg(e))
     } finally {
-      setLoadingMerchants(false)
+      setChecking(false)
     }
   }
 
-  async function handleLink(merchantId: string) {
-    setLinking(merchantId)
+  async function handleLink() {
+    if (!merchantPreview) return
+    setLinking(true)
     try {
-      await linkIFoodMerchant(merchantId)
+      await linkIFoodMerchant(merchantPreview.id)
       await qc.invalidateQueries({ queryKey: ['ifood', 'status'] })
-      setMerchants(null)
+      setMerchantPreview(null)
+      setMerchantIdInput('')
       toast.success('iFood conectado!', 'Sua loja iFood está vinculada.')
     } catch (e) {
       toast.error('Erro ao vincular', errMsg(e))
     } finally {
-      setLinking(null)
+      setLinking(false)
     }
   }
 
@@ -83,7 +89,8 @@ export function IFoodPage() {
     try {
       await disconnectIFood()
       await qc.invalidateQueries({ queryKey: ['ifood', 'status'] })
-      setMerchants(null)
+      setMerchantPreview(null)
+      setMerchantIdInput('')
       setPreview(null)
       toast.success('iFood desconectado')
     } catch (e) {
@@ -175,19 +182,81 @@ export function IFoodPage() {
         ) : (
           <div>
             <p className="font-semibold text-gray-900">Não conectado</p>
-            <p className="text-sm text-gray-500 mt-1">
-              Primeiro autorize o app <strong>Menu Panda</strong> no seu Portal do Parceiro iFood.
-              Depois clique abaixo para escolher qual loja vincular.
-            </p>
-            <button
-              type="button"
-              onClick={loadMerchants}
-              disabled={loadingMerchants}
-              className="mt-4 flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+            <ol className="text-sm text-gray-500 mt-2 space-y-1 list-decimal list-inside">
+              <li>
+                No <strong>Portal do Parceiro iFood</strong>, autorize o app{' '}
+                <strong>Menu Panda</strong> na sua loja.
+              </li>
+              <li>
+                Copie o <strong>ID da sua loja</strong> no iFood (um código UUID) e cole abaixo.
+              </li>
+            </ol>
+            <a
+              href="https://portal.ifood.com.br"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-xs text-red-600 hover:text-red-700"
             >
-              {loadingMerchants ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-              {loadingMerchants ? 'Buscando…' : 'Conectar iFood'}
-            </button>
+              Abrir Portal do Parceiro <ExternalLink className="h-3 w-3" />
+            </a>
+
+            {merchantPreview ? (
+              // Conferência antes de vincular
+              <div className="mt-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
+                <div className="flex items-center gap-3">
+                  <Store className="h-5 w-5 text-gray-400 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {merchantPreview.corporateName || merchantPreview.name}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {[merchantPreview.city, merchantPreview.state].filter(Boolean).join(' / ') ||
+                        merchantPreview.id}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-3">É esta a sua loja no iFood?</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleLink}
+                    disabled={linking}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {linking ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                    {linking ? 'Vinculando…' : 'Sim, vincular'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMerchantPreview(null)}
+                    disabled={linking}
+                    className="text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50"
+                  >
+                    Não, corrigir ID
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  value={merchantIdInput}
+                  onChange={(e) => setMerchantIdInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCheckMerchant()}
+                  placeholder="ID da sua loja no iFood (UUID)"
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400 outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleCheckMerchant}
+                  disabled={checking || !merchantIdInput.trim()}
+                  className="flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+                >
+                  {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {checking ? 'Validando…' : 'Continuar'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -261,58 +330,6 @@ export function IFoodPage() {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Lista de merchants pra escolher */}
-      {!connected && merchants && (
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-gray-900">Escolha a loja do iFood</p>
-            <button
-              type="button"
-              onClick={loadMerchants}
-              className="text-gray-400 hover:text-gray-600"
-              title="Atualizar"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
-          </div>
-          {merchants.length === 0 ? (
-            <p className="text-sm text-gray-500">
-              Nenhuma loja encontrada. Autorize o app Menu Panda no Portal do Parceiro iFood e
-              atualize.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {merchants.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Store className="h-5 w-5 text-gray-400 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{m.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{m.id}</p>
-                    </div>
-                  </div>
-                  {m.linkedElsewhere ? (
-                    <span className="text-xs text-gray-400">Já vinculada a outra loja</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleLink(m.id)}
-                      disabled={linking === m.id}
-                      className="text-sm font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
-                    >
-                      {linking === m.id ? 'Vinculando…' : 'Vincular'}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
     </div>
