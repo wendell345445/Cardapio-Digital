@@ -36,6 +36,8 @@ export async function ifoodWebhookController(req: Request, res: Response, _next:
 
   try {
     for (const event of events) {
+      // KEEPALIVE/heartbeat de presença ({ code, fullCode, id }) não tem merchantId —
+      // só confirma que a conexão está viva. Ignora sem ruído.
       if (!event?.merchantId) continue
       const store = await prisma.store.findFirst({
         where: { ifoodMerchantId: event.merchantId },
@@ -45,6 +47,10 @@ export async function ifoodWebhookController(req: Request, res: Response, _next:
         asaasLogger.warn({ merchantId: event.merchantId }, 'ifood webhook: store not found for merchant')
         continue
       }
+      asaasLogger.info(
+        { merchantId: event.merchantId, code: event.fullCode ?? event.code, orderId: event.orderId },
+        'ifood webhook: evento recebido'
+      )
       await processIFoodEvent(store, event)
     }
   } catch (err) {
