@@ -1,42 +1,15 @@
 import { hash } from 'bcrypt'
 import slugify from 'slugify'
 
+import { createCustomer, deleteCustomerSafe } from '../../shared/asaas/asaas.service'
+import { PLAN_FEATURES, trialEndsAtFromNow } from '../../shared/billing/plans'
 import { sendWelcomeSelfRegisterEmail } from '../../shared/email/email.service'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
-import {
-  PLAN_PRICE_IDS,
-  cancelCustomerSafe,
-  createCustomer,
-  createSubscription,
-} from '../../shared/stripe/stripe.service'
 import { isReservedSlug } from '../../shared/utils/reserved-slugs'
 
 import { generateAuthTokensForNewUser } from './auth.service'
 import type { RegisterStoreInput } from './register.schema'
-
-const PLAN_FEATURES: Record<'PROFESSIONAL' | 'PREMIUM', Record<string, boolean>> = {
-  PROFESSIONAL: {
-    pixPayment: true,
-    whatsappNotifications: true,
-    aiAssistant: false,
-    deliveryZones: false,
-    coupons: false,
-    analytics: false,
-    ranking: false,
-    scheduling: false,
-  },
-  PREMIUM: {
-    pixPayment: true,
-    whatsappNotifications: true,
-    aiAssistant: true,
-    deliveryZones: true,
-    coupons: true,
-    analytics: true,
-    ranking: true,
-    scheduling: true,
-  },
-}
 
 /**
  * Gera um slug único a partir do nome da loja.
@@ -74,9 +47,9 @@ interface RegisterStoreResult {
 
 /**
  * v2.5+ — Auto-cadastro de loja via `/cadastro`.
- * Cria Stripe Customer + Subscription + Store + User + BusinessHours + AuditLog, tudo em transação Prisma.
- * O trial de 7 dias é aplicado automaticamente pelo Stripe (configurado no próprio Price), então a
- * subscription entra em `trialing` sem exigir cartão. Em caso de falha após criar o Stripe Customer,
+ * Cria Asaas Customer + Store + User + BusinessHours + AuditLog, tudo em transação Prisma.
+ * O trial de 7 dias é controlado localmente (`trialEndsAt`); a assinatura (cartão/PIX Automático)
+ * é criada depois pelo lojista na aba Assinatura. Em caso de falha após criar o Asaas Customer,
  * faz rollback (cancelCustomerSafe). Email de boas-vindas é fire-and-forget (não bloqueia a resposta).
  */
 export async function registerStore(
@@ -95,28 +68,15 @@ export async function registerStore(
   // 3. Hash de senha (12 rounds — padrão existente)
   const passwordHash = await hash(input.password, 12)
 
-  // 4. Stripe Customer
-  const stripeCustomer = await createCustomer(input.email, input.storeName)
-
-  // 5. Stripe Subscription (trial 7d herdado do Price — rollback do customer em caso de falha).
-  //    `trial_end` deve vir preenchido porque o Price tem `recurring.trial_period_days=7`.
-  //    Se vier null, é erro de config do Price no Stripe → aborta e faz rollback.
+  // 4. Asaas Customer. A ASSINATURA em si (cartão/PIX Automático) é criada depois,
+  //    quando o lojista escolhe o método na aba Assinatura. Durante o trial usa de graça.
   const plan = input.plan ?? 'PROFESSIONAL'
-  let stripeSubscription
-  try {
-    stripeSubscription = await createSubscription(stripeCustomer.id, PLAN_PRICE_IDS[plan])
-    if (!stripeSubscription.trial_end) {
-      throw new Error('Stripe Price sem trial_period_days configurado')
-    }
-  } catch (err) {
-    await cancelCustomerSafe(stripeCustomer.id)
-    throw err
-  }
+  const asaasCustomer = await createCustomer({ name: input.storeName, email: input.email, phone: input.whatsapp })
 
-  // 6. Fim do trial lido direto da subscription (Stripe retorna unix timestamp em segundos)
-  const trialEndsAt = new Date(stripeSubscription.trial_end * 1000)
+  // 5. Trial de 7 dias — controlado localmente (Asaas não tem trial nativo).
+  const trialEndsAt = trialEndsAtFromNow()
 
-  // 7. Transação Prisma — Store + User + BusinessHours + AuditLog
+  // 6. Transação Prisma — Store + User + BusinessHours + AuditLog
   let store
   try {
     store = await prisma.$transaction(async (tx) => {
@@ -131,9 +91,8 @@ export async function registerStore(
           plan,
           status: 'TRIAL',
           features: PLAN_FEATURES[plan],
-          stripeCustomerId: stripeCustomer.id,
-          stripeSubscriptionId: stripeSubscription.id,
-          stripeTrialEndsAt: trialEndsAt,
+          asaasCustomerId: asaasCustomer.id,
+          trialEndsAt,
         },
       })
 
@@ -174,15 +133,15 @@ export async function registerStore(
       return { store: newStore, user }
     })
   } catch (err) {
-    // Rollback do Stripe Customer (idempotente)
-    await cancelCustomerSafe(stripeCustomer.id)
+    // Rollback do Asaas Customer (idempotente)
+    await deleteCustomerSafe(asaasCustomer.id)
     throw err
   }
 
   // 8. Email de boas-vindas — fire-and-forget (não bloqueia resposta).
   //    loginUrl é derivada do PUBLIC_ROOT_DOMAIN (mesma fonte-de-verdade do publicUrl no email)
   //    pra que dev mostre `http://cardapio.test/login` em vez de `http://localhost:5173/login`.
-  //    NÃO usar WEB_URL aqui — esse env é pra URLs realmente alcançáveis por browser (Stripe returnUrl etc).
+  //    NÃO usar WEB_URL aqui — esse env é pra URLs realmente alcançáveis por browser (callback do checkout etc).
   const rootDomain = process.env.PUBLIC_ROOT_DOMAIN || 'menupanda.ai'
   const protocol = rootDomain.endsWith('.test') || rootDomain === 'localhost' ? 'http' : 'https'
   const loginUrl = `${protocol}://${rootDomain}/login`
@@ -213,7 +172,7 @@ export async function registerStore(
     store: {
       id: store.store.id,
       slug: store.store.slug,
-      trialEndsAt: store.store.stripeTrialEndsAt,
+      trialEndsAt: store.store.trialEndsAt,
     },
   }
 }

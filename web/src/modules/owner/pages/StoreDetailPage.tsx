@@ -97,7 +97,7 @@ export function StoreDetailPage() {
     endTrialNow.mutate(undefined, {
       onSuccess: () =>
         setToast({
-          message: 'Trial encerrado no Stripe. Sweep enfileirado — status atualiza em ~2s.',
+          message: 'Trial encerrado. Sweep enfileirado — status atualiza em ~2s.',
           type: 'success',
         }),
       onError: () => setToast({ message: 'Erro ao encerrar trial.', type: 'error' }),
@@ -210,8 +210,8 @@ export function StoreDetailPage() {
             </div>
 
             {/* Plano atual (somente leitura). A troca de plano é feita pelo próprio
-                lojista via portal Stripe — o Owner não altera plano por não ter o
-                cartão do cliente. */}
+                lojista na aba Assinatura (cartão ou PIX Automático) — o Owner não
+                altera plano por não ter o meio de pagamento do cliente. */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <h2 className="text-sm font-semibold text-gray-700">Plano atual: {store.plan}</h2>
               <p className="text-xs text-gray-500 mt-0.5">
@@ -231,7 +231,7 @@ export function StoreDetailPage() {
                   </h2>
                 </div>
                 <p className="text-xs text-amber-800 mb-3 leading-relaxed">
-                  Encerra o trial no Stripe (<code className="px-1 bg-amber-100 rounded">trial_end: 'now'</code>),
+                  Encerra o trial imediatamente (marca <code className="px-1 bg-amber-100 rounded">trialEndsAt</code> no passado),
                   marca a loja pra suspensão e enfileira o sweep imediato — a loja
                   passa por <code className="px-1 bg-amber-100 rounded">SUSPENDED</code> e o admin
                   recebe o email <code className="px-1 bg-amber-100 rounded">trial-suspended</code>{' '}

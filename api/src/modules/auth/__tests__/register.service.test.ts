@@ -8,12 +8,10 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   },
 }))
 
-// Mock stripe
-jest.mock('../../../shared/stripe/stripe.service', () => ({
-  PLAN_PRICE_IDS: { PROFESSIONAL: 'price_pro_fake', PREMIUM: 'price_premium_fake' },
+// Mock asaas
+jest.mock('../../../shared/asaas/asaas.service', () => ({
   createCustomer: jest.fn(),
-  createSubscription: jest.fn(),
-  cancelCustomerSafe: jest.fn(),
+  deleteCustomerSafe: jest.fn(),
 }))
 
 // Mock email
@@ -22,12 +20,8 @@ jest.mock('../../../shared/email/email.service', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
+import { createCustomer, deleteCustomerSafe } from '../../../shared/asaas/asaas.service'
 import { sendWelcomeSelfRegisterEmail } from '../../../shared/email/email.service'
-import {
-  cancelCustomerSafe,
-  createCustomer,
-  createSubscription,
-} from '../../../shared/stripe/stripe.service'
 import { registerStore } from '../register.service'
 
 const mockPrisma = prisma as unknown as {
@@ -53,7 +47,7 @@ const validInput = {
 const fakeStoreRow = {
   id: 'store-1',
   slug: 'pizzaria-dona-maria',
-  stripeTrialEndsAt: new Date('2026-04-17T00:00:00Z'),
+  trialEndsAt: new Date('2026-04-17T00:00:00Z'),
 }
 
 const fakeUserRow = {
@@ -69,7 +63,6 @@ beforeEach(() => {
   mockPrisma.store.findUnique.mockResolvedValue(null)
   mockPrisma.refreshToken.create.mockResolvedValue({})
   mockPrisma.$transaction.mockImplementation(async (fn: any) => {
-    // Provide a tx mock that mirrors the operations registerStore performs
     const tx = {
       store: { create: jest.fn().mockResolvedValue(fakeStoreRow) },
       user: { create: jest.fn().mockResolvedValue(fakeUserRow) },
@@ -78,36 +71,50 @@ beforeEach(() => {
     }
     return fn(tx)
   })
-  ;(createCustomer as jest.Mock).mockResolvedValue({ id: 'cus_fake', email: 'x', name: 'x' })
-  ;(createSubscription as jest.Mock).mockResolvedValue({
-    id: 'sub_fake',
-    status: 'trialing',
-    items: { data: [] },
-    customer: 'cus_fake',
-    trial_end: Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
-  })
+  ;(createCustomer as jest.Mock).mockResolvedValue({ id: 'cus_fake', email: 'x', name: 'x', cpfCnpj: null })
   ;(sendWelcomeSelfRegisterEmail as jest.Mock).mockResolvedValue(undefined)
 })
 
 describe('registerStore — happy path', () => {
-  it('creates Store + User + BusinessHours + AuditLog and emits tokens', async () => {
+  it('creates Asaas customer + Store + User + BusinessHours + AuditLog and emits tokens', async () => {
     const result = await registerStore(validInput, '127.0.0.1')
 
-    expect(createCustomer).toHaveBeenCalled()
-    expect(createSubscription).toHaveBeenCalledWith('cus_fake', 'price_pro_fake')
+    expect(createCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ name: validInput.storeName, email: validInput.email })
+    )
     expect(mockPrisma.$transaction).toHaveBeenCalled()
     expect(result.accessToken).toBeDefined()
     expect(result.refreshToken).toBeDefined()
     expect(result.store.id).toBe('store-1')
     expect(result.store.slug).toBe('pizzaria-dona-maria')
   })
+
+  it('persists asaasCustomerId + trialEndsAt no Store (trial local de 7 dias)', async () => {
+    const txMock = mockPrisma.$transaction as jest.Mock
+    txMock.mockImplementation(async (fn: any) => {
+      const tx = {
+        store: { create: jest.fn().mockResolvedValue(fakeStoreRow) },
+        user: { create: jest.fn().mockResolvedValue(fakeUserRow) },
+        businessHour: { createMany: jest.fn().mockResolvedValue({ count: 7 }) },
+        auditLog: { create: jest.fn().mockResolvedValue({}) },
+      }
+      const result = await fn(tx)
+      const createArg = tx.store.create.mock.calls[0][0]
+      expect(createArg.data.asaasCustomerId).toBe('cus_fake')
+      expect(createArg.data.status).toBe('TRIAL')
+      expect(createArg.data.trialEndsAt).toBeInstanceOf(Date)
+      expect((createArg.data.trialEndsAt as Date).getTime()).toBeGreaterThan(Date.now())
+      return result
+    })
+    await registerStore(validInput, '127.0.0.1')
+  })
 })
 
 describe('registerStore — slug collision', () => {
   it('appends -2 when slug already exists', async () => {
     mockPrisma.store.findUnique
-      .mockResolvedValueOnce({ id: 'existing', slug: 'pizzaria-dona-maria' }) // first try collides
-      .mockResolvedValueOnce(null) // -2 is free
+      .mockResolvedValueOnce({ id: 'existing', slug: 'pizzaria-dona-maria' })
+      .mockResolvedValueOnce(null)
 
     const txMock = mockPrisma.$transaction as jest.Mock
     txMock.mockImplementation(async (fn: any) => {
@@ -120,7 +127,6 @@ describe('registerStore — slug collision', () => {
         auditLog: { create: jest.fn().mockResolvedValue({}) },
       }
       const result = await fn(tx)
-      // assert that the slug used by store.create is the -2 variant
       expect(tx.store.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ slug: 'pizzaria-dona-maria-2' }) })
       )
@@ -134,9 +140,6 @@ describe('registerStore — slug collision', () => {
 
 describe('registerStore — reserved slug (RN-001C)', () => {
   it('appends -2 when the store name normalizes to a reserved slug (ex: "API")', async () => {
-    // Nome "API" → slugify → "api" (reservado). Deve cair no sufixo -2.
-    // findUnique só é chamado pro candidate não-reservado (api-2),
-    // que está livre → retorna null.
     mockPrisma.store.findUnique.mockResolvedValue(null)
 
     const txMock = mockPrisma.$transaction as jest.Mock
@@ -158,7 +161,6 @@ describe('registerStore — reserved slug (RN-001C)', () => {
 
     const result = await registerStore({ ...validInput, storeName: 'API' }, '127.0.0.1')
     expect(result.store.slug).toBe('api-2')
-    // findUnique deve ter sido chamado só com o candidate não-reservado
     expect(mockPrisma.store.findUnique).toHaveBeenCalledWith({ where: { slug: 'api-2' } })
     expect(mockPrisma.store.findUnique).not.toHaveBeenCalledWith({ where: { slug: 'api' } })
   })
@@ -172,22 +174,19 @@ describe('registerStore — duplicate email', () => {
   })
 })
 
-describe('registerStore — Stripe subscription fails', () => {
-  it('calls cancelCustomerSafe and re-throws', async () => {
-    ;(createSubscription as jest.Mock).mockRejectedValue(new Error('Stripe boom'))
-    await expect(registerStore(validInput, '127.0.0.1')).rejects.toThrow('Stripe boom')
-    expect(cancelCustomerSafe).toHaveBeenCalledWith('cus_fake')
+describe('registerStore — transaction fails', () => {
+  it('calls deleteCustomerSafe and re-throws when the Prisma transaction throws', async () => {
+    mockPrisma.$transaction.mockRejectedValue(new Error('DB boom'))
+    await expect(registerStore(validInput, '127.0.0.1')).rejects.toThrow('DB boom')
+    expect(deleteCustomerSafe).toHaveBeenCalledWith('cus_fake')
   })
 })
 
 describe('registerStore — email failure does not block', () => {
   it('still returns 201-shaped result when sendWelcomeSelfRegisterEmail rejects', async () => {
     ;(sendWelcomeSelfRegisterEmail as jest.Mock).mockRejectedValue(new Error('SMTP down'))
-
-    // Should NOT throw — fire-and-forget
     const result = await registerStore(validInput, '127.0.0.1')
     expect(result.accessToken).toBeDefined()
-    // Wait one tick for the .catch to run
     await new Promise((r) => setImmediate(r))
   })
 })

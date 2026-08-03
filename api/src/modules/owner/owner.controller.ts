@@ -94,7 +94,7 @@ export async function getAuditLogsController(req: Request, res: Response, next: 
 
 // ─── OWNER TOOL ───────────────────────────────────────────────────────────────
 // POST /owner/stores/:id/dev/end-trial — ação operacional do Owner, disponível
-// em todos os ambientes. Encerra o trial no Stripe + dispara sweep imediato.
+// em todos os ambientes. Encerra o trial (local) + dispara sweep imediato.
 
 export async function endTrialNowController(req: Request, res: Response, next: NextFunction) {
   try {

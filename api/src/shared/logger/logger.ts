@@ -31,22 +31,22 @@ export const logger: Logger = pino({
 })
 
 /**
- * Logger dedicado para fluxos Stripe (webhooks, subscription lifecycle, trial suspension).
- * Escreve JSON estruturado em `logs/stripe.log` com rotação (45 dias, mantém 3 arquivos).
+ * Logger dedicado para fluxos de billing Asaas (webhooks, subscription/pix-auto lifecycle, trial suspension).
+ * Escreve JSON estruturado em `logs/asaas.log` com rotação (45 dias, mantém 3 arquivos).
  * Cada linha é um objeto JSON self-contained para fácil parse/grep.
  *
  * Em test, retorna um logger `silent` pra não tentar escrever arquivo.
  */
-export const stripeLogger: Logger = isTest
+export const asaasLogger: Logger = isTest
   ? pino({ level: 'silent' })
   : pino({
-      level: process.env.LOG_LEVEL_STRIPE || 'debug',
+      level: process.env.LOG_LEVEL_ASAAS || 'debug',
       transport: {
         targets: [
           {
             target: 'pino-roll',
             options: {
-              file: path.resolve(LOGS_DIR, 'stripe.log'),
+              file: path.resolve(LOGS_DIR, 'asaas.log'),
               // 'daily' = roda 1x/dia. Anterior ('3_888_000_000 ms' = 45d) ultrapassava
               // o limite de 32-bit do setTimeout do Node, gerando warnings em loop e
               // fallback pra rotação a cada 1ms.

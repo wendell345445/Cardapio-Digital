@@ -59,11 +59,8 @@ app.use(
   })
 )
 
-// Stripe webhook precisa do raw body (Buffer) pra verificar assinatura HMAC.
-// DEVE ficar ANTES do `express.json()` global, senão o body é parsed como objeto e
-// `stripe.webhooks.constructEvent()` falha com "Webhook payload must be provided as a string or Buffer".
-app.use('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }))
-
+// O webhook do Asaas usa JSON normal (autenticação por header `asaas-access-token`,
+// não HMAC), então cai no `express.json()` global — sem raw body dedicado como o Stripe exigia.
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 app.use(passport.initialize())

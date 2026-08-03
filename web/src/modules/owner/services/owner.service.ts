@@ -30,8 +30,8 @@ export interface StoreDetail {
   phone: string
   whatsappMode: WhatsAppMode
   features: Record<string, boolean>
-  stripeCustomerId: string | null
-  stripeSubscriptionId: string | null
+  asaasCustomerId: string | null
+  asaasSubscriptionId: string | null
   createdAt: string
   updatedAt: string
   users: { id: string; email: string | null; name: string | null }[]
@@ -53,7 +53,7 @@ export interface AuditLog {
   ip: string | null
   createdAt: string
   // `user` é null quando a ação foi disparada por sistema (cron de suspensão,
-  // webhooks Stripe). v2.5.6+ tornou `AuditLog.userId` nullable no schema.
+  // webhooks Asaas). v2.5.6+ tornou `AuditLog.userId` nullable no schema.
   user: { id: string; email: string | null; name: string | null; role: string } | null
 }
 
@@ -108,7 +108,7 @@ export async function updateStorePlan(id: string, plan: StorePlan): Promise<Stor
 }
 
 // ─── OWNER TOOL ───────────────────────────────────────────────────────────────
-// POST /owner/stores/:id/dev/end-trial — encerra o trial no Stripe + dispara
+// POST /owner/stores/:id/dev/end-trial — encerra o trial (local) + dispara
 // sweep imediato + envia email "trial-suspended". Disponível em todos os
 // ambientes; a rota exige JWT com role OWNER.
 export async function endTrialNow(id: string): Promise<{ ok: boolean; message: string }> {

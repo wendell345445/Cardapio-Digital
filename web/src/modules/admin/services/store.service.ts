@@ -28,8 +28,10 @@ export interface StoreData {
   serviceChargePercent: number
   features: { allowPix?: boolean } & Record<string, boolean>
   plan?: string
+  pendingPlan?: string | null
+  billingMethod?: string | null
   status?: string
-  stripeTrialEndsAt?: string | null
+  trialEndsAt?: string | null
   whatsappMode?: string
 }
 

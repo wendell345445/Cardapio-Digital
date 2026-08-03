@@ -36,12 +36,9 @@ jest.mock('../../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../../shared/stripe/stripe.service', () => ({
+jest.mock('../../../shared/asaas/asaas.service', () => ({
   createCustomer: jest.fn(),
-  createSubscription: jest.fn(),
   updateSubscription: jest.fn(),
-  endSubscriptionTrialNow: jest.fn().mockResolvedValue({ id: 'sub_123', trial_end: 0 }),
-  PLAN_PRICE_IDS: { PROFESSIONAL: 'price_pro', PREMIUM: 'price_prem' },
 }))
 
 jest.mock('../../../shared/email/email.service', () => ({
@@ -55,12 +52,7 @@ jest.mock('../../../jobs/trial-suspension.job', () => ({
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
-import {
-  createCustomer,
-  createSubscription,
-  endSubscriptionTrialNow,
-  updateSubscription,
-} from '../../../shared/stripe/stripe.service'
+import { createCustomer, updateSubscription } from '../../../shared/asaas/asaas.service'
 import { sendWelcomeEmail, sendPlanChangeEmail } from '../../../shared/email/email.service'
 import {
   cancelStore,
@@ -89,9 +81,9 @@ const makeStore = (overrides: Partial<Record<string, unknown>> = {}) => ({
   status: 'TRIAL',
   phone: '48999998888',
   features: {},
-  stripeCustomerId: 'cus_123',
-  stripeSubscriptionId: 'sub_123',
-  stripeTrialEndsAt: null,
+  asaasCustomerId: 'cus_123',
+  asaasSubscriptionId: 'sub_123',
+  trialEndsAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
@@ -158,21 +150,13 @@ describe('listStores (TASK-020)', () => {
 // ─── TASK-021: createStore ────────────────────────────────────────────────────
 
 describe('createStore (TASK-021)', () => {
-  const mockStripeCustomer = { id: 'cus_new', email: 'admin@novaloja.com', name: 'Nova Loja' }
-  const mockStripeSubscription = {
-    id: 'sub_new',
-    status: 'trialing',
-    items: { data: [] },
-    customer: 'cus_new',
-    trial_end: Math.floor(Date.now() / 1000) + 7 * 24 * 3600,
-  }
-  const newStore = makeStore({ id: 'store-new', slug: 'nova-loja', stripeCustomerId: 'cus_new' })
+  const mockAsaasCustomer = { id: 'cus_new', email: 'admin@novaloja.com', name: 'Nova Loja', cpfCnpj: null }
+  const newStore = makeStore({ id: 'store-new', slug: 'nova-loja', asaasCustomerId: 'cus_new' })
 
   beforeEach(() => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null) // slug free
     ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)  // email free
-    ;(createCustomer as jest.Mock).mockResolvedValue(mockStripeCustomer)
-    ;(createSubscription as jest.Mock).mockResolvedValue(mockStripeSubscription)
+    ;(createCustomer as jest.Mock).mockResolvedValue(mockAsaasCustomer)
     ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) =>
       fn({
         store: { create: jest.fn().mockResolvedValue(newStore) },
@@ -187,8 +171,9 @@ describe('createStore (TASK-021)', () => {
     const result = await createStore(createInput, 'owner-1')
 
     expect(result.id).toBe('store-new')
-    expect(createCustomer).toHaveBeenCalledWith(createInput.adminEmail, createInput.name)
-    expect(createSubscription).toHaveBeenCalledWith('cus_new', 'price_pro')
+    expect(createCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ name: createInput.name, email: createInput.adminEmail })
+    )
     expect(sendWelcomeEmail).toHaveBeenCalled()
   })
 
@@ -205,16 +190,12 @@ describe('createStore (TASK-021)', () => {
     await expect(createStore(createInput, 'owner-1')).rejects.toMatchObject({ status: 422 })
   })
 
-  it('creates Stripe customer with correct email and name', async () => {
+  it('creates Asaas customer with correct email and name', async () => {
     await createStore(createInput, 'owner-1')
 
-    expect(createCustomer).toHaveBeenCalledWith('admin@novaloja.com', 'Nova Loja')
-  })
-
-  it('creates Stripe subscription with PREMIUM price ID for PREMIUM plan', async () => {
-    await createStore({ ...createInput, plan: 'PREMIUM' }, 'owner-1')
-
-    expect(createSubscription).toHaveBeenCalledWith('cus_new', 'price_prem')
+    expect(createCustomer).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'admin@novaloja.com', name: 'Nova Loja' })
+    )
   })
 
   it('sends welcome email after store creation', async () => {
@@ -343,10 +324,10 @@ describe('updateStorePlan (TASK-023)', () => {
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
   })
 
-  it('upgrades plan to PREMIUM and updates Stripe subscription', async () => {
+  it('upgrades plan to PREMIUM and updates Asaas subscription value', async () => {
     const result = await updateStorePlan('store-1', { plan: 'PREMIUM' }, 'owner-1')
 
-    expect(updateSubscription).toHaveBeenCalledWith('sub_123', 'price_prem')
+    expect(updateSubscription).toHaveBeenCalledWith('sub_123', 149)
     expect(mockPrisma.store.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ plan: 'PREMIUM' }),
@@ -425,8 +406,8 @@ describe('updateStorePlan (TASK-023)', () => {
     )
   })
 
-  it('skips Stripe update when store has no subscription', async () => {
-    const storeNoSub = { ...storeWithAdmin, stripeSubscriptionId: null }
+  it('skips Asaas update when store has no subscription (fluxo PIX Auto ou trial)', async () => {
+    const storeNoSub = { ...storeWithAdmin, asaasSubscriptionId: null }
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(storeNoSub)
 
     await updateStorePlan('store-1', { plan: 'PREMIUM' }, 'owner-1')
@@ -438,30 +419,27 @@ describe('updateStorePlan (TASK-023)', () => {
 // ─── OWNER TOOL: endTrialNow ──────────────────────────────────────────────────
 
 describe('endTrialNow (owner tool)', () => {
-  const trialStore = makeStore({ status: 'TRIAL', stripeSubscriptionId: 'sub_123' })
+  const trialStore = makeStore({ status: 'TRIAL', asaasSubscriptionId: 'sub_123' })
 
   beforeEach(() => {
     queueAdd.mockClear()
-    ;(endSubscriptionTrialNow as jest.Mock).mockClear()
-    ;(endSubscriptionTrialNow as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(trialStore)
     ;(mockPrisma.store.update as jest.Mock).mockResolvedValue({})
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
   })
 
-  it('encerra trial no Stripe + força stripeTrialEndsAt no passado + enfileira sweep + cria audit log', async () => {
+  it('força trialEndsAt no passado + enfileira sweep + cria audit log', async () => {
     const result = await endTrialNow('store-1', 'owner-1', '127.0.0.1')
 
-    expect(endSubscriptionTrialNow).toHaveBeenCalledWith('sub_123')
     expect(mockPrisma.store.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'store-1' },
-        data: expect.objectContaining({ stripeTrialEndsAt: expect.any(Date) }),
+        data: expect.objectContaining({ trialEndsAt: expect.any(Date) }),
       })
     )
-    // stripeTrialEndsAt deve ser no passado pra sweep pegar imediatamente
+    // trialEndsAt deve ser no passado pra sweep pegar imediatamente
     const updateCall = (mockPrisma.store.update as jest.Mock).mock.calls[0][0]
-    expect((updateCall.data.stripeTrialEndsAt as Date).getTime()).toBeLessThan(Date.now())
+    expect((updateCall.data.trialEndsAt as Date).getTime()).toBeLessThan(Date.now())
     expect(queueAdd).toHaveBeenCalledWith(
       {},
       expect.objectContaining({ removeOnComplete: true })
@@ -478,39 +456,9 @@ describe('endTrialNow (owner tool)', () => {
     expect(result.ok).toBe(true)
   })
 
-  it('segue o fluxo mesmo quando Stripe API falha (best-effort)', async () => {
-    ;(endSubscriptionTrialNow as jest.Mock).mockRejectedValue(
-      new Error('no attached payment source')
-    )
-
-    const result = await endTrialNow('store-1', 'owner-1')
-
-    // Stripe call foi tentado mas falhou — o fluxo NÃO aborta
-    expect(endSubscriptionTrialNow).toHaveBeenCalledWith('sub_123')
-    // Local update + queue + audit log ainda rodam
-    expect(mockPrisma.store.update).toHaveBeenCalled()
-    expect(queueAdd).toHaveBeenCalled()
-    expect(mockPrisma.auditLog.create).toHaveBeenCalled()
-    expect(result.ok).toBe(true)
-  })
-
-  it('pula a chamada Stripe quando loja não tem stripeSubscriptionId (update local ainda roda)', async () => {
-    ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(
-      makeStore({ status: 'TRIAL', stripeSubscriptionId: null })
-    )
-
-    const result = await endTrialNow('store-1', 'owner-1')
-
-    expect(endSubscriptionTrialNow).not.toHaveBeenCalled()
-    expect(mockPrisma.store.update).toHaveBeenCalled()
-    expect(queueAdd).toHaveBeenCalled()
-    expect(result.ok).toBe(true)
-  })
-
   it('joga 404 quando loja não existe', async () => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null)
     await expect(endTrialNow('non-existent', 'owner-1')).rejects.toMatchObject({ status: 404 })
-    expect(endSubscriptionTrialNow).not.toHaveBeenCalled()
     expect(queueAdd).not.toHaveBeenCalled()
   })
 
@@ -519,7 +467,7 @@ describe('endTrialNow (owner tool)', () => {
       makeStore({ status: 'ACTIVE' })
     )
     await expect(endTrialNow('store-1', 'owner-1')).rejects.toMatchObject({ status: 422 })
-    expect(endSubscriptionTrialNow).not.toHaveBeenCalled()
+    expect(queueAdd).not.toHaveBeenCalled()
   })
 })
 

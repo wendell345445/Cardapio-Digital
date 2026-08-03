@@ -1,22 +1,21 @@
 import Bull from 'bull'
 
 import { sendTrialSuspendedEmail } from '../shared/email/email.service'
-import { stripeLogger } from '../shared/logger/logger'
+import { asaasLogger } from '../shared/logger/logger'
 import { prisma } from '../shared/prisma/prisma'
 
 // ─── Trial Suspension Cron Job ────────────────────────────────────
 //
-// Varre diariamente lojas em status `TRIAL` cujo `stripeTrialEndsAt` já passou
+// Varre diariamente lojas em status `TRIAL` cujo `trialEndsAt` já passou
 // (trial natural expirado OU grace period após `invoice.payment_failed` expirado)
 // e muda o status para `SUSPENDED`.
 //
-// A fonte-de-verdade do fim do trial é `stripeTrialEndsAt`:
-//   - Preenchido na criação da subscription (trial_end do Stripe)
-//   - Sobrescrito no webhook `invoice.payment_failed` para `NOW + STRIPE_GRACE_PERIOD_DAYS`
+// A fonte-de-verdade do fim do trial é `trialEndsAt`:
+//   - Preenchido na criação da loja (trial local de 7 dias — Asaas não tem trial nativo)
+//   - Sobrescrito no webhook Asaas em falha/atraso de cobrança para `NOW + GRACE_PERIOD_DAYS`
 //
-// Esta é a rede de segurança local — em prod, o Stripe também suspende via
-// `customer.subscription.deleted` após todas as Smart Retries falharem (~21d).
-// Manter ambos garante suspensão determinística mesmo se o webhook não chegar.
+// Rede de segurança determinística: mesmo que o webhook não chegue, o cron suspende
+// lojas cujo trial/grace-period já expirou.
 
 const JOB_NAME = 'trial-suspension'
 const REPEATABLE_CRON = process.env.TRIAL_SUSPENSION_CRON || '0 3 * * *' // 03:00 diariamente
@@ -31,19 +30,19 @@ export function getTrialSuspensionQueue(): Bull.Queue {
 
   trialSuspensionQueue.process(async () => {
     const now = new Date()
-    stripeLogger.info({ cron: REPEATABLE_CRON, now }, 'trial-suspension: starting sweep')
+    asaasLogger.info({ cron: REPEATABLE_CRON, now }, 'trial-suspension: starting sweep')
 
     const expired = await prisma.store.findMany({
       where: {
         status: 'TRIAL',
-        stripeTrialEndsAt: { lt: now, not: null },
+        trialEndsAt: { lt: now, not: null },
       },
       select: {
         id: true,
         name: true,
         slug: true,
-        stripeTrialEndsAt: true,
-        stripeCustomerId: true,
+        trialEndsAt: true,
+        asaasCustomerId: true,
         users: {
           where: { role: 'ADMIN' },
           select: { email: true, name: true },
@@ -53,11 +52,11 @@ export function getTrialSuspensionQueue(): Bull.Queue {
     })
 
     if (expired.length === 0) {
-      stripeLogger.info('trial-suspension: no expired stores found')
+      asaasLogger.info('trial-suspension: no expired stores found')
       return { suspended: 0 }
     }
 
-    stripeLogger.info({ count: expired.length }, 'trial-suspension: found expired stores')
+    asaasLogger.info({ count: expired.length }, 'trial-suspension: found expired stores')
 
     // Email de suspensão — billingUrl deriva do PUBLIC_ROOT_DOMAIN pra mostrar a URL "presentável"
     // (ex: `https://menupanda.ai/admin/configuracoes`) em vez do localhost de dev.
@@ -82,14 +81,14 @@ export function getTrialSuspensionQueue(): Bull.Queue {
               entityId: store.id,
               data: {
                 reason: 'trial-suspension-cron',
-                trialEndedAt: store.stripeTrialEndsAt?.toISOString() ?? null,
+                trialEndedAt: store.trialEndsAt?.toISOString() ?? null,
               },
             },
           }),
         ])
         suspended += 1
-        stripeLogger.info(
-          { storeId: store.id, storeName: store.name, trialEndedAt: store.stripeTrialEndsAt },
+        asaasLogger.info(
+          { storeId: store.id, storeName: store.name, trialEndedAt: store.trialEndsAt },
           'trial-suspension: store suspended'
         )
 
@@ -104,26 +103,26 @@ export function getTrialSuspensionQueue(): Bull.Queue {
             storeName: store.name,
             billingUrl: `${billingBaseUrl}/admin/configuracoes`,
           }).catch((err) =>
-            stripeLogger.error(
+            asaasLogger.error(
               { err, storeId: store.id },
               'trial-suspension: failed to send trial-suspended email'
             )
           )
         }
       } catch (err) {
-        stripeLogger.error(
+        asaasLogger.error(
           { err, storeId: store.id },
           'trial-suspension: failed to suspend store'
         )
       }
     }
 
-    stripeLogger.info({ suspended, total: expired.length }, 'trial-suspension: sweep complete')
+    asaasLogger.info({ suspended, total: expired.length }, 'trial-suspension: sweep complete')
     return { suspended, total: expired.length }
   })
 
   trialSuspensionQueue.on('failed', (job, err) => {
-    stripeLogger.error({ jobId: job.id, err }, 'trial-suspension: job failed')
+    asaasLogger.error({ jobId: job.id, err }, 'trial-suspension: job failed')
   })
 
   return trialSuspensionQueue
@@ -136,7 +135,7 @@ export function getTrialSuspensionQueue(): Bull.Queue {
  */
 export async function registerTrialSuspensionJob(): Promise<void> {
   if (process.env.DISABLE_CRON_JOBS === 'true') {
-    stripeLogger.warn('trial-suspension: cron disabled via DISABLE_CRON_JOBS=true')
+    asaasLogger.warn('trial-suspension: cron disabled via DISABLE_CRON_JOBS=true')
     return
   }
 
@@ -156,5 +155,5 @@ export async function registerTrialSuspensionJob(): Promise<void> {
     }
   )
 
-  stripeLogger.info({ cron: REPEATABLE_CRON }, 'trial-suspension: cron registered')
+  asaasLogger.info({ cron: REPEATABLE_CRON }, 'trial-suspension: cron registered')
 }

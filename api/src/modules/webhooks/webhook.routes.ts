@@ -1,13 +1,9 @@
 import { Router } from 'express'
-import express from 'express'
 
-import { stripeWebhookController } from './stripe.webhook'
+import { asaasWebhookController } from './asaas.webhook'
 
 export const webhookRouter = Router()
 
-// Stripe requires raw body for signature verification
-webhookRouter.post(
-  '/stripe',
-  express.raw({ type: 'application/json' }),
-  stripeWebhookController
-)
+// Asaas envia JSON normal (sem HMAC/raw body). Autenticação por header
+// `asaas-access-token`, validado dentro do controller.
+webhookRouter.post('/asaas', asaasWebhookController)

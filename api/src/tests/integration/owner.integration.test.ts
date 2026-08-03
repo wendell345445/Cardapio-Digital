@@ -40,11 +40,9 @@ jest.mock('../../shared/prisma/prisma', () => ({
   },
 }))
 
-jest.mock('../../shared/stripe/stripe.service', () => ({
+jest.mock('../../shared/asaas/asaas.service', () => ({
   createCustomer: jest.fn(),
-  createSubscription: jest.fn(),
   updateSubscription: jest.fn(),
-  PLAN_PRICE_IDS: { PROFESSIONAL: 'price_pro', PREMIUM: 'price_prem' },
 }))
 
 jest.mock('../../shared/email/email.service', () => ({
@@ -56,7 +54,7 @@ jest.mock('../../modules/auth/passport.config', () => ({ configurePassport: jest
 
 import { app } from '../../app'
 import { prisma } from '../../shared/prisma/prisma'
-import { createCustomer, createSubscription, updateSubscription } from '../../shared/stripe/stripe.service'
+import { createCustomer, updateSubscription } from '../../shared/asaas/asaas.service'
 
 const mockPrisma = prisma as jest.Mocked<typeof prisma>
 
@@ -84,9 +82,9 @@ const makeStore = (overrides: Partial<Record<string, unknown>> = {}) => ({
   status: 'TRIAL',
   phone: '48999998888',
   features: {},
-  stripeCustomerId: 'cus_123',
-  stripeSubscriptionId: 'sub_123',
-  stripeTrialEndsAt: null,
+  asaasCustomerId: 'cus_123',
+  asaasSubscriptionId: 'sub_123',
+  trialEndsAt: null,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   ...overrides,
@@ -169,8 +167,7 @@ describe('POST /api/v1/owner/stores (TASK-021)', () => {
   beforeEach(() => {
     ;(mockPrisma.store.findUnique as jest.Mock).mockResolvedValue(null) // slug free
     ;(mockPrisma.user.findFirst as jest.Mock).mockResolvedValue(null)  // email free
-    ;(createCustomer as jest.Mock).mockResolvedValue({ id: 'cus_new', email: 'admin@novaloja.com', name: 'Nova Loja' })
-    ;(createSubscription as jest.Mock).mockResolvedValue({ id: 'sub_new', status: 'trialing', items: { data: [] }, customer: 'cus_new', trial_end: Math.floor(Date.now() / 1000) + 7 * 24 * 3600 })
+    ;(createCustomer as jest.Mock).mockResolvedValue({ id: 'cus_new', email: 'admin@novaloja.com', name: 'Nova Loja', cpfCnpj: null })
     ;(mockPrisma.$transaction as jest.Mock).mockImplementation(async (fn) =>
       fn({
         store: { create: jest.fn().mockResolvedValue(newStore) },

@@ -1,17 +1,27 @@
 import { useMutation } from '@tanstack/react-query'
 
-import { createBillingPortalSession } from '../services/billing.service'
+import { createCheckoutSession, createPixAutoSubscription } from '../services/billing.service'
 
 /**
- * Hook para abrir o Stripe Customer Portal. Ao clicar, chama o backend,
- * recebe a URL da sessão e redireciona a janela atual pra ela.
- * O Stripe redireciona de volta pro WEB_URL/admin/configuracoes após o fluxo.
+ * Hook para assinar por CARTÃO. Chama o backend, recebe a URL do Checkout
+ * hospedado do Asaas e redireciona a janela atual pra ela. O Asaas redireciona
+ * de volta pro WEB_URL/admin/configuracoes após o fluxo.
  */
-export function useOpenBillingPortal() {
+export function useOpenCheckout() {
   return useMutation({
-    mutationFn: createBillingPortalSession,
+    mutationFn: createCheckoutSession,
     onSuccess: ({ url }) => {
       window.location.href = url
     },
+  })
+}
+
+/**
+ * Hook para assinar por PIX Automático. Retorna o QR de autorização (payload +
+ * imagem) pro componente exibir; a ativação chega via webhook (status da loja).
+ */
+export function useCreatePixAuto() {
+  return useMutation({
+    mutationFn: createPixAutoSubscription,
   })
 }

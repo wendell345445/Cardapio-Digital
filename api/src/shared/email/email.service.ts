@@ -196,8 +196,8 @@ export async function sendPlanChangeEmail(params: {
 }
 
 /**
- * Email enviado quando o webhook Stripe `invoice.payment_failed` é recebido.
- * `graceDays` é interpolado no template para refletir `STRIPE_GRACE_PERIOD_DAYS`.
+ * Email enviado quando o webhook Asaas sinaliza falha/atraso de cobrança (PAYMENT_OVERDUE etc).
+ * `graceDays` é interpolado no template para refletir `GRACE_PERIOD_DAYS`.
  */
 export async function sendPaymentFailedEmail(params: {
   adminEmail: string
@@ -244,8 +244,9 @@ export async function sendTrialSuspendedEmail(params: {
 }
 
 /**
- * Email enviado quando o webhook Stripe `customer.subscription.trial_will_end` é recebido
- * (~3 dias antes do fim do trial). Aviso proativo pro admin cadastrar método de pagamento.
+ * Aviso proativo pro admin (~3 dias antes do fim do trial) cadastrar método de pagamento.
+ * NÃO é mais disparado automaticamente — o Asaas não tem evento equivalente ao
+ * `trial_will_end` do Stripe. Mantido para reativação futura via cron de lembrete.
  */
 export async function sendTrialEndingEmail(params: {
   adminEmail: string

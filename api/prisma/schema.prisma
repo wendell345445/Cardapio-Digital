@@ -60,9 +60,22 @@ model Store {
   /// conta WA não pode estar pareada em duas lojas, senão recebem o mesmo evento
   /// messages.upsert e respondem cada uma com greeting/IA própria, confundindo o cliente.
   whatsappPairedNumber          String?       @unique
-  stripeCustomerId              String?
-  stripeSubscriptionId          String?
-  stripeTrialEndsAt             DateTime?
+  /// Asaas customer id (`cus_...`). Criado no registro da loja.
+  asaasCustomerId               String?
+  /// Asaas subscription id (`sub_...`) — preenchido pelo webhook quando a loja assina via cartão (Checkout).
+  asaasSubscriptionId           String?
+  /// Asaas Checkout id (`checkout_...`) da última sessão de assinatura por cartão.
+  asaasCheckoutId               String?
+  /// Id da autorização PIX Automático (UUID). Preenchido quando a loja assina via PIX Automático.
+  asaasPixAuthId                String?
+  /// Como a loja assinou: CARD (Checkout) ou PIX_AUTO (PIX Automático). NULL = ainda não assinou.
+  billingMethod                 BillingMethod?
+  /// Downgrade agendado: plano que passará a valer no PRÓXIMO ciclo. Enquanto NULL, o plano é o
+  /// atual. Preenchido no downgrade (mantém features do plano atual até o ciclo virar); o webhook
+  /// de cobrança do próximo vencimento aplica (`plan = pendingPlan`, `pendingPlan = NULL`).
+  pendingPlan                   StorePlan?
+  /// Fim do trial (agnóstico de provedor). Fonte-de-verdade do cron de suspensão.
+  trialEndsAt                   DateTime?
   createdAt                     DateTime      @default(now())
   updatedAt                     DateTime      @updatedAt
 
@@ -632,6 +645,11 @@ enum StoreStatus {
   ACTIVE
   SUSPENDED
   CANCELLED
+}
+
+enum BillingMethod {
+  CARD
+  PIX_AUTO
 }
 
 enum StoreSegment {

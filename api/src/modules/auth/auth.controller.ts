@@ -37,7 +37,7 @@ export function getAuthConfigController(_req: Request, res: Response) {
 
 /**
  * POST /api/v1/auth/register-store — public endpoint (rate-limited)
- * Auto-cadastro de loja com trial Stripe 7d sem cartão (v2.5+).
+ * Auto-cadastro de loja com trial local de 7 dias sem cartão (Asaas).
  */
 export async function registerStoreController(req: Request, res: Response, next: NextFunction) {
   try {

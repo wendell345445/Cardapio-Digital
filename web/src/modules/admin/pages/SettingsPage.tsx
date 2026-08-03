@@ -3,7 +3,10 @@ import { useSearchParams } from 'react-router-dom'
 
 import { ImageUpload } from '../components/ImageUpload'
 import { MenuPreviewMock } from '../components/MenuPreviewMock'
-import { useOpenBillingPortal } from '../hooks/useBilling'
+import { useCreatePixAuto, useOpenCheckout } from '../hooks/useBilling'
+import { PixAutoModal } from '../components/PixAutoModal'
+import { ChangePlanModal } from '../components/ChangePlanModal'
+import { type PixAutoResponse, type PlanName } from '../services/billing.service'
 import {
   useStore,
   useUpdatePaymentSettings,
@@ -12,6 +15,7 @@ import {
   useUpdateWhatsapp,
 } from '../hooks/useStore'
 
+import { toast } from '@/shared/lib/toast'
 import { PasswordInput } from '@/shared/components/PasswordInput'
 import { StoreAvatar } from '@/shared/components/StoreAvatar'
 import { resolveImageUrl } from '@/shared/lib/imageUrl'
@@ -538,38 +542,67 @@ function TabPersonalizacao() {
   )
 }
 
-// ─── Tab: Assinatura (Stripe Customer Portal) ────────────────────────────────
+// ─── Tab: Assinatura (Asaas — cartão via Checkout + PIX Automático) ───────────
+
+function billingErrorMsg(err: unknown): string {
+  return (
+    (err as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error ||
+    (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+    'Não foi possível iniciar a assinatura. Tente novamente.'
+  )
+}
 
 function TabAssinatura() {
   const { data: store, isLoading } = useStore()
-  const openPortal = useOpenBillingPortal()
+  const openCheckout = useOpenCheckout()
+  const createPixAuto = useCreatePixAuto()
+  const [pixData, setPixData] = useState<PixAutoResponse | null>(null)
+  const [changePlanTarget, setChangePlanTarget] = useState<PlanName | null>(null)
 
   if (isLoading) {
     return <div className="bg-white rounded-lg border border-gray-200 p-6">Carregando…</div>
   }
 
   const isTrial = store?.status === 'TRIAL'
-  const trialEndsAt = store?.stripeTrialEndsAt
-    ? new Date(store.stripeTrialEndsAt).toLocaleDateString('pt-BR')
+  const isActive = store?.status === 'ACTIVE'
+  const isPremium = store?.plan === 'PREMIUM'
+  const trialEndsAt = store?.trialEndsAt
+    ? new Date(store.trialEndsAt).toLocaleDateString('pt-BR')
     : null
 
-  function handleOpenPortal() {
-    openPortal.mutate(undefined, {
-      onError: (err: unknown) => {
-        const msg =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          'Não foi possível abrir o portal de assinatura. Tente novamente.'
-        alert(msg)
-      },
+  function handleCard() {
+    openCheckout.mutate(undefined, {
+      onError: (err: unknown) => toast.error('Erro ao assinar', billingErrorMsg(err)),
     })
   }
+
+  function handlePix() {
+    createPixAuto.mutate(undefined, {
+      onSuccess: (data) => setPixData(data),
+      onError: (err: unknown) => toast.error('Erro ao gerar PIX', billingErrorMsg(err)),
+    })
+  }
+
+  const busy = openCheckout.isPending || createPixAuto.isPending
+
+  // Loja ATIVA já pagou — não mostra "Assinar", só o plano e a troca de plano.
+  // Trial/Suspensa/etc mostram os botões de assinar pra regularizar.
+  const showSubscribeButtons = !isActive
+  // Troca de plano só faz sentido pra assinatura por CARTÃO e sem downgrade já agendado.
+  const canChangePlan = isActive && store?.billingMethod === 'CARD' && !store?.pendingPlan
+  const showUpgrade = canChangePlan && !isPremium
+  const showDowngrade = canChangePlan && isPremium
+  const pendingLabel =
+    store?.pendingPlan === 'PROFESSIONAL' ? 'Profissional' : store?.pendingPlan === 'PREMIUM' ? 'Premium' : null
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100">
         <h2 className="text-lg font-semibold text-gray-900">Assinatura e Pagamento</h2>
         <p className="text-sm text-gray-500 mt-1">
-          Gerencie forma de pagamento, veja faturas e histórico da sua assinatura.
+          {isActive
+            ? 'Sua assinatura está ativa.'
+            : 'Escolha como pagar sua assinatura: cartão de crédito (recorrência automática) ou PIX Automático (débito automático mensal).'}
         </p>
       </div>
 
@@ -579,38 +612,94 @@ function TabAssinatura() {
             <div>
               <p className="text-sm text-gray-600">Plano atual</p>
               <p className="text-lg font-semibold text-gray-900">
-                {store?.plan === 'PREMIUM' ? 'Premium' : 'Profissional'}
+                {isPremium ? 'Premium' : 'Profissional'}
               </p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-600">Status</p>
-              <p className="text-lg font-semibold text-gray-900">
-                {isTrial ? 'Trial' : store?.status === 'ACTIVE' ? 'Ativo' : store?.status}
+              <p
+                className={`text-lg font-semibold ${isActive ? 'text-green-600' : 'text-gray-900'}`}
+              >
+                {isTrial ? 'Trial' : isActive ? 'Ativo' : store?.status}
               </p>
             </div>
           </div>
           {isTrial && trialEndsAt && (
             <p className="text-sm text-amber-700 mt-3">
-              Seu trial gratuito termina em <strong>{trialEndsAt}</strong>. Cadastre uma forma de
-              pagamento antes dessa data para manter sua loja ativa.
+              Seu trial gratuito termina em <strong>{trialEndsAt}</strong>. Assine antes dessa data
+              para manter sua loja ativa.
             </p>
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenPortal}
-          disabled={openPortal.isPending}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
-        >
-          {openPortal.isPending ? 'Abrindo portal…' : 'Gerenciar assinatura no Stripe'}
-        </button>
+        {showSubscribeButtons && (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={handleCard}
+                disabled={busy}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+              >
+                {openCheckout.isPending ? 'Abrindo…' : 'Assinar com cartão'}
+              </button>
+              <button
+                type="button"
+                onClick={handlePix}
+                disabled={busy}
+                className="bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+              >
+                {createPixAuto.isPending ? 'Gerando QR…' : 'Assinar com PIX (automático)'}
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              No cartão você é redirecionado para o checkout seguro do Asaas. No PIX Automático,
+              escaneie o QR uma vez para autorizar os débitos mensais.
+            </p>
+          </>
+        )}
 
-        <p className="text-xs text-gray-500 text-center">
-          Você será redirecionado para o portal seguro do Stripe, onde pode adicionar/trocar cartão,
-          baixar faturas e cancelar a assinatura.
-        </p>
+        {pendingLabel && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm text-amber-800">
+              Mudança para <strong>{pendingLabel}</strong> agendada para o próximo ciclo. Você mantém
+              os recursos do plano atual até lá.
+            </p>
+          </div>
+        )}
+
+        {showUpgrade && (
+          <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <p className="text-sm font-medium text-blue-900">Quer mais recursos?</p>
+            <p className="text-sm text-blue-800 mt-0.5">
+              No plano <strong>Premium</strong> você libera atendimento com IA no WhatsApp, cupons,
+              analytics e entrega por zonas.
+            </p>
+            <button
+              type="button"
+              onClick={() => setChangePlanTarget('PREMIUM')}
+              className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors"
+            >
+              Fazer upgrade para Premium
+            </button>
+          </div>
+        )}
+
+        {showDowngrade && (
+          <button
+            type="button"
+            onClick={() => setChangePlanTarget('PROFESSIONAL')}
+            className="w-full text-sm text-gray-500 hover:text-gray-700 py-2 transition-colors"
+          >
+            Mudar para o plano Profissional
+          </button>
+        )}
       </div>
+
+      {pixData && <PixAutoModal data={pixData} onClose={() => setPixData(null)} />}
+      {changePlanTarget && (
+        <ChangePlanModal targetPlan={changePlanTarget} onClose={() => setChangePlanTarget(null)} />
+      )}
     </div>
   )
 }
@@ -619,9 +708,13 @@ function TabAssinatura() {
 
 export function SettingsPage() {
   const [searchParams] = useSearchParams()
-  const initialTab = TABS.some((t) => t.id === searchParams.get('tab'))
+  // Abre a tab Assinatura quando: ?tab=assinatura OU o retorno do checkout Asaas
+  // (?assinatura=ok|cancelado|expirado — callback do fluxo de cartão).
+  const initialTab: Tab = TABS.some((t) => t.id === searchParams.get('tab'))
     ? (searchParams.get('tab') as Tab)
-    : 'dados'
+    : searchParams.has('assinatura')
+      ? 'assinatura'
+      : 'dados'
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
 
   return (

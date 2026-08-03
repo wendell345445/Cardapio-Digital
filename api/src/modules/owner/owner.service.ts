@@ -2,48 +2,22 @@ import { randomBytes } from 'crypto'
 
 import { hash } from 'bcrypt'
 
+import { createCustomer, updateSubscription } from '../../shared/asaas/asaas.service'
+import {
+  PLAN_FEATURES,
+  PLAN_VALUES,
+  trialEndsAtFromNow,
+} from '../../shared/billing/plans'
 import { sendPlanChangeEmail, sendWelcomeEmail } from '../../shared/email/email.service'
 import { getTrialSuspensionQueue } from '../../jobs/trial-suspension.job'
-import { stripeLogger } from '../../shared/logger/logger'
+import { asaasLogger } from '../../shared/logger/logger'
 import { AppError } from '../../shared/middleware/error.middleware'
 import { prisma } from '../../shared/prisma/prisma'
-import {
-  createCustomer,
-  createSubscription,
-  endSubscriptionTrialNow,
-  updateSubscription,
-  PLAN_PRICE_IDS,
-} from '../../shared/stripe/stripe.service'
 
 import type { CreateStoreInput, UpdateStoreInput, UpdateStorePlanInput } from './owner.schema'
 
-const PLAN_MRR: Record<string, number> = {
-  PROFESSIONAL: 99,
-  PREMIUM: 149,
-}
-
-const PLAN_FEATURES: Record<string, object> = {
-  PROFESSIONAL: {
-    pixPayment: true,
-    whatsappNotifications: true,
-    aiAssistant: false,
-    deliveryZones: false,
-    coupons: false,
-    analytics: false,
-    ranking: false,
-    scheduling: false,
-  },
-  PREMIUM: {
-    pixPayment: true,
-    whatsappNotifications: true,
-    aiAssistant: true,
-    deliveryZones: true,
-    coupons: true,
-    analytics: true,
-    ranking: true,
-    scheduling: true,
-  },
-}
+// Alias local pra manter a leitura do cálculo de MRR (valor mensal por plano).
+const PLAN_MRR = PLAN_VALUES
 
 // ─── TASK-020: Listar lojas ───────────────────────────────────────────────────
 
@@ -57,7 +31,7 @@ export async function listStores(status?: string) {
       plan: true,
       status: true,
       createdAt: true,
-      stripeSubscriptionId: true,
+      asaasSubscriptionId: true,
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -91,15 +65,9 @@ export async function createStore(data: CreateStoreInput, ownerId: string, ip?: 
   const tempPassword = randomBytes(6).toString('hex')
   const passwordHash = await hash(tempPassword, 12)
 
-  // Criar Stripe Customer + Subscription (trial 7d herdado do Price)
-  const stripeCustomer = await createCustomer(data.adminEmail, data.name)
-  const stripeSubscription = await createSubscription(
-    stripeCustomer.id,
-    PLAN_PRICE_IDS[data.plan]
-  )
-  const stripeTrialEndsAt = stripeSubscription.trial_end
-    ? new Date(stripeSubscription.trial_end * 1000)
-    : null
+  // Criar Asaas Customer. A assinatura (cartão/PIX Automático) é criada depois pelo lojista.
+  const asaasCustomer = await createCustomer({ name: data.name, email: data.adminEmail, phone: data.whatsapp })
+  const trialEndsAt = trialEndsAtFromNow()
 
   // Criar Store + User + BusinessHours em transação
   const store = await prisma.$transaction(async (tx) => {
@@ -112,9 +80,8 @@ export async function createStore(data: CreateStoreInput, ownerId: string, ip?: 
         phone: data.whatsapp,
         features: PLAN_FEATURES[data.plan],
         whatsappMode: (data.whatsappMode ?? 'WHATSAPP') as any,
-        stripeCustomerId: stripeCustomer.id,
-        stripeSubscriptionId: stripeSubscription.id,
-        stripeTrialEndsAt,
+        asaasCustomerId: asaasCustomer.id,
+        trialEndsAt,
       },
     })
 
@@ -262,31 +229,19 @@ export async function updateStorePlan(
   if (!store) throw new AppError('Loja não encontrada', 404)
   if (store.plan === data.plan) throw new AppError('Loja já está neste plano', 422)
 
-  // Stripe: tenta atualizar a sub existente. Se ela já foi cancelada
-  // (trial expirou sem PaymentMethod → Stripe cancela auto), cria uma sub
-  // NOVA com 7 dias de trial. Caso típico: loja SUSPENDED que o Owner
-  // está reativando alterando plano pelo painel admin.
-  let nextSubscriptionId: string | null = store.stripeSubscriptionId ?? null
-  let nextTrialEndsAt: Date | null = store.stripeTrialEndsAt ?? null
-
-  if (store.stripeSubscriptionId && store.stripeCustomerId) {
+  // Asaas: se a loja assinou por CARTÃO (tem asaasSubscriptionId), atualiza o valor
+  // da assinatura no Asaas. Se assinou por PIX Automático (asaasPixAuthId) ou ainda
+  // está em trial sem assinatura, só troca plano/features local — a nova cobrança usa
+  // o valor do novo plano no próximo ciclo (PIX Auto não tem update de valor simples;
+  // troca de valor exige cancelar+recriar a autorização, feito pelo lojista via aba
+  // Assinatura). Best-effort no update do cartão — falha não bloqueia a troca local.
+  if (store.asaasSubscriptionId) {
     try {
-      await updateSubscription(store.stripeSubscriptionId, PLAN_PRICE_IDS[data.plan])
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      const isCanceled =
-        msg.includes('canceled subscription') ||
-        msg.includes('Cannot update a canceled') ||
-        msg.includes('No such subscription')
-      if (!isCanceled) throw err
-
-      // Sub cancelada — cria uma nova com trial 7d e o novo price.
-      const created = await createSubscription(store.stripeCustomerId, PLAN_PRICE_IDS[data.plan])
-      nextSubscriptionId = created.id
-      nextTrialEndsAt = created.trial_end ? new Date(created.trial_end * 1000) : null
-      stripeLogger.info(
-        { storeId, oldSub: store.stripeSubscriptionId, newSub: created.id },
-        '[STRIPE] subscription cancelada — nova sub criada com trial 7d',
+      await updateSubscription(store.asaasSubscriptionId, PLAN_VALUES[data.plan])
+    } catch (err) {
+      asaasLogger.warn(
+        { err, storeId, subscriptionId: store.asaasSubscriptionId },
+        'updateSubscription falhou — seguindo com update local do plano'
       )
     }
   }
@@ -295,19 +250,12 @@ export async function updateStorePlan(
   const whatsappModeUpdate =
     data.plan === 'PROFESSIONAL' ? { whatsappMode: 'WHATSAPP' as const } : {}
 
-  // Reativa: se criamos sub nova, a loja sai de SUSPENDED pra TRIAL.
-  const reactivated = nextSubscriptionId !== store.stripeSubscriptionId
-  const statusUpdate = reactivated ? { status: 'TRIAL' as const } : {}
-
   const updated = await prisma.store.update({
     where: { id: storeId },
     data: {
       plan: data.plan as any,
       features: PLAN_FEATURES[data.plan],
-      ...(reactivated && nextSubscriptionId ? { stripeSubscriptionId: nextSubscriptionId } : {}),
-      ...(reactivated ? { stripeTrialEndsAt: nextTrialEndsAt } : {}),
       ...whatsappModeUpdate,
-      ...statusUpdate,
     },
   })
 
@@ -344,19 +292,14 @@ export async function updateStorePlan(
 // útil pra validar o fluxo end-to-end ou pra agir sobre uma loja específica.
 //
 // Fluxo disparado:
-//   1) Stripe `subscriptions.update(sub, { trial_end: 'now', payment_behavior })` —
-//      best-effort. Contas criadas sem PaymentMethod vão pra `incomplete` no Stripe.
-//      O Stripe NÃO dispara `invoice.payment_failed` neste caso (ele nem tenta
-//      cobrar), então não podemos depender do webhook pra atualizar o DB local.
-//   2) `stripeTrialEndsAt = NOW - 1s` no DB local — sobrescreve o end-date original
-//      pra fazer o sweep enxergar a loja como expirada imediatamente. Em prod o
-//      webhook `invoice.payment_failed` faz equivalente (NOW + GRACE_PERIOD), mas
-//      só quando existe PM no cadastro.
-//   3) Enfileira sweep one-shot no `trial-suspension.job` queue (não-repetível) pra
+//   1) `trialEndsAt = NOW - 1s` no DB local — sobrescreve o end-date original pra fazer
+//      o sweep enxergar a loja como expirada imediatamente. Como o trial é 100% local
+//      no Asaas, este é o único passo que importa (não há chamada ao provedor).
+//   2) Enfileira sweep one-shot no `trial-suspension.job` queue (não-repetível) pra
 //      não esperar o cron diário das 03:00. O sweep encontra a loja, muda pra
 //      SUSPENDED e dispara o email `trial-suspended.html`.
 //
-// Resultado: ciclo trial → stripeTrialEndsAt no passado → sweep → SUSPENDED → email
+// Resultado: ciclo trial → trialEndsAt no passado → sweep → SUSPENDED → email
 // em ~2-5s. Exercita o mesmo code path do sweep diário em produção.
 
 export async function endTrialNow(storeId: string, ownerId: string, ip?: string) {
@@ -366,30 +309,11 @@ export async function endTrialNow(storeId: string, ownerId: string, ip?: string)
     throw new AppError(`Loja não está em trial (status atual: ${store.status})`, 422)
   }
 
-  // 1) Best-effort: encerra o trial no Stripe. Sem PM, a sub vai pra `incomplete`
-  //    (sem charge attempt → sem `invoice.payment_failed`). Falhas aqui não bloqueiam
-  //    o dev tool — a suspensão local no passo 2 é a fonte-de-verdade pro sweep.
-  if (store.stripeSubscriptionId) {
-    try {
-      await endSubscriptionTrialNow(store.stripeSubscriptionId)
-      stripeLogger.info(
-        { storeId, subscriptionId: store.stripeSubscriptionId },
-        'dev-tool: trial ended via Stripe API'
-      )
-    } catch (err) {
-      stripeLogger.warn(
-        { err, storeId, subscriptionId: store.stripeSubscriptionId },
-        'dev-tool: Stripe subscriptions.update falhou (esperado sem PM) — seguindo com update local'
-      )
-    }
-  }
-
-  // 2) Sobrescreve stripeTrialEndsAt no passado → torna a loja elegível pra suspensão
-  //    imediata no próximo sweep. Em prod esse valor é setado pelo webhook
-  //    invoice.payment_failed; aqui o dev tool faz o mesmo efeito sem o webhook.
+  // 1) Sobrescreve trialEndsAt no passado → torna a loja elegível pra suspensão
+  //    imediata no próximo sweep. Trial é local, então não há chamada ao Asaas.
   await prisma.store.update({
     where: { id: storeId },
-    data: { stripeTrialEndsAt: new Date(Date.now() - 1000) },
+    data: { trialEndsAt: new Date(Date.now() - 1000) },
   })
 
   // 3) Enfileira sweep one-shot pra não esperar o cron diário
@@ -406,7 +330,7 @@ export async function endTrialNow(storeId: string, ownerId: string, ip?: string)
       action: 'store.trial.ended.dev',
       entity: 'Store',
       entityId: storeId,
-      data: { reason: 'owner-dev-tool', stripeSubscriptionId: store.stripeSubscriptionId },
+      data: { reason: 'owner-dev-tool', asaasSubscriptionId: store.asaasSubscriptionId },
       ip,
     },
   })

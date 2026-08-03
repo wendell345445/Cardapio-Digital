@@ -52,8 +52,10 @@ export async function getStore(storeId: string) {
       serviceChargePercent: true,
       features: true,
       plan: true,
+      pendingPlan: true,
+      billingMethod: true,
       status: true,
-      stripeTrialEndsAt: true,
+      trialEndsAt: true,
     },
   })
 
