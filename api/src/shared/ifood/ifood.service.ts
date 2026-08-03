@@ -57,6 +57,24 @@ function getClient(): AxiosInstance {
   return _client
 }
 
+// A API de catálogo do iFood dá 5xx transitório com alguma frequência. Retry
+// simples com backoff só pra erro de servidor/rede (não pra 4xx, que é definitivo).
+async function withRetry<T>(fn: () => Promise<T>, tries = 4): Promise<T> {
+  let lastErr: unknown
+  for (let i = 0; i < tries; i++) {
+    try {
+      return await fn()
+    } catch (err) {
+      lastErr = err
+      const status = isAxiosError(err) ? err.response?.status : undefined
+      const retriable = status === undefined || status >= 500 // rede ou 5xx
+      if (!retriable || i === tries - 1) break
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)))
+    }
+  }
+  throw lastErr
+}
+
 function ifoodError(context: string, err: unknown): AppError {
   if (isAxiosError(err)) {
     const status = err.response?.status
@@ -225,10 +243,13 @@ export async function cancelOrder(orderId: string, cancellationCode: string, rea
 
 export async function getCatalogs(merchantId: string): Promise<{ catalogId: string; status?: string }[]> {
   try {
-    const { data } = await getClient().get<{ catalogId: string; status?: string }[]>(
-      `/catalog/v2.0/merchants/${merchantId}/catalogs`,
-      { headers: await authHeaders() }
-    )
+    const data = await withRetry(async () => {
+      const res = await getClient().get<{ catalogId: string; status?: string }[]>(
+        `/catalog/v2.0/merchants/${merchantId}/catalogs`,
+        { headers: await authHeaders() }
+      )
+      return res.data
+    })
     return Array.isArray(data) ? data : []
   } catch (err) {
     throw ifoodError('getCatalogs', err)
@@ -238,10 +259,13 @@ export async function getCatalogs(merchantId: string): Promise<{ catalogId: stri
 /** Categorias (com itens) de um catálogo — base da importação. */
 export async function getCatalogCategories(merchantId: string, catalogId: string): Promise<unknown[]> {
   try {
-    const { data } = await getClient().get<unknown[]>(
-      `/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories`,
-      { headers: await authHeaders(), params: { includeItems: true } }
-    )
+    const data = await withRetry(async () => {
+      const res = await getClient().get<unknown[]>(
+        `/catalog/v2.0/merchants/${merchantId}/catalogs/${catalogId}/categories`,
+        { headers: await authHeaders(), params: { includeItems: true } }
+      )
+      return res.data
+    })
     return Array.isArray(data) ? data : []
   } catch (err) {
     throw ifoodError('getCatalogCategories', err)
