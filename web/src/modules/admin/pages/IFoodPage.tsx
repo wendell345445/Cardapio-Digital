@@ -188,8 +188,11 @@ export function IFoodPage() {
                 <strong>Menu Panda</strong> na sua loja.
               </li>
               <li>
-                Copie o <strong>ID da sua loja</strong> no iFood (um código UUID) e cole abaixo.
+                No menu lateral do portal, vá em <strong>Perfil</strong> (ou{' '}
+                <strong>Minha Loja → Loja</strong>) e copie o <strong>ID da loja</strong> — um código
+                longo tipo <code className="text-xs bg-gray-100 px-1 rounded">aaae78f1-7e05-…</code>.
               </li>
+              <li>Cole o ID abaixo e confirme.</li>
             </ol>
             <a
               href="https://portal.ifood.com.br"
@@ -243,7 +246,7 @@ export function IFoodPage() {
                   value={merchantIdInput}
                   onChange={(e) => setMerchantIdInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCheckMerchant()}
-                  placeholder="ID da sua loja no iFood (UUID)"
+                  placeholder="Cole aqui o ID da loja (ex: aaae78f1-7e05-4e1e-…)"
                   className="flex-1 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400 outline-none"
                 />
                 <button
