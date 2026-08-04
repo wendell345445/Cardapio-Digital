@@ -30,6 +30,14 @@ jest.mock('../../admin/cashflow.service', () => ({
   linkOrderToCashFlow: jest.fn().mockResolvedValue(undefined),
 }))
 
+jest.mock('../../admin/print.service', () => ({
+  autoPrintOrder: jest.fn().mockResolvedValue(undefined),
+}))
+
+jest.mock('../actions.service', () => ({
+  reflectStatusToIFood: jest.fn().mockResolvedValue(undefined),
+}))
+
 jest.mock('../../../shared/ifood/ifood.service', () => ({
   getOrder: jest.fn(),
 }))
@@ -47,7 +55,9 @@ jest.mock('../../../shared/utils/store-lock', () => ({
 import { prisma } from '../../../shared/prisma/prisma'
 import { emit } from '../../../shared/socket/socket'
 import { linkOrderToCashFlow } from '../../admin/cashflow.service'
+import { autoPrintOrder } from '../../admin/print.service'
 import { getOrder, type IFoodOrder } from '../../../shared/ifood/ifood.service'
+import { reflectStatusToIFood } from '../actions.service'
 import { mapIFoodOrder, processIFoodEvent } from '../ingest.service'
 
 const STORE = { id: 'store-1', autoConfirmOrders: false }
@@ -137,7 +147,31 @@ describe('processIFoodEvent — dedup e ACK', () => {
     ;(prisma.iFoodEventLog.update as jest.Mock).mockResolvedValue({})
     // resetAllMocks limpa a impl do factory mock (CLAUDE.md gotcha #2) — re-aplica.
     ;(linkOrderToCashFlow as jest.Mock).mockResolvedValue(undefined)
+    ;(autoPrintOrder as jest.Mock).mockResolvedValue(undefined)
+    ;(reflectStatusToIFood as jest.Mock).mockResolvedValue(undefined)
   })
+
+  // createLocalOrder dispara reflect/print via setImmediate — flush a fila.
+  const flushImmediate = () => new Promise((r) => setImmediate(r))
+
+  function mockPlacedCreate() {
+    ;(prisma.iFoodEventLog.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(prisma.order.findFirst as jest.Mock).mockResolvedValue({ number: 41 })
+    ;(getOrder as jest.Mock).mockResolvedValue({
+      id: 'if-1',
+      orderType: 'DELIVERY',
+      total: { orderAmount: 10, deliveryFee: 0 },
+      customer: { name: 'Cli' },
+      items: [],
+    })
+    ;(prisma.$transaction as jest.Mock).mockImplementation(async (fn) =>
+      fn({
+        order: { create: jest.fn().mockResolvedValue({ id: 'order-1', items: [] }) },
+        iFoodOrderMap: { create: jest.fn().mockResolvedValue({}) },
+      })
+    )
+  }
 
   it('evento já processado (processedAt) → no-op', async () => {
     ;(prisma.iFoodEventLog.findUnique as jest.Mock).mockResolvedValue({ processedAt: new Date() })
@@ -173,6 +207,28 @@ describe('processIFoodEvent — dedup e ACK', () => {
     expect(prisma.iFoodEventLog.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ processedAt: expect.any(Date) }) })
     )
+  })
+
+  it('auto-confirm OFF: pedido nasce WAITING_CONFIRMATION e NÃO reflete confirm pro iFood', async () => {
+    mockPlacedCreate()
+
+    await processIFoodEvent({ id: 'store-1', autoConfirmOrders: false }, { id: 'ev-2b', orderId: 'if-1', code: 'PLACED' })
+    await flushImmediate()
+
+    expect(reflectStatusToIFood).not.toHaveBeenCalled()
+    expect(autoPrintOrder).not.toHaveBeenCalled()
+  })
+
+  it('auto-confirm ON: pedido nasce CONFIRMED e REFLETE confirm pro iFood + auto-print', async () => {
+    mockPlacedCreate()
+
+    await processIFoodEvent({ id: 'store-1', autoConfirmOrders: true }, { id: 'ev-2c', orderId: 'if-1', code: 'PLACED' })
+    await flushImmediate()
+
+    // O bug corrigido: com auto-confirm, o iFood PRECISA receber o confirmOrder
+    // (senão cancela o pedido por timeout), mesmo sem passar por updateOrderStatus.
+    expect(reflectStatusToIFood).toHaveBeenCalledWith('store-1', 'order-1', 'CONFIRMED')
+    expect(autoPrintOrder).toHaveBeenCalledWith('order-1')
   })
 
   it('PLACED duplicado (map já existe) não recria o pedido', async () => {

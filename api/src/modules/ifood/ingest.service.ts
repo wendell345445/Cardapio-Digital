@@ -1,9 +1,12 @@
 import { linkOrderToCashFlow } from '../admin/cashflow.service'
+import { autoPrintOrder } from '../admin/print.service'
 import { asaasLogger } from '../../shared/logger/logger'
 import { prisma } from '../../shared/prisma/prisma'
 import { emit } from '../../shared/socket/socket'
 import { withStoreLock } from '../../shared/utils/store-lock'
 import { getOrder, type IFoodEvent, type IFoodOrder } from '../../shared/ifood/ifood.service'
+
+import { reflectStatusToIFood } from './actions.service'
 
 // ─── Ingestão de pedidos iFood → Order local ──────────────────────────────────
 // Robustez: dedup em 2 camadas (IFoodEventLog.eventId + IFoodOrderMap.ifoodOrderId),
@@ -194,6 +197,25 @@ async function createLocalOrder(
   )
   emit.orderNew(store.id, order)
   emit.orderUpdated(store.id, order)
+
+  // Auto-confirm ON: o pedido nasceu CONFIRMED SEM passar por updateOrderStatus, então
+  // os side-effects de confirmação não dispararam. Replica aqui os mesmos do
+  // updateOrderStatus(→CONFIRMED): (1) reflete `confirmOrder` pro iFood — CRÍTICO, senão
+  // o iFood cancela o pedido por falta de confirmação no prazo (≤8min); (2) auto-print.
+  // Fire-and-forget (setImmediate + .catch) pra nunca derrubar a ingestão.
+  if (status === 'CONFIRMED') {
+    setImmediate(() =>
+      reflectStatusToIFood(store.id, order.id, 'CONFIRMED').catch((err) =>
+        asaasLogger.error({ err, orderId: order.id }, 'ifood: reflect CONFIRMED on auto-confirm failed')
+      )
+    )
+    setImmediate(() =>
+      autoPrintOrder(order.id).catch((err) =>
+        asaasLogger.error({ err, orderId: order.id }, 'ifood: autoPrint on auto-confirm failed')
+      )
+    )
+  }
+
   asaasLogger.info({ storeId: store.id, orderId: order.id, ifoodOrderId: ifoodOrder.id }, 'ifood order created')
 }
 

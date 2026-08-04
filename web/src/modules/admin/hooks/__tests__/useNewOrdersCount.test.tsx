@@ -64,10 +64,15 @@ describe('useNewOrdersCount', () => {
     const { result } = renderHook(() => useNewOrdersCount(), { wrapper })
 
     await waitFor(() => expect(result.current.count).toBe(3))
-    expect(fetchOrdersMock).toHaveBeenCalledWith({
-      status: 'WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION',
-      limit: 100,
-    })
+    // Badge conta só os "Novos" de HOJE (janela dateFrom/dateTo) pra bater com o board.
+    expect(fetchOrdersMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'WAITING_PAYMENT_PROOF,WAITING_CONFIRMATION',
+        limit: 100,
+        dateFrom: expect.any(String),
+        dateTo: expect.any(String),
+      })
+    )
   })
 
   it('registra listeners para order:new e order:status', () => {
