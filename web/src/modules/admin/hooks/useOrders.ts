@@ -52,8 +52,11 @@ export function useUpdateOrderStatus() {
 export function useAssignMotoboy() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, motoboyId }: { id: string; motoboyId: string }) =>
-      assignMotoboy(id, motoboyId),
+    mutationFn: ({
+      id,
+      ...body
+    }: { id: string } & ({ motoboyId: string } | { externalCourierName: string })) =>
+      assignMotoboy(id, body),
     onSuccess: (updatedOrder) => {
       qc.invalidateQueries({ queryKey: ['orders'] })
       qc.invalidateQueries({ queryKey: ['order', updatedOrder.id] })

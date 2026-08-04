@@ -318,20 +318,26 @@ export async function assignMotoboy(
     throw new AppError('Motoboy só pode ser atribuído a pedidos de entrega', 422)
   }
 
-  const motoboy = await prisma.user.findFirst({
-    where: { id: input.motoboyId, storeId, role: 'MOTOBOY' },
-    select: { id: true, name: true, whatsapp: true },
-  })
-
-  if (!motoboy) {
-    throw new AppError('Motoboy não encontrado nesta loja', 404)
+  // Dois modos de despacho (o schema garante exatamente um):
+  //  - motoboy CADASTRADO (motoboyId) → valida na loja, notifica por WhatsApp.
+  //  - entregador AVULSO (externalCourierName) → nome livre, sem cadastro nem notificação.
+  let motoboy: { id: string; name: string | null; whatsapp: string | null } | null = null
+  if (input.motoboyId) {
+    motoboy = await prisma.user.findFirst({
+      where: { id: input.motoboyId, storeId, role: 'MOTOBOY' },
+      select: { id: true, name: true, whatsapp: true },
+    })
+    if (!motoboy) {
+      throw new AppError('Motoboy não encontrado nesta loja', 404)
+    }
   }
 
   const now = new Date()
   const updated = await prisma.order.update({
     where: { id: orderId },
     data: {
-      motoboyId: motoboy.id,
+      motoboyId: motoboy?.id ?? null,
+      externalCourierName: input.externalCourierName ?? null,
       status: 'DISPATCHED',
       dispatchedAt: now,
     },
@@ -356,8 +362,8 @@ export async function assignMotoboy(
     )
   )
 
-  // Fire-and-forget WhatsApp to motoboy
-  if (motoboy.whatsapp) {
+  // Fire-and-forget WhatsApp to motoboy (só motoboy cadastrado tem WhatsApp; avulso não)
+  if (motoboy?.whatsapp) {
     sendMotoboyAssignedMessage(storeId, motoboy.whatsapp, {
       number: order.number,
       clientName: order.clientName,
@@ -395,7 +401,9 @@ export async function assignMotoboy(
       action: 'order.motoboy_assigned',
       entity: 'Order',
       entityId: orderId,
-      data: { motoboyId: motoboy.id, motoboyName: motoboy.name },
+      data: motoboy
+        ? { motoboyId: motoboy.id, motoboyName: motoboy.name }
+        : { externalCourierName: input.externalCourierName },
       ip,
     },
   })

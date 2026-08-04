@@ -393,6 +393,9 @@ model Order {
   tableSessionId         String?
   deviceName             String?
   motoboyId              String?
+  // Entregador avulso/terceiro (não cadastrado como User MOTOBOY): nome livre.
+  // Exclusivo com motoboyId — o despacho usa um OU outro.
+  externalCourierName    String?
   couponId               String?
   deliveryNeighborhoodId String?
   scheduledFor           DateTime?

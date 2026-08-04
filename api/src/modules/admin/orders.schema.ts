@@ -14,9 +14,16 @@ export const updateOrderStatusSchema = z.object({
   cancelReason: z.string().optional(),
 })
 
-export const assignMotoboySchema = z.object({
-  motoboyId: z.string().uuid(),
-})
+// Despacho: motoboy CADASTRADO (motoboyId) OU entregador AVULSO (externalCourierName).
+// Exatamente um dos dois — não ambos, não nenhum.
+export const assignMotoboySchema = z
+  .object({
+    motoboyId: z.string().uuid().optional(),
+    externalCourierName: z.string().trim().min(1).max(120).optional(),
+  })
+  .refine((d) => Boolean(d.motoboyId) !== Boolean(d.externalCourierName), {
+    message: 'Informe um motoboy cadastrado OU o nome de um entregador avulso (não ambos).',
+  })
 
 export const listOrdersSchema = z.object({
   status: z.string().optional(),

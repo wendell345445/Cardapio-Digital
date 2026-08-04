@@ -40,6 +40,7 @@ export interface Order {
   tableId?: string | null
   motoboyId?: string | null
   motoboy?: { id: string; name?: string | null } | null
+  externalCourierName?: string | null
   client?: { id: string; name?: string | null; whatsapp: string } | null
   coupon?: { id: string; code: string } | null
   items: OrderItem[]
@@ -151,8 +152,11 @@ export async function updateOrderStatus(
   return data.data
 }
 
-export async function assignMotoboy(id: string, motoboyId: string): Promise<Order> {
-  const { data } = await api.patch(`/admin/orders/${id}/motoboy`, { motoboyId })
+export async function assignMotoboy(
+  id: string,
+  body: { motoboyId: string } | { externalCourierName: string }
+): Promise<Order> {
+  const { data } = await api.patch(`/admin/orders/${id}/motoboy`, body)
   return data.data
 }
 

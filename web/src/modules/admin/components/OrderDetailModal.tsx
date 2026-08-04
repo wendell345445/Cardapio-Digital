@@ -101,6 +101,8 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
   const [cancelReason, setCancelReason] = useState('')
   const [showMotoboyPicker, setShowMotoboyPicker] = useState(false)
   const [selectedMotoboyId, setSelectedMotoboyId] = useState('')
+  // '__external__' = entregador avulso (não cadastrado) → digita o nome livre.
+  const [externalCourierName, setExternalCourierName] = useState('')
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressForm, setAddressForm] = useState<OrderAddress>({
     zipCode: '',
@@ -152,16 +154,20 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
 
   function handleAssignMotoboy(e: React.FormEvent) {
     e.preventDefault()
-    if (!order || !selectedMotoboyId) return
-    assignMotoboy.mutate(
-      { id: order.id, motoboyId: selectedMotoboyId },
-      {
-        onSuccess: () => {
-          setShowMotoboyPicker(false)
-          setSelectedMotoboyId('')
-        },
-      }
-    )
+    if (!order) return
+    const isExternal = selectedMotoboyId === '__external__'
+    // motoboy cadastrado OU entregador avulso (nome livre) — exatamente um.
+    const payload = isExternal
+      ? { id: order.id, externalCourierName: externalCourierName.trim() }
+      : { id: order.id, motoboyId: selectedMotoboyId }
+    if (isExternal ? !externalCourierName.trim() : !selectedMotoboyId) return
+    assignMotoboy.mutate(payload, {
+      onSuccess: () => {
+        setShowMotoboyPicker(false)
+        setSelectedMotoboyId('')
+        setExternalCourierName('')
+      },
+    })
   }
 
   // Endereço selecionado no AddressAutocompleteOSM: popula o form.
@@ -376,11 +382,14 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                 </div>
               )}
 
-              {/* Motoboy */}
-              {order.motoboy && (
+              {/* Entregador: motoboy cadastrado OU avulso (nome livre) */}
+              {(order.motoboy || order.externalCourierName) && (
                 <div className="text-sm text-gray-700">
                   <span className="font-medium">Entregador:</span>{' '}
-                  {order.motoboy.name ?? 'Não identificado'}
+                  {order.motoboy?.name ?? order.externalCourierName ?? 'Não identificado'}
+                  {!order.motoboy && order.externalCourierName && (
+                    <span className="text-xs text-gray-400"> (avulso)</span>
+                  )}
                 </div>
               )}
 
@@ -527,11 +536,27 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                               {m.name}
                             </option>
                           ))}
+                          <option value="__external__">Outro entregador (avulso)…</option>
                         </select>
+                        {selectedMotoboyId === '__external__' && (
+                          <input
+                            type="text"
+                            value={externalCourierName}
+                            onChange={(e) => setExternalCourierName(e.target.value)}
+                            placeholder="Nome do entregador (ex: João, Lalamove)"
+                            maxLength={120}
+                            autoFocus
+                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        )}
                         <div className="flex gap-2">
                           <button
                             type="submit"
-                            disabled={assignMotoboy.isPending || !selectedMotoboyId}
+                            disabled={
+                              assignMotoboy.isPending ||
+                              !selectedMotoboyId ||
+                              (selectedMotoboyId === '__external__' && !externalCourierName.trim())
+                            }
                             className="flex-1 rounded-lg bg-indigo-600 text-white py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
                           >
                             {assignMotoboy.isPending ? 'Atribuindo...' : 'Confirmar'}

@@ -529,6 +529,24 @@ describe('assignMotoboy', () => {
     ;(mockPrisma.auditLog.create as jest.Mock).mockResolvedValue({})
   }
 
+  it('atribui ENTREGADOR AVULSO (externalCourierName) e despacha, sem exigir motoboy cadastrado', async () => {
+    setupAssignMocks()
+
+    await assignMotoboy(STORE_ID, ORDER_ID, { externalCourierName: 'João - Lalamove' }, USER_ID, IP)
+
+    // não busca motoboy cadastrado, e grava o nome avulso + DISPATCHED
+    expect(mockPrisma.user.findFirst).not.toHaveBeenCalled()
+    expect(mockPrisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          motoboyId: null,
+          externalCourierName: 'João - Lalamove',
+          status: 'DISPATCHED',
+        }),
+      })
+    )
+  })
+
   it('atribui motoboy e muda status para DISPATCHED', async () => {
     setupAssignMocks()
 
