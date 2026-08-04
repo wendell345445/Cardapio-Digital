@@ -9,7 +9,6 @@ import {
   dispatchOrder,
   getCancellationReasons,
   readyToPickupOrder,
-  startPreparationOrder,
 } from '../../shared/ifood/ifood.service'
 
 // ─── Ações de volta: status local (Kanban) → iFood ────────────────────────────
@@ -50,10 +49,9 @@ export async function reflectStatusToIFood(
         case 'CONFIRMED':
           await confirmOrder(ifoodOrderId)
           break
-        case 'PREPARING':
-          // Opcional na doc iFood, mas recomendado — o cliente vê "em preparo" no app.
-          await startPreparationOrder(ifoodOrderId)
-          break
+        // PREPARING (Em preparo) é controle INTERNO do Menu Panda ("foi pra cozinha") —
+        // NÃO reflete pro iFood (startPreparation é opcional na doc; a confirmação já
+        // avisou o cliente). Decisão de produto: arrastar pra Em preparo não notifica o iFood.
         case 'READY':
           // Coluna "Saiu pra entrega" pra RETIRADA → readyToPickup (obrigatório takeout).
           // Pra DELIVERY, READY não tem ação (o dispatch é quem avisa "saiu").

@@ -60,12 +60,13 @@ describe('reflectStatusToIFood', () => {
     expect(confirmOrder).toHaveBeenCalledWith('if-1')
   })
 
-  it('PREPARING → startPreparation (Em preparo reflete pro iFood)', async () => {
+  it('PREPARING → nenhuma ação (Em preparo é controle interno, não reflete pro iFood)', async () => {
     mockMap('DELIVERY')
 
     await reflectStatusToIFood('store-1', 'order-1', 'PREPARING')
 
-    expect(startPreparationOrder).toHaveBeenCalledWith('if-1')
+    expect(startPreparationOrder).not.toHaveBeenCalled()
+    expect(dispatchOrder).not.toHaveBeenCalled()
   })
 
   it('DELIVERY + DISPATCHED → dispatchOrder', async () => {
