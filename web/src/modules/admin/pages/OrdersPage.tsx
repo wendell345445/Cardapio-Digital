@@ -141,7 +141,7 @@ const ACTIVE_COLUMN_CONFIG = [
   },
   {
     id: 'saiu_entrega',
-    label: 'Saiu pra entrega',
+    label: 'Pronto / Saiu para entregar',
     statuses: ['READY', 'DISPATCHED'],
     color: 'border-green-200',
     headerColor: 'bg-green-50',
@@ -371,15 +371,27 @@ function OrderCard({
                 →
               </button>
             )}
-            {order.status === 'READY' && order.type === 'DELIVERY' && (
-              <button
-                onClick={() => onViewDetail(order.id)}
-                className="rounded-md bg-indigo-600 text-white px-2 py-1 text-xs font-bold hover:bg-indigo-700 transition-colors"
-                title="Atribuir motoboy"
-              >
-                🛵
-              </button>
-            )}
+            {/* Pedido de logística iFood: não há motoboy da loja pra atribuir — o
+                entregador é do iFood e o card avança sozinho quando o iFood coleta.
+                Pra entrega própria (loja/MERCHANT) mantém o botão de atribuir motoboy. */}
+            {order.status === 'READY' &&
+              order.type === 'DELIVERY' &&
+              order.ifoodDeliveredBy !== 'IFOOD' && (
+                <button
+                  onClick={() => onViewDetail(order.id)}
+                  className="rounded-md bg-indigo-600 text-white px-2 py-1 text-xs font-bold hover:bg-indigo-700 transition-colors"
+                  title="Atribuir motoboy"
+                >
+                  🛵
+                </button>
+              )}
+            {order.status === 'READY' &&
+              order.type === 'DELIVERY' &&
+              order.ifoodDeliveredBy === 'IFOOD' && (
+                <span className="text-[10px] text-gray-400" title="A entrega é feita pelo iFood">
+                  🛵 iFood
+                </span>
+              )}
           </div>
 
           {/* M-012: "Confirmar recebimento" — motoboy retornou ou admin recebeu na loja */}
@@ -453,12 +465,14 @@ function KanbanColumn({
       }`}
     >
       <div className={`px-4 py-3 rounded-t-xl ${col.headerColor} border-b ${col.color}`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className={`w-4 h-4 ${col.iconColor}`} />
-            <span className="text-sm font-bold text-gray-700">{col.label}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Icon className={`w-4 h-4 shrink-0 ${col.iconColor}`} />
+            <span className="text-xs font-bold text-gray-700 truncate" title={col.label}>
+              {col.label}
+            </span>
           </div>
-          <span className="text-xs font-semibold text-gray-500">
+          <span className="text-xs font-semibold text-gray-500 shrink-0 whitespace-nowrap">
             {orders.length} {orders.length === 1 ? 'pedido' : 'pedidos'}
           </span>
         </div>

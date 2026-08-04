@@ -39,6 +39,7 @@ function eventCode(event: IFoodEvent): string {
 
 interface MappedOrder {
   type: 'DELIVERY' | 'PICKUP'
+  deliveredBy: string | null // iFood: 'MERCHANT' | 'IFOOD' (só DELIVERY)
   subtotal: number
   deliveryFee: number
   discount: number
@@ -67,6 +68,12 @@ export function mapIFoodOrder(o: IFoodOrder): MappedOrder {
   const subTotal = num(total?.subTotal, Math.max(0, orderAmount - deliveryFee))
 
   const type = (o.orderType || '').toUpperCase() === 'TAKEOUT' ? 'PICKUP' : 'DELIVERY'
+
+  // Quem faz a entrega: 'MERCHANT' (loja despacha) ou 'IFOOD' (logística iFood). Decide
+  // se o "saiu pra entrega" é ação nossa (dispatch) ou reflexo passivo do evento iFood.
+  const deliveredByRaw = (o.delivery as { deliveredBy?: string } | undefined)?.deliveredBy
+  const deliveredBy =
+    type === 'DELIVERY' && typeof deliveredByRaw === 'string' ? deliveredByRaw.toUpperCase() : null
 
   // Endereço de entrega (só DELIVERY). Shape defensivo.
   let address: Record<string, unknown> | null = null
@@ -119,6 +126,7 @@ export function mapIFoodOrder(o: IFoodOrder): MappedOrder {
 
   return {
     type,
+    deliveredBy,
     subtotal: subTotal,
     deliveryFee,
     discount: 0,
@@ -162,6 +170,7 @@ async function createLocalOrder(
         confirmedAt: status === 'CONFIRMED' ? new Date() : null,
         clientName: m.clientName,
         clientWhatsapp: null, // phone do iFood é localizador ofuscado, não WhatsApp real
+        ifoodDeliveredBy: m.deliveredBy,
         deliveryFee: m.deliveryFee,
         subtotal: m.subtotal,
         discount: m.discount,

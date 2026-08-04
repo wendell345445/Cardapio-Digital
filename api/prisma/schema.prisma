@@ -402,6 +402,9 @@ model Order {
   deliveredAt            DateTime?
   cancelledAt            DateTime?
   cancellationReason     String?
+  // iFood: quem faz a entrega — 'MERCHANT' (loja despacha via dispatch) ou 'IFOOD'
+  // (logística iFood; o dispatch vem do evento quando o entregador coleta). NULL = não-iFood.
+  ifoodDeliveredBy       String?
   deliveryIssueReason    String?
   notifyOnStatusChange   Boolean       @default(false)
   customerSessionId      String?

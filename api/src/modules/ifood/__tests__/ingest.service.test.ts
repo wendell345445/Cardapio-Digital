@@ -71,6 +71,7 @@ describe('mapIFoodOrder', () => {
       total: { orderAmount: 55.5, deliveryFee: 5.5, subTotal: 50 },
       customer: { name: 'João', phone: { localizer: '551140028922' } },
       delivery: {
+        deliveredBy: 'MERCHANT',
         deliveryAddress: {
           streetName: 'Rua A',
           streetNumber: '100',
@@ -95,6 +96,7 @@ describe('mapIFoodOrder', () => {
 
     const m = mapIFoodOrder(order)
     expect(m.type).toBe('DELIVERY')
+    expect(m.deliveredBy).toBe('MERCHANT')
     expect(m.total).toBe(55.5)
     expect(m.deliveryFee).toBe(5.5)
     expect(m.subtotal).toBe(50)

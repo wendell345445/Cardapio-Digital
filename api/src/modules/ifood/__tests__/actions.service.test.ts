@@ -30,12 +30,12 @@ import {
 } from '../../../shared/ifood/ifood.service'
 import { reflectStatusToIFood } from '../actions.service'
 
-// mock do map com o type do pedido (DELIVERY default)
-function mockMap(type: 'DELIVERY' | 'PICKUP' = 'DELIVERY') {
+// mock do map com type + deliveredBy do pedido (DELIVERY/MERCHANT default)
+function mockMap(type: 'DELIVERY' | 'PICKUP' = 'DELIVERY', deliveredBy: string | null = 'MERCHANT') {
   ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
     ifoodOrderId: 'if-1',
     storeId: 'store-1',
-    order: { type },
+    order: { type, ifoodDeliveredBy: deliveredBy },
   })
 }
 
@@ -69,26 +69,8 @@ describe('reflectStatusToIFood', () => {
     expect(dispatchOrder).not.toHaveBeenCalled()
   })
 
-  it('DELIVERY + DISPATCHED → dispatchOrder', async () => {
-    mockMap('DELIVERY')
-
-    await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
-
-    expect(dispatchOrder).toHaveBeenCalledWith('if-1')
-    expect(readyToPickupOrder).not.toHaveBeenCalled()
-  })
-
-  it('DELIVERY + READY → nenhuma ação (dispatch é quem avisa "saiu")', async () => {
-    mockMap('DELIVERY')
-
-    await reflectStatusToIFood('store-1', 'order-1', 'READY')
-
-    expect(readyToPickupOrder).not.toHaveBeenCalled()
-    expect(dispatchOrder).not.toHaveBeenCalled()
-  })
-
-  it('PICKUP + READY → readyToPickup (retirada)', async () => {
-    mockMap('PICKUP')
+  it('READY (delivery MERCHANT) → readyToPickup (marca pronto)', async () => {
+    mockMap('DELIVERY', 'MERCHANT')
 
     await reflectStatusToIFood('store-1', 'order-1', 'READY')
 
@@ -96,8 +78,40 @@ describe('reflectStatusToIFood', () => {
     expect(dispatchOrder).not.toHaveBeenCalled()
   })
 
-  it('PICKUP + DISPATCHED → nenhuma ação (retirada não despacha)', async () => {
-    mockMap('PICKUP')
+  it('READY (retirada) → readyToPickup', async () => {
+    mockMap('PICKUP', null)
+
+    await reflectStatusToIFood('store-1', 'order-1', 'READY')
+
+    expect(readyToPickupOrder).toHaveBeenCalledWith('if-1')
+  })
+
+  it('DISPATCHED (delivery MERCHANT / entrega própria) → dispatchOrder', async () => {
+    mockMap('DELIVERY', 'MERCHANT')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
+
+    expect(dispatchOrder).toHaveBeenCalledWith('if-1')
+  })
+
+  it('DISPATCHED (delivery IFOOD / logística iFood) → NÃO despacha (iFood despacha sozinho)', async () => {
+    mockMap('DELIVERY', 'IFOOD')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
+
+    expect(dispatchOrder).not.toHaveBeenCalled()
+  })
+
+  it('DISPATCHED sem deliveredBy (pedido antigo/NULL) → despacha como MERCHANT (conservador)', async () => {
+    mockMap('DELIVERY', null)
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
+
+    expect(dispatchOrder).toHaveBeenCalledWith('if-1')
+  })
+
+  it('DISPATCHED (retirada) → não despacha', async () => {
+    mockMap('PICKUP', null)
 
     await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
 

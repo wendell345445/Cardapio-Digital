@@ -33,15 +33,23 @@ export async function reflectStatusToIFood(
   orderId: string,
   newStatus: string
 ): Promise<void> {
-  // Só age se o pedido veio do iFood. Precisa do type pra escolher dispatch vs readyToPickup.
+  // Só age se o pedido veio do iFood. Precisa de type + deliveredBy pra ramificar.
   const map = await prisma.iFoodOrderMap.findUnique({
     where: { orderId },
-    select: { ifoodOrderId: true, storeId: true, order: { select: { type: true } } },
+    select: {
+      ifoodOrderId: true,
+      storeId: true,
+      order: { select: { type: true, ifoodDeliveredBy: true } },
+    },
   })
   if (!map || map.storeId !== storeId) return
 
   const ifoodOrderId = map.ifoodOrderId
   const isPickup = map.order?.type === 'PICKUP'
+  // Entrega própria da loja (MERCHANT) → a loja despacha. Logística iFood (IFOOD) → o
+  // iFood despacha sozinho quando o entregador coleta (não chamamos dispatch). NULL
+  // (pedido antigo sem o dado) → trata como MERCHANT (comportamento anterior, conservador).
+  const isMerchantDelivery = map.order?.ifoodDeliveredBy !== 'IFOOD'
 
   await withStoreLock(storeId, async () => {
     try {
@@ -50,17 +58,18 @@ export async function reflectStatusToIFood(
           await confirmOrder(ifoodOrderId)
           break
         // PREPARING (Em preparo) é controle INTERNO do Menu Panda ("foi pra cozinha") —
-        // NÃO reflete pro iFood (startPreparation é opcional na doc; a confirmação já
-        // avisou o cliente). Decisão de produto: arrastar pra Em preparo não notifica o iFood.
+        // NÃO reflete pro iFood (a confirmação já avisou o cliente).
         case 'READY':
-          // Coluna "Saiu pra entrega" pra RETIRADA → readyToPickup (obrigatório takeout).
-          // Pra DELIVERY, READY não tem ação (o dispatch é quem avisa "saiu").
-          if (isPickup) await readyToPickupOrder(ifoodOrderId)
-          else return
+          // Card entra em "Pronto / Saiu para entregar" → marca PRONTO no iFood
+          // (readyToPickup). Serve pra RETIRADA e DELIVERY (nos dois casos sinaliza
+          // que o pedido está pronto pro cliente/entregador). É idempotente.
+          await readyToPickupOrder(ifoodOrderId)
           break
         case 'DISPATCHED':
-          // Só DELIVERY despacha; retirada usa readyToPickup (tratado em READY).
-          if (isPickup) return
+          // "Saiu / em rota" (atribuir motoboy). Retirada não despacha. DELIVERY só
+          // despacha se a entrega é da LOJA (MERCHANT). Se é logística iFood, o
+          // dispatch vem do evento quando o entregador do iFood coleta — não chamamos.
+          if (isPickup || !isMerchantDelivery) return
           await dispatchOrder(ifoodOrderId)
           break
         case 'CANCELLED': {

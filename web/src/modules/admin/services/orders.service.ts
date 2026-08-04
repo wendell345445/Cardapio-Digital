@@ -52,6 +52,8 @@ export interface Order {
   deliveryIssueReason?: string | null
   paymentReceivedAt?: string | null
   paymentReceivedBy?: { id: string; name?: string | null; role?: string } | null
+  // iFood: 'MERCHANT' (loja entrega) | 'IFOOD' (logística iFood) | null (não-iFood).
+  ifoodDeliveredBy?: string | null
 }
 
 export interface ListOrdersParams {
