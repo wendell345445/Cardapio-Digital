@@ -15,6 +15,8 @@ jest.mock('../../../shared/ifood/ifood.service', () => ({
   dispatchOrder: jest.fn(),
   cancelOrder: jest.fn(),
   getCancellationReasons: jest.fn(),
+  startPreparationOrder: jest.fn(),
+  readyToPickupOrder: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
@@ -23,8 +25,19 @@ import {
   confirmOrder,
   dispatchOrder,
   getCancellationReasons,
+  readyToPickupOrder,
+  startPreparationOrder,
 } from '../../../shared/ifood/ifood.service'
 import { reflectStatusToIFood } from '../actions.service'
+
+// mock do map com o type do pedido (DELIVERY default)
+function mockMap(type: 'DELIVERY' | 'PICKUP' = 'DELIVERY') {
+  ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
+    ifoodOrderId: 'if-1',
+    storeId: 'store-1',
+    order: { type },
+  })
+}
 
 describe('reflectStatusToIFood', () => {
   beforeEach(() => {
@@ -40,32 +53,58 @@ describe('reflectStatusToIFood', () => {
   })
 
   it('CONFIRMED → confirmOrder', async () => {
-    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
-      ifoodOrderId: 'if-1',
-      storeId: 'store-1',
-    })
+    mockMap()
 
     await reflectStatusToIFood('store-1', 'order-1', 'CONFIRMED')
 
     expect(confirmOrder).toHaveBeenCalledWith('if-1')
   })
 
-  it('DISPATCHED → dispatchOrder', async () => {
-    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
-      ifoodOrderId: 'if-1',
-      storeId: 'store-1',
-    })
+  it('PREPARING → startPreparation (Em preparo reflete pro iFood)', async () => {
+    mockMap('DELIVERY')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'PREPARING')
+
+    expect(startPreparationOrder).toHaveBeenCalledWith('if-1')
+  })
+
+  it('DELIVERY + DISPATCHED → dispatchOrder', async () => {
+    mockMap('DELIVERY')
 
     await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
 
     expect(dispatchOrder).toHaveBeenCalledWith('if-1')
+    expect(readyToPickupOrder).not.toHaveBeenCalled()
+  })
+
+  it('DELIVERY + READY → nenhuma ação (dispatch é quem avisa "saiu")', async () => {
+    mockMap('DELIVERY')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'READY')
+
+    expect(readyToPickupOrder).not.toHaveBeenCalled()
+    expect(dispatchOrder).not.toHaveBeenCalled()
+  })
+
+  it('PICKUP + READY → readyToPickup (retirada)', async () => {
+    mockMap('PICKUP')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'READY')
+
+    expect(readyToPickupOrder).toHaveBeenCalledWith('if-1')
+    expect(dispatchOrder).not.toHaveBeenCalled()
+  })
+
+  it('PICKUP + DISPATCHED → nenhuma ação (retirada não despacha)', async () => {
+    mockMap('PICKUP')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DISPATCHED')
+
+    expect(dispatchOrder).not.toHaveBeenCalled()
   })
 
   it('CANCELLED busca motivo e cancela', async () => {
-    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
-      ifoodOrderId: 'if-1',
-      storeId: 'store-1',
-    })
+    mockMap('DELIVERY')
     ;(getCancellationReasons as jest.Mock).mockResolvedValue([
       { cancelCodeId: '501', description: 'Problema no restaurante' },
     ])
@@ -76,25 +115,10 @@ describe('reflectStatusToIFood', () => {
   })
 
   it('erro "already confirmed" é tratado como sucesso (idempotente)', async () => {
-    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
-      ifoodOrderId: 'if-1',
-      storeId: 'store-1',
-    })
+    mockMap('DELIVERY')
     ;(confirmOrder as jest.Mock).mockRejectedValue(new Error('Order already CONFIRMED'))
 
     // não deve lançar
     await expect(reflectStatusToIFood('store-1', 'order-1', 'CONFIRMED')).resolves.toBeUndefined()
-  })
-
-  it('PREPARING/READY não têm ação direta no iFood', async () => {
-    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
-      ifoodOrderId: 'if-1',
-      storeId: 'store-1',
-    })
-
-    await reflectStatusToIFood('store-1', 'order-1', 'PREPARING')
-
-    expect(confirmOrder).not.toHaveBeenCalled()
-    expect(dispatchOrder).not.toHaveBeenCalled()
   })
 })

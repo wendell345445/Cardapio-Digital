@@ -8,6 +8,8 @@ import {
   confirmOrder,
   dispatchOrder,
   getCancellationReasons,
+  readyToPickupOrder,
+  startPreparationOrder,
 } from '../../shared/ifood/ifood.service'
 
 // ─── Ações de volta: status local (Kanban) → iFood ────────────────────────────
@@ -32,14 +34,15 @@ export async function reflectStatusToIFood(
   orderId: string,
   newStatus: string
 ): Promise<void> {
-  // Só age se o pedido veio do iFood.
+  // Só age se o pedido veio do iFood. Precisa do type pra escolher dispatch vs readyToPickup.
   const map = await prisma.iFoodOrderMap.findUnique({
     where: { orderId },
-    select: { ifoodOrderId: true, storeId: true },
+    select: { ifoodOrderId: true, storeId: true, order: { select: { type: true } } },
   })
   if (!map || map.storeId !== storeId) return
 
   const ifoodOrderId = map.ifoodOrderId
+  const isPickup = map.order?.type === 'PICKUP'
 
   await withStoreLock(storeId, async () => {
     try {
@@ -47,7 +50,19 @@ export async function reflectStatusToIFood(
         case 'CONFIRMED':
           await confirmOrder(ifoodOrderId)
           break
+        case 'PREPARING':
+          // Opcional na doc iFood, mas recomendado — o cliente vê "em preparo" no app.
+          await startPreparationOrder(ifoodOrderId)
+          break
+        case 'READY':
+          // Coluna "Saiu pra entrega" pra RETIRADA → readyToPickup (obrigatório takeout).
+          // Pra DELIVERY, READY não tem ação (o dispatch é quem avisa "saiu").
+          if (isPickup) await readyToPickupOrder(ifoodOrderId)
+          else return
+          break
         case 'DISPATCHED':
+          // Só DELIVERY despacha; retirada usa readyToPickup (tratado em READY).
+          if (isPickup) return
           await dispatchOrder(ifoodOrderId)
           break
         case 'CANCELLED': {
@@ -61,7 +76,7 @@ export async function reflectStatusToIFood(
           }
           break
         }
-        // PREPARING/READY/DELIVERED não têm ação direta no iFood (confirm→dispatch cobre o fluxo).
+        // DELIVERED não tem ação direta (o iFood conclui sozinho após dispatch).
         default:
           return
       }

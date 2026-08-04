@@ -794,7 +794,7 @@ export function OrdersPage() {
             <span className="font-medium">Confirmação automática</span>
             <span className="text-gray-500 ml-1.5 text-xs">
               {autoConfirmOrders
-                ? '— pedidos novos vão direto para Em preparo e são enviados para a impressora'
+                ? '— pedidos novos já entram confirmados e são impressos; você só manda pra cozinha'
                 : '— exige aceitar cada pedido na coluna Novos'}
             </span>
           </p>
@@ -933,8 +933,9 @@ export function OrdersPage() {
               <div className="flex-1">
                 <h2 className="text-base font-bold text-gray-900">Ativar confirmação automática?</h2>
                 <p className="text-sm text-gray-600 mt-2">
-                  Pedidos novos vão direto para <span className="font-semibold">Em preparo</span>,
-                  e o pedido é impresso automaticamente (se você usar o Menuziprinter).
+                  Pedidos novos já entram <span className="font-semibold">confirmados</span> na coluna
+                  Novos (sem precisar aprovar um a um) e são impressos automaticamente (se você usar o
+                  Menuziprinter). Você ainda decide quando mandar cada um para a cozinha.
                 </p>
                 <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
                   <p className="font-semibold flex items-center gap-1.5">

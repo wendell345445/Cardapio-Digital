@@ -205,11 +205,30 @@ export async function confirmOrder(orderId: string): Promise<void> {
   }
 }
 
+/** Informa que começou o preparo (opcional, mas recomendado pela doc iFood). */
+export async function startPreparationOrder(orderId: string): Promise<void> {
+  try {
+    await getClient().post(`/order/v1.0/orders/${orderId}/startPreparation`, {}, { headers: await authHeaders() })
+  } catch (err) {
+    throw ifoodError('startPreparationOrder', err)
+  }
+}
+
+/** Despacho (DELIVERY): saiu pra entrega. */
 export async function dispatchOrder(orderId: string): Promise<void> {
   try {
     await getClient().post(`/order/v1.0/orders/${orderId}/dispatch`, {}, { headers: await authHeaders() })
   } catch (err) {
     throw ifoodError('dispatchOrder', err)
+  }
+}
+
+/** Pronto pra retirada (TAKEOUT/PICKUP): equivalente ao dispatch, mas pra retirada. */
+export async function readyToPickupOrder(orderId: string): Promise<void> {
+  try {
+    await getClient().post(`/order/v1.0/orders/${orderId}/readyToPickup`, {}, { headers: await authHeaders() })
+  } catch (err) {
+    throw ifoodError('readyToPickupOrder', err)
   }
 }
 
