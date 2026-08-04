@@ -232,6 +232,38 @@ export async function readyToPickupOrder(orderId: string): Promise<void> {
   }
 }
 
+/** Entregador chegou ao destino (logística) — passo antes de validar o código de entrega. */
+export async function arrivedAtDestinationOrder(orderId: string): Promise<void> {
+  try {
+    await getClient().post(
+      `/logistics/v1.0/orders/${orderId}/arrivedAtDestination`,
+      {},
+      { headers: await authHeaders() }
+    )
+  } catch (err) {
+    throw ifoodError('arrivedAtDestinationOrder', err)
+  }
+}
+
+/**
+ * Valida o código de entrega que o cliente informa ao entregador (pedidos com o evento
+ * DELIVERY_DROP_CODE_REQUESTED). Código válido → o iFood conclui o pedido. Retorna
+ * `true` se validou. NÃO lança em código inválido (400) — devolve false pra tratar na UI.
+ */
+export async function verifyDeliveryCode(orderId: string, code: string): Promise<boolean> {
+  try {
+    const res = await getClient().post(
+      `/order/v1.0/orders/${orderId}/verifyDeliveryCode`,
+      { code },
+      { headers: await authHeaders(), validateStatus: (s) => s === 200 || s === 400 }
+    )
+    // 200 = código válido (o iFood conclui). 400 = código inválido.
+    return res.status === 200
+  } catch (err) {
+    throw ifoodError('verifyDeliveryCode', err)
+  }
+}
+
 export async function getCancellationReasons(
   orderId: string
 ): Promise<{ cancelCodeId: string; description: string }[]> {

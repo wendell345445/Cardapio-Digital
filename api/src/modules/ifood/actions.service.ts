@@ -3,12 +3,15 @@ import { isAxiosError } from 'axios'
 import { logger } from '../../shared/logger/logger'
 import { prisma } from '../../shared/prisma/prisma'
 import { withStoreLock } from '../../shared/utils/store-lock'
+import { AppError } from '../../shared/middleware/error.middleware'
 import {
+  arrivedAtDestinationOrder,
   cancelOrder,
   confirmOrder,
   dispatchOrder,
   getCancellationReasons,
   readyToPickupOrder,
+  verifyDeliveryCode,
 } from '../../shared/ifood/ifood.service'
 
 // ─── Ações de volta: status local (Kanban) → iFood ────────────────────────────
@@ -83,7 +86,16 @@ export async function reflectStatusToIFood(
           }
           break
         }
-        // DELIVERED não tem ação direta (o iFood conclui sozinho após dispatch).
+        case 'DELIVERED':
+          // Concluir do nosso lado é best-effort pro iFood: avisa que o entregador
+          // chegou (arrivedAtDestination). Isso destrava a conclusão. Se o pedido exige
+          // código de entrega, o iFood só conclui após o código válido (validado à parte
+          // via submitDeliveryCode) OU pelo automático dele. Não force verifyDeliveryCode
+          // aqui — em produção não temos o código (o cliente informa ao entregador).
+          // Só DELIVERY própria (MERCHANT); retirada/logística iFood não se aplica.
+          if (isPickup || !isMerchantDelivery) return
+          await arrivedAtDestinationOrder(ifoodOrderId)
+          break
         default:
           return
       }
@@ -95,5 +107,30 @@ export async function reflectStatusToIFood(
       }
       logger.error({ err, ifoodOrderId, newStatus }, 'ifood: falha ao refletir status')
     }
+  })
+}
+
+/**
+ * Valida o código de entrega de um pedido iFood (que o cliente informou ao entregador).
+ * Chamado por ação do operador no painel. Antes garante o arrivedAtDestination. Se o
+ * código validar, o iFood conclui o pedido. Serializado por loja.
+ */
+export async function submitDeliveryCode(storeId: string, orderId: string, code: string): Promise<boolean> {
+  const map = await prisma.iFoodOrderMap.findUnique({
+    where: { orderId },
+    select: { ifoodOrderId: true, storeId: true },
+  })
+  if (!map || map.storeId !== storeId) {
+    throw new AppError('Pedido iFood não encontrado', 404)
+  }
+
+  return withStoreLock(storeId, async () => {
+    // Garante que o iFood sabe que o entregador chegou (idempotente).
+    await arrivedAtDestinationOrder(map.ifoodOrderId).catch((err) =>
+      logger.warn({ err, ifoodOrderId: map.ifoodOrderId }, 'ifood: arrivedAtDestination falhou (segue)')
+    )
+    const valid = await verifyDeliveryCode(map.ifoodOrderId, code)
+    logger.info({ storeId, ifoodOrderId: map.ifoodOrderId, valid }, 'ifood: verifyDeliveryCode')
+    return valid
   })
 }

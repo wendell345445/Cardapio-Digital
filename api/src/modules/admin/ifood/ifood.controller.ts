@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express'
 
 import { AppError } from '../../../shared/middleware/error.middleware'
+import { submitDeliveryCode } from '../../ifood/actions.service'
 import { applyCatalogImport, previewCatalogImport } from '../../ifood/catalog-import.service'
 
 import { linkMerchantSchema } from './ifood.schema'
@@ -68,6 +69,21 @@ export async function catalogPreviewController(req: Request, res: Response, next
 export async function catalogImportController(req: Request, res: Response, next: NextFunction) {
   try {
     res.json({ success: true, data: await applyCatalogImport(storeId(req), req.user?.userId) })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * POST /admin/ifood/orders/:orderId/delivery-code { code } — valida o código de
+ * entrega (que o cliente informou ao entregador). Código válido → o iFood conclui.
+ */
+export async function deliveryCodeController(req: Request, res: Response, next: NextFunction) {
+  try {
+    const code = String(req.body?.code ?? '').trim()
+    if (!code) throw new AppError('Informe o código de entrega', 400)
+    const valid = await submitDeliveryCode(storeId(req), req.params.orderId, code)
+    res.json({ success: true, data: { valid } })
   } catch (err) {
     next(err)
   }

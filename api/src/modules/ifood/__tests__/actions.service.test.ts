@@ -17,18 +17,22 @@ jest.mock('../../../shared/ifood/ifood.service', () => ({
   getCancellationReasons: jest.fn(),
   startPreparationOrder: jest.fn(),
   readyToPickupOrder: jest.fn(),
+  arrivedAtDestinationOrder: jest.fn(),
+  verifyDeliveryCode: jest.fn(),
 }))
 
 import { prisma } from '../../../shared/prisma/prisma'
 import {
+  arrivedAtDestinationOrder,
   cancelOrder,
   confirmOrder,
   dispatchOrder,
   getCancellationReasons,
   readyToPickupOrder,
   startPreparationOrder,
+  verifyDeliveryCode,
 } from '../../../shared/ifood/ifood.service'
-import { reflectStatusToIFood } from '../actions.service'
+import { reflectStatusToIFood, submitDeliveryCode } from '../actions.service'
 
 // mock do map com type + deliveredBy do pedido (DELIVERY/MERCHANT default)
 function mockMap(type: 'DELIVERY' | 'PICKUP' = 'DELIVERY', deliveredBy: string | null = 'MERCHANT') {
@@ -135,5 +139,53 @@ describe('reflectStatusToIFood', () => {
 
     // não deve lançar
     await expect(reflectStatusToIFood('store-1', 'order-1', 'CONFIRMED')).resolves.toBeUndefined()
+  })
+
+  it('DELIVERED (delivery MERCHANT) → arrivedAtDestination (best-effort)', async () => {
+    mockMap('DELIVERY', 'MERCHANT')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DELIVERED')
+
+    expect(arrivedAtDestinationOrder).toHaveBeenCalledWith('if-1')
+  })
+
+  it('DELIVERED (logística IFOOD) → não dispara nada', async () => {
+    mockMap('DELIVERY', 'IFOOD')
+
+    await reflectStatusToIFood('store-1', 'order-1', 'DELIVERED')
+
+    expect(arrivedAtDestinationOrder).not.toHaveBeenCalled()
+  })
+})
+
+describe('submitDeliveryCode', () => {
+  beforeEach(() => {
+    jest.resetAllMocks()
+    // arrivedAtDestination é chamado com .catch — precisa devolver promise.
+    ;(arrivedAtDestinationOrder as jest.Mock).mockResolvedValue(undefined)
+  })
+
+  it('valida o código: arrivedAtDestination + verifyDeliveryCode → true', async () => {
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({ ifoodOrderId: 'if-1', storeId: 'store-1' })
+    ;(verifyDeliveryCode as jest.Mock).mockResolvedValue(true)
+
+    const ok = await submitDeliveryCode('store-1', 'order-1', '9999')
+
+    expect(arrivedAtDestinationOrder).toHaveBeenCalledWith('if-1')
+    expect(verifyDeliveryCode).toHaveBeenCalledWith('if-1', '9999')
+    expect(ok).toBe(true)
+  })
+
+  it('código inválido → retorna false (não lança)', async () => {
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({ ifoodOrderId: 'if-1', storeId: 'store-1' })
+    ;(verifyDeliveryCode as jest.Mock).mockResolvedValue(false)
+
+    await expect(submitDeliveryCode('store-1', 'order-1', '0000')).resolves.toBe(false)
+  })
+
+  it('pedido não-iFood (sem map) → 404', async () => {
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue(null)
+
+    await expect(submitDeliveryCode('store-1', 'order-1', '9999')).rejects.toMatchObject({ status: 404 })
   })
 })

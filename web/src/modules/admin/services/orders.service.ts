@@ -55,6 +55,17 @@ export interface Order {
   paymentReceivedBy?: { id: string; name?: string | null; role?: string } | null
   // iFood: 'MERCHANT' (loja entrega) | 'IFOOD' (logística iFood) | null (não-iFood).
   ifoodDeliveredBy?: string | null
+  // iFood: pedido exige código de entrega (cliente informa ao entregador) pra concluir.
+  ifoodRequiresDeliveryCode?: boolean
+}
+
+/** Valida o código de entrega de um pedido iFood. Retorna se o código foi aceito. */
+export async function submitIFoodDeliveryCode(orderId: string, code: string): Promise<{ valid: boolean }> {
+  const { data } = await api.post<{ data: { valid: boolean } }>(
+    `/admin/ifood/orders/${orderId}/delivery-code`,
+    { code }
+  )
+  return data.data
 }
 
 export interface ListOrdersParams {

@@ -408,6 +408,9 @@ model Order {
   // iFood: quem faz a entrega — 'MERCHANT' (loja despacha via dispatch) ou 'IFOOD'
   // (logística iFood; o dispatch vem do evento quando o entregador coleta). NULL = não-iFood.
   ifoodDeliveredBy       String?
+  // iFood: pedido exige código de entrega (evento DELIVERY_DROP_CODE_REQUESTED) — o
+  // cliente informa o código ao entregador; o painel mostra o campo pra digitar/validar.
+  ifoodRequiresDeliveryCode Boolean @default(false)
   deliveryIssueReason    String?
   notifyOnStatusChange   Boolean       @default(false)
   customerSessionId      String?

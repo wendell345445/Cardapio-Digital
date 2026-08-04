@@ -228,11 +228,29 @@ async function createLocalOrder(
   asaasLogger.info({ storeId: store.id, orderId: order.id, ifoodOrderId: ifoodOrder.id }, 'ifood order created')
 }
 
+/** Marca que o pedido exige código de entrega (evento DELIVERY_DROP_CODE_REQUESTED). */
+async function markRequiresDeliveryCode(storeId: string, ifoodOrderId: string): Promise<void> {
+  const map = await prisma.iFoodOrderMap.findUnique({
+    where: { storeId_ifoodOrderId: { storeId, ifoodOrderId } },
+    select: { orderId: true },
+  })
+  if (!map) return
+  await prisma.order.update({
+    where: { id: map.orderId },
+    data: { ifoodRequiresDeliveryCode: true },
+  })
+  asaasLogger.info({ storeId, ifoodOrderId }, 'ifood: pedido exige código de entrega')
+}
+
 /** Atualiza o status do Order local a partir de um evento iFood (CONFIRMED/DISPATCHED/etc). */
 async function updateLocalStatus(storeId: string, ifoodOrderId: string, newStatus: LocalStatus): Promise<void> {
   const map = await prisma.iFoodOrderMap.findUnique({
     where: { storeId_ifoodOrderId: { storeId, ifoodOrderId } },
-    include: { order: { select: { id: true, status: true } } },
+    include: {
+      order: {
+        select: { id: true, status: true, ifoodDeliveredBy: true, motoboyId: true, externalCourierName: true },
+      },
+    },
   })
   if (!map) return // pedido ainda não criado localmente (evento fora de ordem) — o PLACED cria depois
 
@@ -241,16 +259,28 @@ async function updateLocalStatus(storeId: string, ifoodOrderId: string, newStatu
   if (map.order.status === newStatus) return
 
   const now = new Date()
-  const stamps: Record<string, Date> = {}
+  const stamps: Record<string, Date | string> = {}
   if (newStatus === 'CONFIRMED') stamps.confirmedAt = now
   if (newStatus === 'DISPATCHED') stamps.dispatchedAt = now
   if (newStatus === 'DELIVERED') stamps.deliveredAt = now
   if (newStatus === 'CANCELLED') stamps.cancelledAt = now
 
+  // Logística iFood: quando o entregador do iFood coleta (DISPATCHED vindo do iFood),
+  // registra "iFood Motoboy" como entregador — não há motoboy da loja e dá visibilidade
+  // pro operador. Só se ainda não houver entregador definido.
+  if (
+    newStatus === 'DISPATCHED' &&
+    map.order.ifoodDeliveredBy === 'IFOOD' &&
+    !map.order.motoboyId &&
+    !map.order.externalCourierName
+  ) {
+    stamps.externalCourierName = 'iFood Motoboy'
+  }
+
   const updated = await prisma.order.update({
     where: { id: map.order.id },
-    // ifoodSync: true marca que a mudança veio DO iFood — updateOrderStatus não é chamado aqui,
-    // então não há eco de volta. (A ação de volta só sai quando o LOJISTA muda no Kanban.)
+    // A mudança veio DO iFood — updateOrderStatus não é chamado aqui, então não há eco
+    // de volta. (A ação de volta só sai quando o LOJISTA muda no Kanban.)
     data: { status: newStatus, ...stamps },
     include: { items: { include: { additionals: true } } },
   })
@@ -293,6 +323,9 @@ export async function processIFoodEvent(
       if (code === 'PLACED') {
         const ifoodOrder = await getOrder(event.orderId)
         await createLocalOrder(store, ifoodOrder)
+      } else if (code === 'DELIVERY_DROP_CODE_REQUESTED') {
+        // Pedido exige código de entrega — marca pra o painel mostrar o campo.
+        await markRequiresDeliveryCode(store.id, event.orderId)
       } else {
         const localStatus = STATUS_MAP[code]
         if (localStatus) await updateLocalStatus(store.id, event.orderId, localStatus)

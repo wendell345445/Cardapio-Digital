@@ -12,6 +12,7 @@ import {
 import {
   catalogImportController,
   catalogPreviewController,
+  deliveryCodeController,
   disconnectController,
   linkController,
   previewMerchantController,
@@ -36,3 +37,4 @@ ifoodRouter.put('/merchant', linkController)
 ifoodRouter.delete('/', disconnectController)
 ifoodRouter.get('/catalog/preview', catalogPreviewController)
 ifoodRouter.post('/catalog/import', catalogImportController)
+ifoodRouter.post('/orders/:orderId/delivery-code', deliveryCodeController)

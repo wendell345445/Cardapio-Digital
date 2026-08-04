@@ -4,7 +4,9 @@ import { Printer } from 'lucide-react'
 import { useMotoboys } from '../hooks/useMotoboys'
 import { useAssignMotoboy, useOrder, usePrintOrder, useUpdateOrderAddress, useUpdateOrderStatus } from '../hooks/useOrders'
 import type { OrderAddress } from '../services/orders.service'
+import { submitIFoodDeliveryCode } from '../services/orders.service'
 
+import { toast } from '@/shared/lib/toast'
 import type { GeoSuggestion } from '@/shared/lib/geo-client'
 import { AddressAutocompleteOSM } from '@/shared/components/places/AddressAutocompleteOSM'
 
@@ -103,6 +105,9 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
   const [selectedMotoboyId, setSelectedMotoboyId] = useState('')
   // '__external__' = entregador avulso (não cadastrado) → digita o nome livre.
   const [externalCourierName, setExternalCourierName] = useState('')
+  // iFood: código de entrega (cliente informa ao entregador) pra concluir.
+  const [deliveryCode, setDeliveryCode] = useState('')
+  const [codeSubmitting, setCodeSubmitting] = useState(false)
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressForm, setAddressForm] = useState<OrderAddress>({
     zipCode: '',
@@ -168,6 +173,25 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
         setExternalCourierName('')
       },
     })
+  }
+
+  async function handleSubmitDeliveryCode(e: React.FormEvent) {
+    e.preventDefault()
+    if (!order || !deliveryCode.trim()) return
+    setCodeSubmitting(true)
+    try {
+      const { valid } = await submitIFoodDeliveryCode(order.id, deliveryCode.trim())
+      if (valid) {
+        toast.success('Código validado!', 'O iFood vai concluir o pedido.')
+        setDeliveryCode('')
+      } else {
+        toast.error('Código inválido', 'Confira o código que o cliente informou ao entregador.')
+      }
+    } catch {
+      toast.error('Não foi possível validar', 'Tente novamente.')
+    } finally {
+      setCodeSubmitting(false)
+    }
   }
 
   // Endereço selecionado no AddressAutocompleteOSM: popula o form.
@@ -572,6 +596,35 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
                       </form>
                     )}
                   </div>
+                )}
+
+                {/* iFood: código de entrega — pedido despachado que exige código do cliente.
+                    Operador digita o código que o cliente informou ao entregador → conclui. */}
+                {order.status === 'DISPATCHED' && order.ifoodRequiresDeliveryCode && (
+                  <form onSubmit={handleSubmitDeliveryCode} className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-800">Código de entrega (iFood)</p>
+                    <p className="text-[11px] text-amber-700 -mt-1">
+                      O cliente informa o código ao entregador. Digite para concluir no iFood.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={deliveryCode}
+                        onChange={(e) => setDeliveryCode(e.target.value)}
+                        placeholder="Ex: 1234"
+                        maxLength={10}
+                        className="flex-1 rounded-md border border-amber-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                      <button
+                        type="submit"
+                        disabled={codeSubmitting || !deliveryCode.trim()}
+                        className="rounded-lg bg-amber-600 text-white px-4 py-2 text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                      >
+                        {codeSubmitting ? 'Validando…' : 'Confirmar'}
+                      </button>
+                    </div>
+                  </form>
                 )}
 
                 {/* Marcar Retirado/Entregue (READY + PICKUP/TABLE) */}

@@ -261,6 +261,35 @@ describe('processIFoodEvent — dedup e ACK', () => {
     expect(emit.orderUpdated).toHaveBeenCalled()
   })
 
+  it('DISPATCHED de logística iFood → grava "iFood Motoboy" como entregador', async () => {
+    ;(prisma.iFoodEventLog.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
+      order: { id: 'order-1', status: 'READY', ifoodDeliveredBy: 'IFOOD', motoboyId: null, externalCourierName: null },
+    })
+    ;(prisma.order.update as jest.Mock).mockResolvedValue({ id: 'order-1', items: [] })
+
+    await processIFoodEvent(STORE, { id: 'ev-5a', orderId: 'if-1', code: 'DISPATCHED' })
+
+    expect(prisma.order.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'DISPATCHED', externalCourierName: 'iFood Motoboy' }),
+      })
+    )
+  })
+
+  it('DISPATCHED de entrega própria (MERCHANT) NÃO grava "iFood Motoboy"', async () => {
+    ;(prisma.iFoodEventLog.findUnique as jest.Mock).mockResolvedValue(null)
+    ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue({
+      order: { id: 'order-1', status: 'READY', ifoodDeliveredBy: 'MERCHANT', motoboyId: null, externalCourierName: null },
+    })
+    ;(prisma.order.update as jest.Mock).mockResolvedValue({ id: 'order-1', items: [] })
+
+    await processIFoodEvent(STORE, { id: 'ev-5b', orderId: 'if-1', code: 'DISPATCHED' })
+
+    const call = (prisma.order.update as jest.Mock).mock.calls[0][0]
+    expect(call.data.externalCourierName).toBeUndefined()
+  })
+
   it('falha no processamento NÃO marca processedAt (retry no próximo poll)', async () => {
     ;(prisma.iFoodEventLog.findUnique as jest.Mock).mockResolvedValue(null)
     ;(prisma.iFoodOrderMap.findUnique as jest.Mock).mockResolvedValue(null)
