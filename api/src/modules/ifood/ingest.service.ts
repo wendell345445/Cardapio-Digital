@@ -254,15 +254,26 @@ async function updateLocalStatus(storeId: string, ifoodOrderId: string, newStatu
   })
   if (!map) return // pedido ainda não criado localmente (evento fora de ordem) — o PLACED cria depois
 
+  // CONCLUDED do iFood chegando num pedido JÁ concluído localmente (o lojista concluiu
+  // antes): não muda status, mas limpa o "exige código" — o iFood já fechou, o campo
+  // de código não deve mais aparecer.
+  if (newStatus === 'DELIVERED' && map.order.status === 'DELIVERED') {
+    await prisma.order.update({ where: { id: map.order.id }, data: { ifoodRequiresDeliveryCode: false } })
+    return
+  }
+
   // Estados terminais locais não regridem.
   if (map.order.status === 'DELIVERED' || map.order.status === 'CANCELLED') return
   if (map.order.status === newStatus) return
 
   const now = new Date()
-  const stamps: Record<string, Date | string> = {}
+  const stamps: Record<string, Date | string | boolean> = {}
   if (newStatus === 'CONFIRMED') stamps.confirmedAt = now
   if (newStatus === 'DISPATCHED') stamps.dispatchedAt = now
-  if (newStatus === 'DELIVERED') stamps.deliveredAt = now
+  if (newStatus === 'DELIVERED') {
+    stamps.deliveredAt = now
+    stamps.ifoodRequiresDeliveryCode = false // iFood concluiu → não precisa mais do código
+  }
   if (newStatus === 'CANCELLED') stamps.cancelledAt = now
 
   // Logística iFood: quando o entregador do iFood coleta (DISPATCHED vindo do iFood),

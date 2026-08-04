@@ -600,11 +600,14 @@ export function OrderDetailModal({ orderId, isOpen, onClose }: OrderDetailModalP
 
                 {/* iFood: código de entrega — pedido despachado que exige código do cliente.
                     Operador digita o código que o cliente informou ao entregador → conclui. */}
-                {order.status === 'DISPATCHED' && order.ifoodRequiresDeliveryCode && (
+                {order.ifoodRequiresDeliveryCode &&
+                  (order.status === 'DISPATCHED' || order.status === 'DELIVERED') && (
                   <form onSubmit={handleSubmitDeliveryCode} className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
                     <p className="text-xs font-semibold text-amber-800">Código de entrega (iFood)</p>
                     <p className="text-[11px] text-amber-700 -mt-1">
-                      O cliente informa o código ao entregador. Digite para concluir no iFood.
+                      {order.status === 'DELIVERED'
+                        ? 'Este pedido precisa do código pra concluir no iFood. Digite o código que o cliente informou ao entregador.'
+                        : 'O cliente informa o código ao entregador. Digite para concluir no iFood.'}
                     </p>
                     <div className="flex gap-2">
                       <input
