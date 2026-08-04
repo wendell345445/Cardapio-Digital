@@ -10,6 +10,14 @@ import { AppError } from '../middleware/error.middleware'
 // Auth via header custom `access_token` (NÃO Bearer) + User-Agent obrigatório.
 // Docs: https://docs.asaas.com — ver memória reference-asaas-api.
 
+// Ciclo de cobrança recorrente. Default MONTHLY (produção). Em sandbox dá pra usar
+// WEEKLY (BILLING_CYCLE=WEEKLY) pra validar a recorrência em 7 dias em vez de 30.
+const VALID_CYCLES = ['WEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMIANNUALLY', 'YEARLY']
+function billingCycle(): string {
+  const c = (process.env.BILLING_CYCLE || '').toUpperCase()
+  return VALID_CYCLES.includes(c) ? c : 'MONTHLY'
+}
+
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
 export interface AsaasCustomer {
@@ -212,7 +220,7 @@ export async function createRecurrentCheckout(params: {
         },
       ],
       subscription: {
-        cycle: 'MONTHLY',
+        cycle: billingCycle(),
         nextDueDate: params.nextDueDate,
         description,
       },
@@ -249,7 +257,7 @@ export async function createPixAutoAuthorization(params: {
   try {
     const { data } = await getClient().post<AsaasPixAuthorization>('/pix/automatic/authorizations', {
       customerId: params.customerId,
-      frequency: 'MONTHLY',
+      frequency: billingCycle(),
       contractId: params.storeId.slice(0, 35),
       startDate: params.startDate,
       value: params.value,

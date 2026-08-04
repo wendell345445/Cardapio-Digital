@@ -2,10 +2,18 @@
 // Antes triplicado em register.service, owner.service e no webhook. Consolidado aqui.
 // StorePlan = 'PROFESSIONAL' | 'PREMIUM' (enum do Prisma).
 
-/** Valor mensal do plano em BRL (usado no Asaas e no cálculo de MRR do owner). */
+// Valor do plano em BRL. Default = produção (99/149). Sobrescrevível por env pra
+// testes em sandbox (ex: PLAN_VALUE_PROFESSIONAL=1, PLAN_VALUE_PREMIUM=3).
+function planValue(envVar: string, fallback: number): number {
+  const raw = process.env[envVar]
+  const n = raw != null ? Number(raw) : NaN
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
+/** Valor do plano em BRL (usado no Asaas e no cálculo de MRR do owner). */
 export const PLAN_VALUES: Record<string, number> = {
-  PROFESSIONAL: 99,
-  PREMIUM: 149,
+  PROFESSIONAL: planValue('PLAN_VALUE_PROFESSIONAL', 99),
+  PREMIUM: planValue('PLAN_VALUE_PREMIUM', 149),
 }
 
 /** Flags de feature por plano — gravadas em `Store.features` (Json). */
