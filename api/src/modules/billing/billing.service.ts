@@ -55,6 +55,7 @@ async function ensureCustomer(store: Awaited<ReturnType<typeof loadStore>>): Pro
     name: store.name,
     email: admin?.email ?? `loja-${store.slug}@menupanda.ai`,
     phone: store.phone,
+    cpfCnpj: store.documentNumber ?? undefined, // exigido pro PIX Automático
   })
   await prisma.store.update({ where: { id: store.id }, data: { asaasCustomerId: customer.id } })
   return customer.id
@@ -107,6 +108,17 @@ export interface PixAutoResult {
  */
 export async function createPixAutoSubscription(storeId: string): Promise<PixAutoResult> {
   const store = await loadStore(storeId)
+
+  // O Asaas EXIGE CPF/CNPJ pra criar a autorização de PIX Automático. O documento é
+  // coletado no cadastro da loja (Minha Loja → Dados). Se faltar, avisa onde preencher.
+  if (!store.documentNumber) {
+    throw new AppError(
+      'Preencha o CPF ou CNPJ da loja em Minha Loja → Dados para pagar com PIX.',
+      422,
+      'DOCUMENT_REQUIRED'
+    )
+  }
+
   const customerId = await ensureCustomer(store)
   const value = PLAN_VALUES[store.plan]
 

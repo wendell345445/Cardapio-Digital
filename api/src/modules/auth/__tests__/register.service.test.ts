@@ -41,6 +41,7 @@ const validInput = {
   password: 'senha1234',
   confirmPassword: 'senha1234',
   whatsapp: '48999990000',
+  documentNumber: '24971563792',
   plan: 'PROFESSIONAL' as const,
 }
 

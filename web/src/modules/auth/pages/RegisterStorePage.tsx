@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { PasswordInput } from '../../../shared/components/PasswordInput'
-import { maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
+import { maskDocument, maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
 import { BENEFITS } from '../constants/benefits'
 import { SEGMENT_OPTIONS } from '../constants/segments'
 import { useRegisterStore } from '../hooks/useRegisterStore'
@@ -56,6 +56,10 @@ const PLAN_OPTIONS: PlanOption[] = [
 const registerStoreFormSchema = z
   .object({
     storeName: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').max(100),
+    document: z
+      .string()
+      .min(1, 'CPF ou CNPJ obrigatório')
+      .refine((v) => [11, 14].includes(onlyDigits(v).length), 'Informe um CPF (11) ou CNPJ (14) válido'),
     whatsapp: z
       .string()
       .min(1, 'WhatsApp obrigatório')
@@ -111,6 +115,7 @@ export function RegisterStorePage() {
       password: values.password,
       confirmPassword: values.confirmPassword,
       whatsapp: onlyDigits(values.whatsapp),
+      documentNumber: onlyDigits(values.document),
       plan: values.plan,
     })
   }
@@ -214,16 +219,33 @@ export function RegisterStorePage() {
                 <input type="hidden" {...register('plan')} />
               </div>
 
-              {/* Linha 1: Nome da loja + Segmento */}
+              {/* Linha 1: Nome da loja (largura total) */}
+              <Field label="Nome da loja" htmlFor="storeName" error={errors.storeName?.message}>
+                <input
+                  id="storeName"
+                  type="text"
+                  autoComplete="organization"
+                  disabled={submitting}
+                  className={inputClass}
+                  {...register('storeName')}
+                />
+              </Field>
+
+              {/* Linha 2: CPF/CNPJ + Segmento */}
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <Field label="Nome da loja" htmlFor="storeName" error={errors.storeName?.message}>
+                <Field label="CPF ou CNPJ" htmlFor="document" error={errors.document?.message}>
                   <input
-                    id="storeName"
+                    id="document"
                     type="text"
-                    autoComplete="organization"
+                    inputMode="numeric"
+                    placeholder="000.000.000-00"
                     disabled={submitting}
                     className={inputClass}
-                    {...register('storeName')}
+                    {...register('document', {
+                      onChange: (e) => {
+                        e.target.value = maskDocument(e.target.value)
+                      },
+                    })}
                   />
                 </Field>
 

@@ -60,6 +60,9 @@ model Store {
   /// conta WA não pode estar pareada em duas lojas, senão recebem o mesmo evento
   /// messages.upsert e respondem cada uma com greeting/IA própria, confundindo o cliente.
   whatsappPairedNumber          String?       @unique
+  /// CPF ou CNPJ do titular (só dígitos). Exigido pelo Asaas pra criar autorização
+  /// de PIX Automático. Coletado no modal ao pagar com PIX.
+  documentNumber                String?
   /// Asaas customer id (`cus_...`). Criado no registro da loja.
   asaasCustomerId               String?
   /// Asaas subscription id (`sub_...`) — preenchido pelo webhook quando a loja assina via cartão (Checkout).

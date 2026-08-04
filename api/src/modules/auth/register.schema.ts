@@ -32,6 +32,10 @@ export const registerStoreSchema = z
     whatsapp: z
       .string()
       .regex(/^\d{11}$/, 'WhatsApp deve conter 11 dígitos (DDD + número)'),
+    // CPF (11) ou CNPJ (14), só dígitos. Exigido pra cobrança (PIX Automático).
+    documentNumber: z
+      .string()
+      .regex(/^\d{11}$|^\d{14}$/, 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
     // Endereco da loja e configurado depois em Entregas (Places autocomplete +
     // mapa). Cadastro nao pede endereco pra reduzir atrito de conversao.
     plan: z

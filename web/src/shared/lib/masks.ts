@@ -17,6 +17,27 @@ export function maskCep(value: string): string {
 }
 
 /**
+ * Aplica máscara de CPF (`000.000.000-00`) ou CNPJ (`00.000.000/0000-00`),
+ * escolhendo pelo tamanho conforme o usuário digita.
+ */
+export function maskDocument(value: string): string {
+  const d = onlyDigits(value).slice(0, 14)
+  if (d.length <= 11) {
+    // CPF: 000.000.000-00
+    return d
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3-$4')
+  }
+  // CNPJ: 00.000.000/0000-00
+  return d
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/^(\d{2})\.(\d{3})\.(\d{3})(\d)/, '$1.$2.$3/$4')
+    .replace(/^(\d{2})\.(\d{3})\.(\d{3})\/(\d{4})(\d)/, '$1.$2.$3/$4-$5')
+}
+
+/**
  * Aplica máscara `(XX) XXXXX-XXXX` em telefone/WhatsApp BR (11 dígitos).
  */
 export function maskWhatsapp(value: string): string {

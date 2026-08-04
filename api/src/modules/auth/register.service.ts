@@ -71,7 +71,12 @@ export async function registerStore(
   // 4. Asaas Customer. A ASSINATURA em si (cartão/PIX Automático) é criada depois,
   //    quando o lojista escolhe o método na aba Assinatura. Durante o trial usa de graça.
   const plan = input.plan ?? 'PROFESSIONAL'
-  const asaasCustomer = await createCustomer({ name: input.storeName, email: input.email, phone: input.whatsapp })
+  const asaasCustomer = await createCustomer({
+    name: input.storeName,
+    email: input.email,
+    phone: input.whatsapp,
+    cpfCnpj: input.documentNumber, // já com CPF/CNPJ → PIX Auto funciona sem pedir depois
+  })
 
   // 5. Trial de 7 dias — controlado localmente (Asaas não tem trial nativo).
   const trialEndsAt = trialEndsAtFromNow()
@@ -85,6 +90,7 @@ export async function registerStore(
           name: input.storeName,
           slug,
           segment: input.segment,
+          documentNumber: input.documentNumber,
           // Endereco/coords da loja sao configurados depois em Entregas
           // (Places autocomplete + mapa). Cadastro nao pede endereco.
           phone: input.whatsapp,
