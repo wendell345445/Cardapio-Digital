@@ -346,6 +346,16 @@ export async function assignMotoboy(
   // Emit socket event
   emit.orderStatus(storeId, { orderId, status: 'DISPATCHED' })
 
+  // Atribuir motoboy leva o pedido a DISPATCHED por um caminho PRÓPRIO (não passa por
+  // updateOrderStatus), então reflete o dispatch pro iFood aqui também — senão pedido
+  // iFood de entrega própria (MERCHANT) nunca avisa o iFood que "saiu pra entrega".
+  // Fire-and-forget; reflectStatusToIFood no-op pra pedido não-iFood e pra logística IFOOD.
+  setImmediate(() =>
+    reflectStatusToIFood(storeId, orderId, 'DISPATCHED').catch((err) =>
+      console.error('[iFood] Error reflecting DISPATCHED on assignMotoboy:', err)
+    )
+  )
+
   // Fire-and-forget WhatsApp to motoboy
   if (motoboy.whatsapp) {
     sendMotoboyAssignedMessage(storeId, motoboy.whatsapp, {

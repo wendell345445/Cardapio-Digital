@@ -546,6 +546,18 @@ describe('assignMotoboy', () => {
     expect(result.status).toBe('DISPATCHED')
   })
 
+  it('reflete DISPATCHED pro iFood ao atribuir motoboy (via setImmediate)', async () => {
+    setupAssignMocks()
+    const setImmediateSpy = jest.spyOn(global, 'setImmediate')
+
+    await assignMotoboy(STORE_ID, ORDER_ID, { motoboyId: MOTOBOY_ID }, USER_ID, IP)
+
+    // O reflexo do dispatch é agendado via setImmediate (fire-and-forget).
+    // Sem isso, pedido iFood de entrega própria nunca avisa o iFood que "saiu".
+    expect(setImmediateSpy).toHaveBeenCalled()
+    setImmediateSpy.mockRestore()
+  })
+
   it('lança 404 quando pedido não encontrado', async () => {
     ;(mockPrisma.order.findUnique as jest.Mock).mockResolvedValue(null)
 
