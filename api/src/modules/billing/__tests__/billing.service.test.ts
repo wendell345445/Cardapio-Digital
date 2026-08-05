@@ -136,7 +136,7 @@ describe('changePlan — DOWNGRADE', () => {
   })
 })
 
-describe('createCheckoutSession — pré-preenche customerData', () => {
+describe('createCheckoutSession — não envia customerData (evita exigência de endereço)', () => {
   const storeForCheckout = {
     id: 'store-1',
     slug: 'loja-teste',
@@ -152,21 +152,8 @@ describe('createCheckoutSession — pré-preenche customerData', () => {
     ;(createRecurrentCheckout as jest.Mock).mockResolvedValue({ id: 'chk_1', link: 'https://asaas/x' })
   })
 
-  it('passa customerData (nome/email/telefone/CPF) quando a loja tem documentNumber', async () => {
+  it('NÃO passa customerData mesmo com documentNumber — Asaas coleta nome/CPF/endereço na tela', async () => {
     mockPrisma.store.findUnique.mockResolvedValue(storeForCheckout)
-    await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
-
-    const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]
-    expect(arg.customerData).toEqual({
-      name: 'Loja Teste',
-      email: 'admin@loja.com',
-      phone: '48999990000',
-      cpfCnpj: '24971563792',
-    })
-  })
-
-  it('omite customerData quando a loja não tem documentNumber (Asaas coleta na tela)', async () => {
-    mockPrisma.store.findUnique.mockResolvedValue({ ...storeForCheckout, documentNumber: null })
     await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
 
     const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]
