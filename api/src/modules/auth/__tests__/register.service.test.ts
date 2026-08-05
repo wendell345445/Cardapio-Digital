@@ -42,6 +42,12 @@ const validInput = {
   confirmPassword: 'senha1234',
   whatsapp: '48999990000',
   documentNumber: '24971563792',
+  cep: '88010000',
+  street: 'Rua Felipe Schmidt',
+  number: '100',
+  neighborhood: 'Centro',
+  city: 'Florianópolis',
+  state: 'SC',
   plan: 'PROFESSIONAL' as const,
 }
 

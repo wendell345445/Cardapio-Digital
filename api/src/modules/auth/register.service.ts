@@ -76,6 +76,12 @@ export async function registerStore(
     email: input.email,
     phone: input.whatsapp,
     cpfCnpj: input.documentNumber, // já com CPF/CNPJ → PIX Auto funciona sem pedir depois
+    // Endereço → customer nasce completo, e o checkout de cartão pré-preenche.
+    postalCode: input.cep,
+    address: input.street,
+    addressNumber: input.number,
+    province: input.neighborhood,
+    city: input.city,
   })
 
   // 5. Trial de 7 dias — controlado localmente (Asaas não tem trial nativo).
@@ -91,8 +97,14 @@ export async function registerStore(
           slug,
           segment: input.segment,
           documentNumber: input.documentNumber,
-          // Endereco/coords da loja sao configurados depois em Entregas
-          // (Places autocomplete + mapa). Cadastro nao pede endereco.
+          // Endereço estruturado coletado no cadastro (CEP + ViaCEP). As coordenadas
+          // (lat/lng) seguem sendo configuradas depois em Entregas (mapa/Places).
+          cep: input.cep,
+          street: input.street,
+          number: input.number,
+          neighborhood: input.neighborhood,
+          city: input.city,
+          state: input.state.toUpperCase(),
           phone: input.whatsapp,
           plan,
           status: 'TRIAL',

@@ -72,15 +72,39 @@ export async function createCheckoutSession(storeId: string, webUrl: string): Pr
   const value = PLAN_VALUES[store.plan]
   const base = publicWebUrl(webUrl)
 
-  // Não pré-preenchemos customerData: assim que o objeto (ou um customer id) é
-  // enviado, o Asaas passa a EXIGIR endereço completo (address/addressNumber/
-  // postalCode/province/city) — e a loja não coleta endereço no cadastro. Deixamos
-  // o checkout hospedado do Asaas coletar nome/CPF/endereço/cartão na própria tela.
+  // Pré-preenche o checkout hospedado quando temos os dados completos do cliente.
+  // O Asaas exige o PACOTE INTEIRO (nome/email/telefone/cpfCnpj + endereço completo:
+  // postalCode/address/addressNumber/province/city) assim que `customerData` está
+  // presente — parcial dá 400. Só enviamos quando TODOS existem; lojas antigas (sem
+  // endereço no cadastro) caem no fluxo hospedado, onde o Asaas coleta tudo na tela.
+  const admin = store.users[0]
+  const hasFullCustomer =
+    !!store.documentNumber &&
+    !!admin?.email &&
+    !!store.cep &&
+    !!store.street &&
+    !!store.number &&
+    !!store.neighborhood &&
+    !!store.city
+  const customerData = hasFullCustomer
+    ? {
+        name: store.name,
+        email: admin.email ?? undefined,
+        phone: store.phone,
+        cpfCnpj: store.documentNumber ?? undefined,
+        postalCode: store.cep ?? undefined,
+        address: store.street ?? undefined,
+        addressNumber: store.number ?? undefined,
+        province: store.neighborhood ?? undefined,
+        city: store.city ?? undefined,
+      }
+    : undefined
   const checkout = await createRecurrentCheckout({
     storeId: store.id,
     value,
     planName: PLAN_LABEL[store.plan] ?? store.plan,
     nextDueDate: firstChargeDate(),
+    customerData,
     callbackUrls: {
       successUrl: `${base}/admin/configuracoes?assinatura=ok`,
       cancelUrl: `${base}/admin/configuracoes?assinatura=cancelado`,

@@ -57,12 +57,21 @@ export interface AsaasPixAuthorization {
   encodedImage: string
 }
 
-/** Dados do pagador para o Checkout (cartão). CPF/CNPJ é opcional — o Checkout coleta na tela. */
+/**
+ * Dados do pagador para o Checkout (cartão). O Asaas trata como pacote: se o objeto
+ * está presente, exige nome/email/telefone/cpfCnpj + endereço completo (postalCode/
+ * address/addressNumber/province/city). Omitido → o Checkout coleta tudo na tela.
+ */
 export interface AsaasCustomerData {
   name: string
   email?: string
   phone?: string
   cpfCnpj?: string
+  postalCode?: string
+  address?: string
+  addressNumber?: string
+  province?: string
+  city?: string
 }
 
 export interface AsaasCallbackUrls {
@@ -159,6 +168,13 @@ export async function createCustomer(params: {
   email: string
   cpfCnpj?: string
   phone?: string
+  // Endereço — grava no customer Asaas pra que o checkout de cartão possa
+  // pré-preencher (o Asaas exige o endereço completo quando identifica o cliente).
+  postalCode?: string
+  address?: string
+  addressNumber?: string
+  province?: string
+  city?: string
 }): Promise<AsaasCustomer> {
   try {
     const { data } = await getClient().post<AsaasCustomer>('/customers', {
@@ -166,6 +182,11 @@ export async function createCustomer(params: {
       email: params.email,
       cpfCnpj: params.cpfCnpj,
       phone: params.phone,
+      postalCode: params.postalCode,
+      address: params.address,
+      addressNumber: params.addressNumber,
+      province: params.province,
+      city: params.city,
     })
     return data
   } catch (err) {
@@ -201,9 +222,9 @@ export async function createRecurrentCheckout(params: {
   callbackUrls: AsaasCallbackUrls
 }): Promise<AsaasCheckout> {
   try {
-    // `customerData` só é enviado quando temos `cpfCnpj` — o Asaas exige cpfCnpj
-    // quando o objeto está presente. Sem ele, omitimos e o Asaas coleta nome/CPF/
-    // cartão na própria tela hospedada (decisão do plano: "Asaas coleta no checkout").
+    // `customerData` só é enviado quando temos `cpfCnpj` (o chamador só monta o objeto
+    // quando tem o pacote completo — nome/email/telefone/cpfCnpj + endereço). Sem ele,
+    // omitimos e o Asaas coleta nome/CPF/endereço/cartão na própria tela hospedada.
     const customerData = params.customerData?.cpfCnpj ? params.customerData : undefined
     const description = `Assinatura ${params.planName} — MenuPanda`
     const { data } = await getClient().post<AsaasCheckout>('/checkouts', {

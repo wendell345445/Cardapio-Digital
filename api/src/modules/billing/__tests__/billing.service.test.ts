@@ -136,7 +136,7 @@ describe('changePlan — DOWNGRADE', () => {
   })
 })
 
-describe('createCheckoutSession — não envia customerData (evita exigência de endereço)', () => {
+describe('createCheckoutSession — pré-preenche customerData completo', () => {
   const storeForCheckout = {
     id: 'store-1',
     slug: 'loja-teste',
@@ -145,6 +145,12 @@ describe('createCheckoutSession — não envia customerData (evita exigência de
     plan: 'PROFESSIONAL',
     phone: '48999990000',
     documentNumber: '24971563792',
+    cep: '88010000',
+    street: 'Rua Felipe Schmidt',
+    number: '100',
+    neighborhood: 'Centro',
+    city: 'Florianópolis',
+    state: 'SC',
     users: [{ email: 'admin@loja.com', name: 'Admin' }],
   }
 
@@ -152,8 +158,26 @@ describe('createCheckoutSession — não envia customerData (evita exigência de
     ;(createRecurrentCheckout as jest.Mock).mockResolvedValue({ id: 'chk_1', link: 'https://asaas/x' })
   })
 
-  it('NÃO passa customerData mesmo com documentNumber — Asaas coleta nome/CPF/endereço na tela', async () => {
+  it('passa customerData com nome/email/telefone/CPF + endereço completo quando a loja tem tudo', async () => {
     mockPrisma.store.findUnique.mockResolvedValue(storeForCheckout)
+    await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
+
+    const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]
+    expect(arg.customerData).toEqual({
+      name: 'Loja Teste',
+      email: 'admin@loja.com',
+      phone: '48999990000',
+      cpfCnpj: '24971563792',
+      postalCode: '88010000',
+      address: 'Rua Felipe Schmidt',
+      addressNumber: '100',
+      province: 'Centro',
+      city: 'Florianópolis',
+    })
+  })
+
+  it('omite customerData quando falta endereço (loja antiga) — Asaas coleta na tela', async () => {
+    mockPrisma.store.findUnique.mockResolvedValue({ ...storeForCheckout, cep: null, street: null })
     await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
 
     const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]

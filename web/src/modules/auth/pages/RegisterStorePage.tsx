@@ -1,11 +1,12 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CheckCircle2, Loader2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 
 import { PasswordInput } from '../../../shared/components/PasswordInput'
-import { maskDocument, maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
+import { maskCep, maskDocument, maskWhatsapp, onlyDigits } from '../../../shared/lib/masks'
 import { BENEFITS } from '../constants/benefits'
 import { SEGMENT_OPTIONS } from '../constants/segments'
 import { useRegisterStore } from '../hooks/useRegisterStore'
@@ -51,8 +52,8 @@ const PLAN_OPTIONS: PlanOption[] = [
   },
 ]
 
-// Endereco e validado fora do form (vem do Places via state). Mantemos so
-// campos digitados pelo user no schema do form.
+// Endereço é obrigatório no cadastro (coletado por CEP + ViaCEP) — ele alimenta
+// o customer Asaas e o pré-preenchimento do checkout de cartão.
 const registerStoreFormSchema = z
   .object({
     storeName: z.string().min(2, 'Nome deve ter ao menos 2 caracteres').max(100),
@@ -66,6 +67,18 @@ const registerStoreFormSchema = z
       .refine((v) => onlyDigits(v).length === 11, 'WhatsApp deve ter 11 dígitos'),
     segment: z.enum(SEGMENT_VALUES, { errorMap: () => ({ message: 'Selecione um segmento' }) }),
     email: z.string().email('E-mail inválido'),
+    cep: z
+      .string()
+      .min(1, 'CEP obrigatório')
+      .refine((v) => onlyDigits(v).length === 8, 'CEP deve ter 8 dígitos'),
+    street: z.string().min(2, 'Informe o logradouro').max(200),
+    number: z.string().min(1, 'Informe o número').max(20),
+    neighborhood: z.string().min(2, 'Informe o bairro').max(120),
+    city: z.string().min(2, 'Informe a cidade').max(120),
+    state: z
+      .string()
+      .min(1, 'UF obrigatória')
+      .refine((v) => /^[A-Za-z]{2}$/.test(v.trim()), 'UF deve ter 2 letras'),
     password: z.string().min(8, 'Senha deve ter ao menos 8 caracteres'),
     confirmPassword: z.string().min(8, 'Confirme a senha'),
     plan: z.enum(['PROFESSIONAL', 'PREMIUM']),
@@ -83,8 +96,10 @@ export function RegisterStorePage() {
     register,
     handleSubmit,
     setValue,
+    setFocus,
     watch,
     setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<RegisterStoreFormValues>({
     resolver: zodResolver(registerStoreFormSchema),
@@ -93,6 +108,41 @@ export function RegisterStorePage() {
   })
 
   const selectedPlan = watch('plan')
+  const [cepLoading, setCepLoading] = useState(false)
+
+  // Autopreenchimento por CEP (ViaCEP). Ao completar 8 dígitos, busca o endereço e
+  // preenche rua/bairro/cidade/UF; o lojista só digita o número. CEP não encontrado
+  // → deixa os campos editáveis manualmente (sem travar o cadastro).
+  async function lookupCep(rawCep: string) {
+    const digits = onlyDigits(rawCep)
+    if (digits.length !== 8) return
+    setCepLoading(true)
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`)
+      const data = (await res.json()) as {
+        logradouro?: string
+        bairro?: string
+        localidade?: string
+        uf?: string
+        erro?: boolean
+      }
+      if (data.erro) {
+        setError('cep', { type: 'manual', message: 'CEP não encontrado — preencha manualmente' })
+        return
+      }
+      clearErrors('cep')
+      if (data.logradouro) setValue('street', data.logradouro, { shouldValidate: true })
+      if (data.bairro) setValue('neighborhood', data.bairro, { shouldValidate: true })
+      if (data.localidade) setValue('city', data.localidade, { shouldValidate: true })
+      if (data.uf) setValue('state', data.uf, { shouldValidate: true })
+      setFocus('number')
+    } catch {
+      // rede fora / ViaCEP indisponível — não bloqueia; lojista preenche na mão
+      setError('cep', { type: 'manual', message: 'Não foi possível buscar o CEP — preencha manualmente' })
+    } finally {
+      setCepLoading(false)
+    }
+  }
 
   const { register: submitRegister, isLoading, error } = useRegisterStore({
     onSuccess: () => {
@@ -116,6 +166,12 @@ export function RegisterStorePage() {
       confirmPassword: values.confirmPassword,
       whatsapp: onlyDigits(values.whatsapp),
       documentNumber: onlyDigits(values.document),
+      cep: onlyDigits(values.cep),
+      street: values.street.trim(),
+      number: values.number.trim(),
+      neighborhood: values.neighborhood.trim(),
+      city: values.city.trim(),
+      state: values.state.trim().toUpperCase(),
       plan: values.plan,
     })
   }
@@ -296,6 +352,95 @@ export function RegisterStorePage() {
                     disabled={submitting}
                     className={inputClass}
                     {...register('email')}
+                  />
+                </Field>
+              </div>
+
+              {/* Endereço da loja — CEP com autopreenchimento (ViaCEP) */}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,140px)_1fr]">
+                <Field label="CEP" htmlFor="cep" error={errors.cep?.message}>
+                  <div className="relative">
+                    <input
+                      id="cep"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="00000-000"
+                      autoComplete="postal-code"
+                      disabled={submitting}
+                      className={inputClass}
+                      {...register('cep', {
+                        onChange: (e) => {
+                          e.target.value = maskCep(e.target.value)
+                        },
+                        onBlur: (e) => {
+                          void lookupCep(e.target.value)
+                        },
+                      })}
+                    />
+                    {cepLoading && (
+                      <Loader2
+                        aria-hidden="true"
+                        className="absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-primary"
+                      />
+                    )}
+                  </div>
+                </Field>
+
+                <Field label="Logradouro" htmlFor="street" error={errors.street?.message}>
+                  <input
+                    id="street"
+                    type="text"
+                    autoComplete="address-line1"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('street')}
+                  />
+                </Field>
+              </div>
+
+              {/* Número + Bairro + Cidade + UF */}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,90px)_1fr_1fr_minmax(0,64px)]">
+                <Field label="Número" htmlFor="number" error={errors.number?.message}>
+                  <input
+                    id="number"
+                    type="text"
+                    inputMode="numeric"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('number')}
+                  />
+                </Field>
+
+                <Field label="Bairro" htmlFor="neighborhood" error={errors.neighborhood?.message}>
+                  <input
+                    id="neighborhood"
+                    type="text"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('neighborhood')}
+                  />
+                </Field>
+
+                <Field label="Cidade" htmlFor="city" error={errors.city?.message}>
+                  <input
+                    id="city"
+                    type="text"
+                    autoComplete="address-level2"
+                    disabled={submitting}
+                    className={inputClass}
+                    {...register('city')}
+                  />
+                </Field>
+
+                <Field label="UF" htmlFor="state" error={errors.state?.message}>
+                  <input
+                    id="state"
+                    type="text"
+                    maxLength={2}
+                    placeholder="SC"
+                    disabled={submitting}
+                    className={`${inputClass} uppercase`}
+                    {...register('state')}
                   />
                 </Field>
               </div>

@@ -36,8 +36,15 @@ export const registerStoreSchema = z
     documentNumber: z
       .string()
       .regex(/^\d{11}$|^\d{14}$/, 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos)'),
-    // Endereco da loja e configurado depois em Entregas (Places autocomplete +
-    // mapa). Cadastro nao pede endereco pra reduzir atrito de conversao.
+    // Endereço da loja — obrigatório pra pré-preencher o checkout de cartão do Asaas
+    // (que exige postalCode/address/addressNumber/province/city quando identifica o
+    // cliente). Coletado com autopreenchimento por CEP (ViaCEP) no cadastro.
+    cep: z.string().regex(/^\d{8}$/, 'CEP deve conter 8 dígitos'),
+    street: z.string().min(2, 'Informe o logradouro').max(200),
+    number: z.string().min(1, 'Informe o número').max(20),
+    neighborhood: z.string().min(2, 'Informe o bairro').max(120),
+    city: z.string().min(2, 'Informe a cidade').max(120),
+    state: z.string().regex(/^[A-Za-z]{2}$/, 'UF deve ter 2 letras'),
     plan: z
       .enum(STORE_PLANS, { errorMap: () => ({ message: 'Plano inválido' }) })
       .default('PROFESSIONAL'),
