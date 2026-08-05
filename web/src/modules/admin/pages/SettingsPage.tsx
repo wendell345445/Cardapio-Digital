@@ -1,4 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -559,25 +560,50 @@ function TabAssinatura() {
   const createPixAuto = useCreatePixAuto()
   const [pixData, setPixData] = useState<PixAutoResponse | null>(null)
   const [changePlanTarget, setChangePlanTarget] = useState<PlanName | null>(null)
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const qc = useQueryClient()
 
-  // Ao voltar do checkout de cartão (?assinatura=ok), a confirmação do pagamento chega
-  // pelo webhook do Asaas de forma assíncrona — pode demorar alguns segundos após o
-  // redirect. Enquanto a loja não estiver ACTIVE, refazemos o fetch de ['store'] a cada
-  // 4s (por ~40s) pra que a tela reflita a ativação sem o lojista precisar recarregar.
-  const justPaid = searchParams.get('assinatura') === 'ok'
+  const checkoutResult = searchParams.get('assinatura') // 'ok' | 'cancelado' | 'expirado' | null
   const isActiveNow = store?.status === 'ACTIVE'
+  // "Confirmando" = voltou do checkout com sucesso mas o webhook ainda não ativou.
+  // O cartão pode levar de segundos a poucos minutos pra capturar no Asaas.
+  const [confirming, setConfirming] = useState(checkoutResult === 'ok')
+
+  // Feedback do retorno do checkout de cartão (?assinatura=cancelado|expirado): avisa e
+  // limpa a query string pra não repetir o toast a cada re-render.
   useEffect(() => {
-    if (!justPaid || isActiveNow) return
+    if (checkoutResult === 'cancelado') {
+      toast.info('Pagamento cancelado', 'Você pode tentar assinar novamente quando quiser.')
+      setSearchParams({}, { replace: true })
+    } else if (checkoutResult === 'expirado') {
+      toast.error('Checkout expirado', 'O tempo do pagamento acabou. Gere um novo para assinar.')
+      setSearchParams({}, { replace: true })
+    }
+  }, [checkoutResult, setSearchParams])
+
+  // Ao voltar do checkout com sucesso (?assinatura=ok), a confirmação chega pelo webhook
+  // do Asaas de forma assíncrona. Enquanto a loja não estiver ACTIVE, refazemos o fetch
+  // de ['store'] a cada 4s (por ~2min) pra a tela refletir a ativação sem recarregar.
+  useEffect(() => {
+    if (checkoutResult !== 'ok') return
+    if (isActiveNow) {
+      // Chegou a ativação: comemora, para o loading e limpa a query string.
+      setConfirming(false)
+      toast.success('Assinatura ativada!', 'Seu pagamento foi confirmado. Loja ativa. 🎉')
+      setSearchParams({}, { replace: true })
+      return
+    }
     let ticks = 0
     const id = setInterval(() => {
       ticks += 1
       qc.invalidateQueries({ queryKey: ['store'] })
-      if (ticks >= 10) clearInterval(id)
+      if (ticks >= 30) {
+        clearInterval(id)
+        setConfirming(false) // desiste do spinner após ~2min; o webhook ainda pode chegar depois
+      }
     }, 4000)
     return () => clearInterval(id)
-  }, [justPaid, isActiveNow, qc])
+  }, [checkoutResult, isActiveNow, qc, setSearchParams])
 
   if (isLoading) {
     return <div className="bg-white rounded-lg border border-gray-200 p-6">Carregando…</div>
@@ -627,6 +653,21 @@ function TabAssinatura() {
       </div>
 
       <div className="p-6 space-y-4">
+        {confirming && !isActive && (
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4"
+          >
+            <Loader2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-blue-600" />
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Recebemos seu pagamento</p>
+              <p className="text-sm text-blue-800">
+                Estamos confirmando com o Asaas — isso pode levar alguns instantes. A tela atualiza
+                sozinha assim que a assinatura for ativada.
+              </p>
+            </div>
+          </div>
+        )}
         <div className="bg-gray-50 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
