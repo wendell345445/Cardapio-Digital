@@ -72,13 +72,25 @@ export async function createCheckoutSession(storeId: string, webUrl: string): Pr
   const value = PLAN_VALUES[store.plan]
   const base = publicWebUrl(webUrl)
 
-  // Não passamos customerData: o Asaas exige cpfCnpj quando o objeto está presente,
-  // e a loja não coleta CPF/CNPJ no cadastro. O checkout hospedado coleta na tela.
+  // Pré-preenche o checkout hospedado com os dados que já temos do cadastro
+  // (nome da loja, email do admin, telefone e CPF/CNPJ) — o lojista só digita o
+  // cartão. O Asaas exige cpfCnpj quando `customerData` está presente, então só
+  // enviamos quando temos o documentNumber; sem ele, o checkout coleta na tela.
+  const admin = store.users[0]
+  const customerData = store.documentNumber
+    ? {
+        name: store.name,
+        email: admin?.email ?? undefined,
+        phone: store.phone,
+        cpfCnpj: store.documentNumber,
+      }
+    : undefined
   const checkout = await createRecurrentCheckout({
     storeId: store.id,
     value,
     planName: PLAN_LABEL[store.plan] ?? store.plan,
     nextDueDate: firstChargeDate(),
+    customerData,
     callbackUrls: {
       successUrl: `${base}/admin/configuracoes?assinatura=ok`,
       cancelUrl: `${base}/admin/configuracoes?assinatura=cancelado`,

@@ -22,7 +22,6 @@ const ACTIVE_STATUSES = ['ACTIVE', 'ACTIVATED']
 export function PixAutoModal({ data, onClose }: Props) {
   const qc = useQueryClient()
   const [copied, setCopied] = useState(false)
-  const [status, setStatus] = useState(data.status)
   const activatedRef = useRef(false)
 
   // Polling do status enquanto o lojista paga/autoriza. O webhook é a fonte-de-verdade
@@ -32,7 +31,6 @@ export function PixAutoModal({ data, onClose }: Props) {
     const id = setInterval(async () => {
       try {
         const res = await getPixAutoStatus()
-        if (res.status) setStatus(res.status)
         if (res.status && ACTIVE_STATUSES.includes(res.status.toUpperCase())) {
           activatedRef.current = true
           clearInterval(id)
@@ -90,7 +88,7 @@ export function PixAutoModal({ data, onClose }: Props) {
 
           <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Aguardando autorização… (status: {status})
+            Aguardando autorização…
           </div>
         </div>
       </div>

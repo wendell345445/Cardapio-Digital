@@ -21,12 +21,13 @@ jest.mock('../../../shared/asaas/asaas.service', () => ({
 }))
 
 import {
+  createRecurrentCheckout,
   createTokenizedCharge,
   getSubscription,
   updateSubscription,
 } from '../../../shared/asaas/asaas.service'
 import { prisma } from '../../../shared/prisma/prisma'
-import { changePlan, getChangePlanPreview } from '../billing.service'
+import { changePlan, createCheckoutSession, getChangePlanPreview } from '../billing.service'
 
 const mockPrisma = prisma as unknown as {
   store: { findUnique: jest.Mock; update: jest.Mock }
@@ -132,5 +133,43 @@ describe('changePlan — DOWNGRADE', () => {
     const updateArg = mockPrisma.store.update.mock.calls[0][0]
     expect(updateArg.data.pendingPlan).toBe('PROFESSIONAL')
     expect(updateArg.data.plan).toBeUndefined() // NÃO rebaixa agora
+  })
+})
+
+describe('createCheckoutSession — pré-preenche customerData', () => {
+  const storeForCheckout = {
+    id: 'store-1',
+    slug: 'loja-teste',
+    name: 'Loja Teste',
+    status: 'TRIAL',
+    plan: 'PROFESSIONAL',
+    phone: '48999990000',
+    documentNumber: '24971563792',
+    users: [{ email: 'admin@loja.com', name: 'Admin' }],
+  }
+
+  beforeEach(() => {
+    ;(createRecurrentCheckout as jest.Mock).mockResolvedValue({ id: 'chk_1', link: 'https://asaas/x' })
+  })
+
+  it('passa customerData (nome/email/telefone/CPF) quando a loja tem documentNumber', async () => {
+    mockPrisma.store.findUnique.mockResolvedValue(storeForCheckout)
+    await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
+
+    const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]
+    expect(arg.customerData).toEqual({
+      name: 'Loja Teste',
+      email: 'admin@loja.com',
+      phone: '48999990000',
+      cpfCnpj: '24971563792',
+    })
+  })
+
+  it('omite customerData quando a loja não tem documentNumber (Asaas coleta na tela)', async () => {
+    mockPrisma.store.findUnique.mockResolvedValue({ ...storeForCheckout, documentNumber: null })
+    await createCheckoutSession('store-1', 'https://loja-teste.menupanda.ai')
+
+    const arg = (createRecurrentCheckout as jest.Mock).mock.calls[0][0]
+    expect(arg.customerData).toBeUndefined()
   })
 })

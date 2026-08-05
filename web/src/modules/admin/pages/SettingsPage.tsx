@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { ImageUpload } from '../components/ImageUpload'
@@ -558,6 +559,25 @@ function TabAssinatura() {
   const createPixAuto = useCreatePixAuto()
   const [pixData, setPixData] = useState<PixAutoResponse | null>(null)
   const [changePlanTarget, setChangePlanTarget] = useState<PlanName | null>(null)
+  const [searchParams] = useSearchParams()
+  const qc = useQueryClient()
+
+  // Ao voltar do checkout de cartão (?assinatura=ok), a confirmação do pagamento chega
+  // pelo webhook do Asaas de forma assíncrona — pode demorar alguns segundos após o
+  // redirect. Enquanto a loja não estiver ACTIVE, refazemos o fetch de ['store'] a cada
+  // 4s (por ~40s) pra que a tela reflita a ativação sem o lojista precisar recarregar.
+  const justPaid = searchParams.get('assinatura') === 'ok'
+  const isActiveNow = store?.status === 'ACTIVE'
+  useEffect(() => {
+    if (!justPaid || isActiveNow) return
+    let ticks = 0
+    const id = setInterval(() => {
+      ticks += 1
+      qc.invalidateQueries({ queryKey: ['store'] })
+      if (ticks >= 10) clearInterval(id)
+    }, 4000)
+    return () => clearInterval(id)
+  }, [justPaid, isActiveNow, qc])
 
   if (isLoading) {
     return <div className="bg-white rounded-lg border border-gray-200 p-6">Carregando…</div>
